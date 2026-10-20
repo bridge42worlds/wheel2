@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Колесо-2 · пульт</title>
+<link rel="stylesheet" href="/ui.css">
+<style>
+.top { display:flex; flex-direction:row; gap:10px; align-items:center; flex-wrap:wrap; }
+.top h1 { font-size:1.15em; margin:0; }
+.cols { display:grid; grid-template-columns:minmax(0, 1.02fr) minmax(0, 1.35fr) minmax(0, 1fr); gap:8px; min-height:0; }
+.wheel { border:1px solid var(--line); border-radius:9px; padding:5px 7px; display:flex; flex-direction:column; gap:4px; }
+.wheel .h { display:flex; gap:6px; align-items:center; flex-wrap:wrap; font-weight:600; }
+.wheel .h select { font:inherit; font-size:.85em; }
+.inst { display:flex; flex-direction:column; gap:6px; min-height:0; }
+.act { border-top:1px solid var(--line); padding-top:6px; margin-top:auto; display:flex; flex-direction:column; gap:5px; }
+.act .slots { display:flex; flex-wrap:wrap; gap:3px; }
+.act .slots .btn { padding:.2em .5em; font-size:.9em; }
+.groups { display:grid; grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; gap:6px; min-height:0; }
+.gm { display:flex; flex-wrap:wrap; gap:3px; }
+.gm button { display:inline-flex; align-items:center; gap:4px; padding:.2em .45em; font-size:.88em; }
+.gm button svg { flex:none; }
+.live { font-size:.9em; }
+.foot { display:flex; gap:14px; flex-wrap:wrap; align-items:center; background:var(--card); border:1px solid var(--line);
+        border-radius:10px; padding:5px 10px; min-height:2.2em; }
+.prm { display:grid; grid-template-columns:repeat(auto-fit, minmax(330px, 1fr)); gap:10px 18px; }
+.prm .p { border-top:1px solid var(--line); padding-top:6px; }
+.prm .p .v { display:flex; flex-wrap:wrap; gap:3px; margin:3px 0; }
+.prm .p .v .btn { padding:.15em .55em; font-size:.9em; }
+.tab { display:none; } .tab.sel { display:flex; flex-direction:column; gap:6px; min-height:0; flex:1; overflow:hidden; }
+@media (max-width: 900px) { .groups { grid-template-columns:1fr; grid-template-rows:none; } }
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="panel top">
+    <h1>Колесо-2 · пульт</h1>
+    <span id="conn" class="small"></span>
+    <span id="exp" class="small"></span>
+    <span class="sp"></span>
+    <button class="btn big go" id="bGo" title="Каждая группа — по своему набору и параметрам; кто не в группе — стоит">▶ Пуск</button>
+    <button class="btn big stop" id="bStop" title="Все генераторы стоят и остывают (80 МГц); статические меряют">⏹ Стоп</button>
+    <button class="btn big" id="bQuench" title="Все генераторы только рассеивают свой шум: шум в шум, ни одного простого">≋ Тушение</button>
+    <span class="small mut">телеметрия</span>
+    <a class="btn" href="/plan" target="plan" title="Слои опыта: роль колеса, способ, шум, поле; матрица → программа; лента шагов">Планшетка ↗</a>
+    <span class="seg" id="tele"><button data-tl="0" title="Пакет раз в секунду — всё в реальном времени">обычная</button><button data-tl="1" title="В 10 раз реже">редкая</button><button data-tl="2" title="Генераторы молчат (команды слышат); статические говорят">молчание</button></span>
+    <a class="btn" href="/watch" target="watch" title="Второй экран: статика и простые в реальном времени">Наблюдение ↗</a>
+    <a class="btn" href="/" target="old" title="Прежняя панель со всеми счётчиками">Подробно ↗</a>
+    <a class="btn" href="/docs/modes.html" target="docs" title="Все режимы установки">Режимы ↗</a>
+  </div>
+
+  <div class="cols">
+    <div class="panel">
+      <h2>Установка <span class="small mut" id="instSum"></span></h2>
+      <div class="inst fill" id="inst"></div>
+      <div class="act" id="act"></div>
+    </div>
+    <div class="panel">
+      <h2>Группы и режимы <span class="small mut">— меняется сразу, уходит агентам по «Пуск»</span> <span id="pending" class="small"></span></h2>
+      <div class="groups fill" id="groups"></div>
+    </div>
+    <div class="panel">
+      <div class="tabs" id="tabs"><button data-t="now" class="sel">Сейчас</button><button data-t="prog">Программа</button><button data-t="runs">Журнал</button><button data-t="svc">Сервис</button></div>
+      <div class="tab sel" id="t-now"></div>
+      <div class="tab" id="t-prog"></div>
+      <div class="tab" id="t-runs"></div>
+      <div class="tab" id="t-svc"></div>
+    </div>
+  </div>
+
+  <div class="foot" id="foot"><span class="mut">…</span></div>
+</div>
+<script src="/ui.js"></script>
+<script>
+"use strict";
+let D = null, pick = new Set(), pending = false, tab = "now";
+function setHTML(el, html) { if (el._h !== html) { el._h = html; el.innerHTML = html; } }   // перерисовать, только если изменилось
+const WHEELS = ["1", "2"];
+const ago2 = t => t ? fmtDur(Date.now() / 1000 - t) : "—";
+
+// ---------- данные ----------
+function agentsGen(d) { return d.agents.filter(a => d.gen[a.mac] || a.kind === "S" || a.kind === "A" || a.kind === "B"); }
+function slotOf(d, a) { return (d.compose.slot || {})[a.mac] || (a.kind === "S" ? "S" : "idle"); }
+function wheelOf(d, a) { return (d.compose.wheels || {})[a.mac] || ""; }
+function roleOf(sl) { return sl === "S" ? "S" : sl === "idle" ? "idle" : sl[1]; }
+
+// ---------- верхняя строка ----------
+function renderTop(d) {
+  const ags = agentsGen(d), on = ags.filter(a => alive(a.status)).length, quiet = ags.filter(a => a.status === "quiet").length;
+  $("conn").innerHTML = `<span class="${on ? "ok" : "bad"}">${on ? "●" : "○"} ${on}/${ags.length} на связи</span>` +
+    (quiet ? `<span class="mut"> · ◇ молчат ${quiet}</span>` : "");
+  const c = d.compose || {}, p = d.program;
+  let s;
+  if (p && p.state === "running" && p.now) {
+    s = `программа «${esc(p.name)}» · шаг ${p.now.n}/${p.now.of} «${esc(p.now.name)}»` +
+        (p.now.rest ? " · отдых до стабилизации" : ` · ${fmtDur(Date.now() / 1000 - (p.now.t_meas || p.now.t0))} / ${fmt(p.now.minutes, 1)} мин`);
+  } else if (c.state === "run") s = `<span class="ok">▶ идёт</span> с ${new Date(c.t * 1000).toLocaleTimeString("ru-RU")} · ${fmtDur(Date.now() / 1000 - c.t)}`;
+  else if (c.state === "quench") s = `<span class="warn">≋ тушение</span> · ${fmtDur(Date.now() / 1000 - c.t)}`;
+  else s = `<span class="mut">⏹ стоят</span>`;
+  $("exp").innerHTML = s;
+  document.querySelectorAll("#tele button").forEach(b => b.classList.toggle("sel", +b.dataset.tl === (d.tele || 0)));
+  $("pending").innerHTML = pending ? `<span class="warn">◐ изменения ждут «Пуск»</span>` : "";
+}
+
+// ---------- установка: фишки ----------
+function chip(d, a) {
+  const sl = slotOf(d, a), r = roleOf(sl), v = a.values || {}, tmax = v.tmax || 70;
+  const t = v.temp, w = t == null ? 0 : Math.max(0, Math.min(100, (t - 40) / (tmax - 40) * 100));
+  const rt = a.rating || {}, q = rt.cat === "bad" ? "✗" : rt.cat === "warn" ? "◐" : "";
+  const g = /^[1-4]/.test(sl) ? sl[0] : "";
+  const rest = ((d.gen[a.mac] || {}).gstat || {}).rest || [];
+  const quiet = a.status === "quiet";
+  return `<div class="chip ${ROLES[r].cls} ${alive(a.status) ? "" : "off"} ${quiet ? "quiet" : ""} ${pick.has(a.mac) ? "pick" : ""}" data-mac="${a.mac}"
+    title="№${a.id} · ${ROLES[r].name}${g ? " · группа " + g : ""} · ${t != null ? fmt(t, 1) + " °C" : "нет данных"} · ${quiet ? "молчит по команде (телеметрия выключена)" : alive(a.status) ? "на связи" : "нет связи"}${rt.score != null ? " · надёжность " + rt.score : ""}">
+    ${q ? `<span class="q ${rt.cat === "bad" ? "bad" : "warn"}">${q}</span>` : quiet ? `<span class="q mut">◇</span>` : ""}${g ? `<span class="g">${g}</span>` : ""}
+    <div class="n">${a.id || "?"}</div><div class="r">${rest[0] === 1 ? "⏸" : ROLES[r].icon}</div>
+    <div class="t"><i class="${t != null && t >= tmax - 2 ? "hot" : ""}" style="width:${w}%"></i></div></div>`;
+}
+function renderInst(d) {
+  // открыт список «всё колесо → группа»: перерисовка (температура в фишках меняется каждый тик) его бы закрыла
+  const ae = document.activeElement;
+  if (ae && ae.tagName === "SELECT" && $("inst").contains(ae)) return;
+  const ags = agentsGen(d).sort((x, y) => (x.id || 999) - (y.id || 999));
+  const by = { "1": [], "2": [], S: [], none: [] };
+  for (const a of ags) {
+    const sl = slotOf(d, a), w = wheelOf(d, a);
+    if (sl === "S" && !w) by.S.push(a);
+    else if (w === "1" || w === "2") by[w].push(a);
+    else if (sl === "S") by.S.push(a);
+    else by.none.push(a);
+  }
+  const cnt = list => ["A", "B", "idle"].map(r => [r, list.filter(a => roleOf(slotOf(d, a)) === r).length]).filter(x => x[1])
+    .map(([r, n]) => `${ROLES[r].icon} ${n}`).join(" · ");
+  const block = (title, list, key) => `<div class="wheel"><div class="h">${title}<span class="small mut">${list.length ? cnt(list) : "пусто"}</span>
+      ${key && list.length ? `<span class="sp"></span><select data-wall="${key}" title="Всех агентов этого колеса — в группу">
+        <option value="">всё колесо →</option>${[1, 2, 3, 4].map(g => `<option value="${g}A">группа ${g} ▲</option><option value="${g}B">группа ${g} ▼</option>`).join("")}
+        <option value="idle">○ стоят</option></select>` : ""}</div>
+      <div class="chips">${list.map(a => chip(d, a)).join("") || `<span class="small mut">—</span>`}</div></div>`;
+  const newUsb = ((d.usb || {}).boards || []).filter(b => b.status === "new" || b.status === "unknown").length;
+  setHTML($("inst"), block("Колесо 1", by["1"], "1") + block("Колесо 2", by["2"], "2") + block("Статические ◆", by.S, "") +
+    (by.none.length ? block("Без колеса", by.none, "") : "") +
+    (newUsb ? `<div class="warn small">★ новых плат на USB: ${newUsb} — вкладка «Сервис»</div>` : ""));
+  $("instSum").textContent = `${ags.length} из 36`;
+  renderAct(d);
+}
+function renderAct(d) {
+  const sel = [...pick].map(m => d.agents.find(a => a.mac === m)).filter(Boolean);
+  if (!sel.length) { setHTML($("act"), `<span class="small mut">Нажмите фишки, чтобы выбрать агентов; двойное нажатие — карточка агента.</span>`); return; }
+  const slots = [["idle", "○ стоит"], ...[1, 2, 3, 4].flatMap(g => [[`${g}A`, `${g} ▲`], [`${g}B`, `${g} ▼`]]), ["S", "◆ статический"]];
+  setHTML($("act"), `<div class="small">Выбрано: <b>${sel.map(a => "№" + a.id).join(", ")}</b> <button class="btn" data-clear>снять</button></div>
+    <div class="slots"><span class="small mut">место:</span>${slots.map(([k, n]) => `<button class="btn" data-slot="${k}">${n}</button>`).join("")}</div>
+    <div class="slots"><span class="small mut">колесо:</span><button class="btn" data-wh="1">1</button><button class="btn" data-wh="2">2</button><button class="btn" data-wh="">без</button></div>`);
+}
+async function saveCompose(body, why) {
+  try {
+    await postJSON("/api/compose", { action: "save", ...body });
+    pending = true;
+    await refresh();
+  } catch (e) { note(`✗ ${why}: ${e.message}`, "bad"); }
+}
+document.addEventListener("click", async e => {
+  const ch = e.target.closest(".chip");
+  if (ch && e.detail === 1) {
+    const m = ch.dataset.mac;
+    pick.has(m) ? pick.delete(m) : pick.add(m);
+    renderInst(D);
+    return;
+  }
+  if (e.target.dataset.clear != null) { pick.clear(); renderInst(D); return; }
+  const sl = e.target.dataset.slot;
+  if (sl) {
+    const macs = [...pick];
+    const toS = macs.filter(m => { const a = D.agents.find(x => x.mac === m); return a && ((sl === "S") !== (slotOf(D, a) === "S")); });
+    if (toS.length && !confirm("Смена роли «статический» ↔ генерация перезапускает плату (≈10 с). Продолжить?")) return;
+    await saveCompose({ slot: Object.fromEntries(macs.map(m => [m, sl])) }, "место");
+    return;
+  }
+  if (e.target.dataset.wh != null) {
+    await saveCompose({ wheels: Object.fromEntries([...pick].map(m => [m, e.target.dataset.wh])) }, "колесо");
+    return;
+  }
+});
+document.addEventListener("dblclick", e => {
+  const ch = e.target.closest(".chip");
+  if (ch) agentSheet(ch.dataset.mac);
+});
+document.addEventListener("change", async e => {
+  const w = e.target.dataset.wall;
+  if (w && e.target.value) {
+    const v = e.target.value;
+    const macs = D.agents.filter(a => wheelOf(D, a) === w && slotOf(D, a) !== "S").map(a => a.mac);
+    await saveCompose({ slot: Object.fromEntries(macs.map(m => [m, v])) }, "колесо в группу");
+  }
+});
+
+// ---------- карточка агента ----------
+async function agentSheet(mac) {
+  const a = D.agents.find(x => x.mac === mac);
+  if (!a) return;
+  const v = a.values || {}, g = D.gen[mac] || {}, sl = slotOf(D, a), rt = a.rating || {};
+  let ev = [];
+  try { ev = (await getJSON(`/api/agent_events?n=25&mac=${encodeURIComponent(mac)}`)).events || []; } catch (e) { /* нет */ }
+  sheet(`<div class="row"><b class="big">№${a.id}</b><span>${ROLES[roleOf(sl)].icon} ${ROLES[roleOf(sl)].name}${/^[1-4]/.test(sl) ? " · группа " + sl[0] : ""}</span>
+      <span class="${a.status === "online" ? "ok" : "bad"}">${a.status === "online" ? "● на связи" : "○ нет связи"}</span><span class="sp"></span><button class="btn" data-close>закрыть</button></div>
+    <p class="small mut">${esc(a.label)} · ${esc(mac)} · ${esc(a.ip || "—")} · прошивка ${esc(a.fw || "—")} · работает ${fmtDur(v.up)}</p>
+    <div class="row"><span>кристалл <b>${fmt(v.temp, 1)} °C</b> (предел ${v.tmax || 70})</span><span>работа <b>${fmt(v.work, 0)} %</b></span>
+      <span>сигнал ${v.rssi ?? "—"} дБм</span><span>простых ${fmt(g.pr)} · кандидатов ${fmt(g.cand)}</span></div>
+    <p>надёжность: <b class="${rt.cat === "ok" ? "ok" : rt.cat === "warn" ? "warn" : "bad"}">${rt.cat === "ok" ? "✓" : rt.cat === "warn" ? "◐" : "✗"} ${rt.score ?? "—"}</b>
+      ${(rt.sys || []).length ? ` · <span class="bad">систематически: ${rt.sys.map(esc).join(", ")}</span>` : ""}</p>
+    <table class="t"><tr><th>когда</th><th>событие</th></tr>${ev.map(e => `<tr><td class="mut">${new Date(e.t * 1000).toLocaleString("ru-RU",
+      { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td><td>${e.w >= 20 ? "✗" : e.w > 0 ? "◐" : "·"} ${esc(e.text)}</td></tr>`).join("") || "<tr><td colspan=2 class=mut>история пуста</td></tr>"}</table>`);
+}
+
+// ---------- группы ----------
+function groupMembers(d, gk) {
+  const out = { A: [], B: [] };
+  for (const a of agentsGen(d)) { const sl = slotOf(d, a); if (sl[0] === gk && /^[1-4][AB]$/.test(sl)) out[sl[1]].push(a); }
+  return out;
+}
+function groupCfg(d, gk) {   // действующие значения: общие ← набор ← свои группы
+  const gr = (d.compose.groups || {})[gk] || {}, p = (d.presets || []).find(x => x.key === gr.preset) || {};
+  return { ...(d.common || d.default || {}), ...(p.cfg || {}), ...(gr.cfg || {}) };
+}
+function groupOf(d, cid) { return Object.values(d.groups || {}).find(g => g.cid === cid); }
+function liveRate(d, cid) {   // сообща — по сводке группы (у «на одном числе» простые только там), иначе — по агентам
+  const s = groupOf(d, cid), gd = Object.values(d.guard || {}).find(g => g.cid === cid);
+  return s ? s.pr_s : gd ? gd.pr_s : null;
+}
+function groupLive(d, mem) {
+  const cnt = {};
+  for (const a of [...mem.A, ...mem.B]) { const c = (d.gen[a.mac] || {}).cid; if (c) cnt[c] = (cnt[c] || 0) + 1; }
+  const cid = +Object.keys(cnt).sort((x, y) => cnt[y] - cnt[x])[0] || null;   // настройка большинства группы
+  const s = cid ? groupOf(d, cid) : null;
+  const gd = cid ? Object.values(d.guard || {}).find(g => g.cid === cid) : null;
+  const temps = [...mem.A, ...mem.B].map(a => (a.values || {}).temp).filter(t => t != null);
+  return { s, gd, temps, cid, rate: cid ? liveRate(d, cid) : null };
+}
+function renderGroups(d) {
+  const html = ["1", "2", "3", "4"].map(gk => {
+    const mem = groupMembers(d, gk), gr = (d.compose.groups || {})[gk] || {}, c = groupCfg(d, gk);
+    const n = mem.A.length + mem.B.length;
+    if (!n) return `<div class="card idle"><b>Группа ${gk}</b><span class="small mut">пусто — выберите агентов слева и место «${gk} ▲» или «${gk} ▼»</span></div>`;
+    const preset = gr.preset === "relay_b" || gr.preset === "sham" ? "relay" : gr.preset;
+    const { s, gd, temps, rate } = groupLive(d, mem);
+    const run = s || gd;
+    const full = s && s.gath ? 1 - s.truncs / s.gath : null;
+    const live = run ? `<span class="num"><b>${fmt(rate, 1)}</b> простых/с</span>` +
+      (full != null && s.gv ? ` · ${fmt(100 * full, 0)} % кругов из кусочков всех` : "") +
+      (temps.length ? ` · ${fmt(Math.min(...temps), 0)}–${fmt(Math.max(...temps), 0)} °C` : "") +
+      ((s && (s.resting || []).length) ? ` · <span class="warn">⏸ отдыхают ${s.resting.map(i => "№" + i).join(", ")}</span>` : "")
+      : `<span class="mut">стоит</span>`;
+    return `<div class="card">
+      <div class="row"><b>Группа ${gk}</b><span class="small">▲ ${mem.A.map(a => a.id).join(" ") || "—"} · ▼ ${mem.B.map(a => a.id).join(" ") || "—"}</span></div>
+      <div class="small mut">генерация</div>
+      <div class="gm">${GEN_MODES.map(m => `<button class="btn ${preset === m.key ? "sel" : ""}" data-g="${gk}" data-preset="${m.key}" title="${esc(m.desc)}">${PICT[m.key]}${m.name}</button>`).join("")}</div>
+      ${mem.B.length ? `<div class="small mut">поглощение (▼ ${mem.B.length})</div>
+      <div class="gm">${ABS_MODES.map(m => `<button class="btn ${(c.sm ?? 1) === m.sm ? "sel" : ""}" data-g="${gk}" data-k="sm" data-v="${m.sm}" title="${esc(m.desc)}">${m.name}</button>`).join("")}
+        <button class="btn ${c.sh ? "sel" : ""}" data-g="${gk}" data-k="sh" data-v="${c.sh ? 0 : 1}" title="${esc(PARAMS.sh.desc)}">пустышка</button></div>` : ""}
+      <div class="row small">${["bits", "src", "raw", "dc", "tmax", "pl"].map(k => `<span class="pill" title="${esc(PARAMS[k].label + ": " + PARAMS[k].desc)}">${PARAMS[k].label.split(" ")[0].toLowerCase()}: ${esc(paramText(k, c[k]))}</span>`).join("")}
+        <button class="btn" data-params="${gk}">все параметры ▸</button></div>
+      <div class="live">${live}</div></div>`;
+  }).join("");
+  setHTML($("groups"), html);
+}
+async function saveGroup(gk, body) { await saveCompose({ groups: { [gk]: body } }, `группа ${gk}`); }
+document.addEventListener("click", async e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.dataset.preset) { await saveGroup(b.dataset.g, { preset: b.dataset.preset }); return; }
+  if (b.dataset.k && b.dataset.g && b.dataset.v != null && !b.closest(".sheet")) { await saveGroup(b.dataset.g, { cfg: { [b.dataset.k]: +b.dataset.v } }); return; }
+  if (b.dataset.params) { paramSheet(b.dataset.params); return; }
+});
+
+// ---------- лист параметров группы ----------
+function paramSheet(gk) {
+  const draw = el => {
+    const gr = (D.compose.groups || {})[gk] || {}, c = groupCfg(D, gk), own = gr.cfg || {};
+    el.innerHTML = `<div class="row"><b class="big">Группа ${gk}: параметры</b><span class="small mut">✎ — своё значение группы (поверх набора «${esc(((D.presets || []).find(p => p.key === gr.preset) || {}).name || gr.preset)}»)</span>
+        <span class="sp"></span><button class="btn" data-close>закрыть</button></div>
+      <div class="prm">${PARAM_GROUPS.map(pg => `<div><div class="small mut" style="font-weight:600;margin-top:6px">${pg.name}</div>${pg.keys.map(k => {
+        const p = PARAMS[k], v = c[k];
+        const opts = p.bits ? p.bits.map(([bit, n]) => `<button class="btn ${v & bit ? "sel" : ""}" data-pk="${k}" data-pv="${v ^ bit}">${n}</button>`)
+          : p.values.map(x => { const [val, n] = Array.isArray(x) ? x : [x, fmt(x) + (p.unit ? " " + p.unit : "")];
+              return `<button class="btn ${v === val ? "sel" : ""}" data-pk="${k}" data-pv="${val}">${n}</button>`; });
+        return `<div class="p"><b>${p.label}</b> ${k in own ? `<span class="on" title="своё значение группы">✎</span> <button class="btn small" data-pk="${k}" data-pv="null">как в наборе</button>` : ""}
+          <div class="v">${opts.join("")}</div><div class="small">${esc(p.desc)}</div><div class="small mut">→ ${esc(p.change)}</div></div>`;
+      }).join("")}</div>`).join("")}</div>`;
+  };
+  const el = sheet("");
+  draw(el);
+  el.addEventListener("click", async e => {
+    const b = e.target.closest("button[data-pk]");
+    if (!b) return;
+    const v = b.dataset.pv === "null" ? null : +b.dataset.pv;
+    if (b.dataset.pk === "src" && v === 0) { note("◐ хотя бы один источник шума", "warn"); return; }
+    await saveGroup(gk, { cfg: { [b.dataset.pk]: v } });
+    draw(el);
+  });
+}
+
+// ---------- кнопки состояния, телеметрия ----------
+async function compose(action, label) {
+  try {
+    const r = await postJSON("/api/compose", { action });
+    pending = false;
+    note(`✓ ${label}: ${(r.applied || []).map(x => `${x.label} (${x.n})`).join(", ")}`, "ok");
+    await refresh();
+  } catch (e) { note(`✗ ${label}: ${e.message}`, "bad"); }
+}
+$("bGo").onclick = () => compose("apply", "пуск");
+$("bStop").onclick = () => compose("stop", "стоп");
+$("bQuench").onclick = () => confirm("Тушение: все генераторы только рассеивают шум, простых не будет. Включить?") && compose("quench", "тушение");
+$("tele").onclick = async e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  try { const r = await postJSON("/api/telemetry", { tl: +b.dataset.tl }); note(`✓ телеметрия: ${b.textContent} (${r.n} генераторам)`, "ok"); await refresh(); }
+  catch (er) { note(`✗ телеметрия: ${er.message}`, "bad"); }
+};
+
+// ---------- вкладки опыта ----------
+document.getElementById("tabs").onclick = e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  tab = b.dataset.t;
+  document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("sel", x === b));
+  document.querySelectorAll(".tab").forEach(x => x.classList.toggle("sel", x.id === "t-" + tab));
+  renderTab(true);
+};
+function renderNow(d) {
+  const p = d.program, sv = d.static_verdict, rec = d.static_rec;
+  let h = "";
+  if (p && p.state === "running" && p.now) {
+    const el = Date.now() / 1000 - (p.now.t_meas || p.now.t0), tot = (p.now.minutes || 0) * 60;
+    h += `<div><b>Программа «${esc(p.name)}»</b> — шаг ${p.now.n} из ${p.now.of}: ${esc(p.now.name)}${p.now.control ? " <span class='pill'>контроль</span>" : ""}</div>
+      ${p.now.rest ? `<div class="warn">⏸ отдых до стабилизации температуры</div>` : `<div class="bar"><i style="width:${Math.min(100, 100 * el / Math.max(tot, 1))}%"></i></div>
+      <div class="small mut">${fmtDur(el)} из ${fmtDur(tot)} · выполнено ${p.done} · аномалий ${p.anomalies} · испорчено ${p.spoiled}</div>`}
+      <button class="btn stop" id="pStop">⏹ остановить программу</button>`;
+  } else {
+    const c = d.compose || {};
+    h += `<div><b>${c.state === "run" ? "▶ Опыт вручную" : c.state === "quench" ? "≋ Тушение" : "⏹ Стоят"}</b>${c.t ? ` · ${fmtDur(Date.now() / 1000 - c.t)}` : ""}</div>`;
+    const runs = Object.values(d.guard || {});
+    if (runs.length) h += `<table class="t"><tr><th>настройка</th><th>агенты</th><th>простых/с</th></tr>${runs.map(g =>
+      `<tr><td>№${g.cid}</td><td>${g.ids.map(i => "№" + i).join(" ")}</td><td class="num">${fmt(liveRate(d, g.cid), 1)}</td></tr>`).join("")}</table>`;
+  }
+  const v = sv && STATIC_VERDICT[sv.verdict];
+  h += `<div style="margin-top:4px"><b>Статика</b> ${v ? `<span class="${v.cls}">${v.icon} ${v.word}</span>` : "<span class='mut'>нет датчиков</span>"}
+    ${sv && sv.what ? `<span class="small mut">(${esc(sv.what)})</span>` : ""}</div>`;
+  if (sv && sv.sensors) h += `<div class="small">${Object.entries(sv.sensors).map(([m, x]) => { const a = d.agents.find(y => y.mac === m) || {}, vv = STATIC_VERDICT[x.verdict] || {};
+    return `<div><span class="${vv.cls}">${vv.icon}</span> №${a.id || "?"}: ${esc((x.reasons || [])[0] || vv.word || "")}</div>`; }).join("")}</div>`;
+  h += `<div class="row" style="margin-top:4px"><button class="btn" id="bBase" title="Записать эталон шума статических: генераторы на это время стоят">◆ эталон шума 5 мин</button>
+    ${rec ? `<span class="warn small">⏺ пишется эталон: ещё ${fmtDur(rec.t1 - Date.now() / 1000)}</span>` : ""}</div>`;
+  $("t-now").innerHTML = h;
+  const ps = $("pStop"); if (ps) ps.onclick = async () => { try { await postJSON("/api/program/stop", {}); note("✓ программа остановится после шага", "ok"); } catch (e) { note("✗ " + e.message, "bad"); } };
+  const bb = $("bBase"); if (bb) bb.onclick = async () => {
+    if (!confirm("Записать эталон шума статических 5 минут? Генераторы на это время должны стоять (нажмите «Стоп»).")) return;
+    try {
+      const r = await postJSON("/api/static/baseline", { action: "start", macs: "all", minutes: 5 });
+      if ((r.busy || []).length) note(`◐ эталон пишется 5 мин, но считают ${r.busy.join(", ")} — он будет не чистым (нажмите «Стоп» и запишите заново)`, "warn");
+      else note("✓ эталон пишется 5 мин", "ok");
+    } catch (e) { note("✗ " + e.message, "bad"); }
+  };
+}
+let progCache = null, runsCache = null, runsT = 0, progT = 0;
+async function renderProg(force) {
+  if (force || Date.now() - progT > 8000) { progCache = await getJSON("/api/programs"); progT = Date.now(); }
+  const r = progCache || {}, act = r.active, last = act || (r.list || [])[0];
+  let x = null;
+  if (last) { try { x = await getJSON(`/api/program?id=${last.id}`); } catch (e) { /* нет */ } }
+  let h = `<div class="row"><button class="btn go" id="pNew">＋ новая программа</button>${act ? `<span class="warn">идёт №${act.id}</span>` : ""}</div>`;
+  if (x) {
+    const prog = x.program || {}, steps = prog.steps || [], plan = x.plan || [], runs = x.runs || [];
+    const estS = plan.reduce((s, it) => s + ((steps[it.step] || {}).minutes || 0) * 60 + (prog.settle_s || 0) + (prog.rest === "stable" ? 150 : +prog.rest || 0), 0) + (prog.baseline_min || 0) * 60;
+    h += `<div class="small"><b>№${x.id} «${esc(prog.name)}»</b> · ${esc(x.state)} · шагов ${plan.length} · план ≈ ${fmtDur(estS)}
+      · предел ${(D.common || {}).tmax || 70} °C · отдых: ${prog.rest === "stable" ? "до стабилизации" : prog.rest ? prog.rest + " с" : "нет"} · повтор ${prog.repeat}${prog.shuffle ? ", случайно" : ""}</div>
+      <div class="fill" style="overflow:auto"><table class="t"><tr><th>№</th><th>шаг</th><th>мин</th><th>факт: простых/с · статика</th></tr>${plan.map((it, i) => {
+        const st = steps[it.step] || {}, rr = runs[i];
+        const sv = rr && rr.watch ? STATIC_VERDICT[rr.watch.verdict] : null;
+        const prs = rr && rr.gen ? Object.values(rr.gen).reduce((s, g) => s + (g.pr_s || 0), 0) : null;
+        return `<tr><td>${i + 1}</td><td>${esc(st.name)}${st.control ? " <span class='pill'>контроль</span>" : ""}${it.confirm ? " <span class='pill'>проверка</span>" : ""}</td><td>${fmt(st.minutes, 1)}</td>
+          <td>${rr ? `${prs != null ? fmt(prs, 1) : "—"}${sv ? ` · <span class="${sv.cls}">${sv.icon} ${sv.word}</span>` : ""}${rr.spoiled ? " · <span class='bad'>испорчен</span>" : ""}` : (act && i === (act.done || 0) ? "<span class='on'>идёт</span>" : "<span class='mut'>—</span>")}</td></tr>`;
+      }).join("")}</table></div>`;
+  } else h += `<div class="mut">программ ещё не было</div>`;
+  $("t-prog").innerHTML = h;
+  $("pNew").onclick = () => progSheet(r.template);
+}
+function progSheet(tpl) {
+  const el = sheet(`<div class="row"><b class="big">Новая программа</b><span class="sp"></span><button class="btn" data-close>закрыть</button></div>
+    <p class="small">Шаги: <code>name</code>, <code>minutes</code>, <code>cfg</code> (параметры поверх общих), <code>control</code> (контроль), <code>quiet</code> (генераторы молчат).
+      Программа: <code>repeat</code>, <code>shuffle</code>, <code>rest</code> ("stable" — отдых до стабилизации перед шагом), <code>baseline_min</code> (эталон статики), <code>z</code>, <code>confirm</code>. Подробно — docs/program.md.</p>
+    <textarea id="pj" style="width:100%;height:50vh;font:12px/1.4 ui-monospace,monospace">${esc(JSON.stringify({ ...tpl, rest: "stable" }, null, 1))}</textarea>
+    <div class="row"><button class="btn go big" id="pRun">▶ запустить</button><span id="pErr" class="bad small"></span></div>`);
+  el.querySelector("#pRun").onclick = async () => {
+    let prog;
+    try { prog = JSON.parse(el.querySelector("#pj").value); } catch (e) { el.querySelector("#pErr").textContent = "не JSON: " + e.message; return; }
+    try { await postJSON("/api/program/start", { program: prog }); el.parentNode.remove(); note("✓ программа запущена", "ok"); progT = 0; refresh(); }
+    catch (e) { el.querySelector("#pErr").textContent = e.message; }
+  };
+}
+async function renderRuns(force) {
+  if (force || Date.now() - runsT > 10000) { runsCache = await getJSON("/api/runs?n=30"); runsT = Date.now(); }
+  const list = (runsCache || {}).list || [];
+  $("t-runs").innerHTML = `<div class="fill" style="overflow:auto"><table class="t"><tr><th>№</th><th>когда</th><th>что</th><th>простых/с</th><th>статика</th></tr>${list.map(r => {
+    const s = r.summary || {}, st = r.static || {};
+    const icons = Object.values(st.sensors || {}).map(x => { const v = STATIC_VERDICT[x.verdict] || {}; return `<span class="${v.cls}" title="${esc(v.word)}">${v.icon || "·"}</span>`; }).join(" ");
+    return `<tr data-run="${r.id}" style="cursor:pointer"><td>${r.id}</td><td class="small">${new Date(r.t0 * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}<br>${fmtDur(r.dur_s)}</td>
+      <td class="small">${esc((r.text || "").slice(0, 70))}${r.state === "идёт" ? " <span class='on'>идёт</span>" : ""}</td><td class="num">${fmt(s.pr_s, 1)}${s.yield ? `<br><span class="small ${mark(s.yield.z).cls}">z ${fmtZ(s.yield.z)}</span>` : ""}</td>
+      <td>${icons || "<span class='mut small'>—</span>"}</td></tr>`;
+  }).join("")}</table></div>`;
+}
+document.addEventListener("click", async e => {
+  const tr = e.target.closest("tr[data-run]");
+  if (!tr) return;
+  let r;
+  try { r = await getJSON(`/api/run?id=${tr.dataset.run}`); } catch (er) { note("✗ " + er.message, "bad"); return; }
+  const s = r.summary || {}, st = r.static || {};
+  sheet(`<div class="row"><b class="big">Опыт №${r.id}</b><span class="mut">${new Date(r.t0 * 1000).toLocaleString("ru-RU")} · ${fmtDur(r.dur_s)} · ${esc(r.state)}</span><span class="sp"></span><button class="btn" data-close>закрыть</button></div>
+    <p>${esc(r.text)}</p>
+    <div class="row"><span>простых <b>${fmt(s.pr)}</b> (${fmt(s.pr_s, 1)}/с)</span>${s.yield ? `<span class="${mark(s.yield.z).cls}">выход против теории z ${fmtZ(s.yield.z)}</span>` : ""}
+      <span>температура ${s.temp ? fmt(s.temp[0], 1) + "–" + fmt(s.temp[1], 1) + " °C" : "—"}</span>${s.group ? `<span>кругов без кусочков ${fmt(s.group.truncs)} · разрывов ${fmt(s.group.breaks)}</span>` : ""}</div>
+    <h3 style="font-size:1em">Статика за опыт</h3>
+    ${st.sensors ? Object.entries(st.sensors).map(([m, x]) => { const a = D.agents.find(y => y.mac === m) || {}, v = STATIC_VERDICT[x.verdict] || {};
+      return `<div><span class="${v.cls}">${v.icon} №${a.id || "?"} — ${esc(v.word)}</span> <span class="small mut">окон ${x.windows || 0}</span>${(x.reasons || []).map(t => `<div class="small">· ${esc(t)}</div>`).join("")}</div>`; }).join("")
+      : `<p class="mut">в этой записи статики нет (журнал пишет её с 06.10.2026)</p>`}
+    ${(st.notes || []).map(t => `<p class="small warn">◐ ${esc(t)}</p>`).join("")}
+    <h3 style="font-size:1em">Агенты</h3>
+    <table class="t"><tr><th>агент</th><th>простых</th><th>кандидатов</th><th>температура</th><th>выход z</th></tr>${Object.values(r.results || {}).map(x =>
+      `<tr><td>№${x.id}</td><td class="num">${fmt(x.pr)}</td><td class="num">${fmt(x.cand)}</td><td>${x.temp ? fmt(x.temp[0], 1) + "–" + fmt(x.temp[1], 1) : "—"}</td><td>${x.yield ? fmtZ(x.yield.z) : "—"}</td></tr>`).join("")}</table>`);
+});
+// Кто кого слышит по пульсу ESP-NOW (пакет nbr: [номер, сигнал дБм, с давности, кадров, считает, °C]):
+// строка — кто слышит, столбец — кого; «—» — не слышал полминуты. Плохой передатчик виден до опыта.
+function hearingTable(d) {
+  const rows = d.agents.filter(a => a.nbr && a.nbr.nb && a.id);
+  if (!rows.length) return "";
+  const ids = [...new Set(rows.flatMap(a => [a.id, ...a.nbr.nb.map(x => x[0])]))].sort((x, y) => x - y);
+  const cell = (a, id) => {
+    if (a.id === id) return "·";
+    const x = a.nbr.nb.find(n => n[0] === id);
+    if (!x || x[2] > 30) return `<span class="mut">—</span>`;
+    return `${x[1]}${x[1] < -80 ? " ◐" : ""}`;
+  };
+  return `<div><b>Кто кого слышит</b> <span class="small mut">(сигнал, дБм; строка — кто слышит; ◐ — слабо)</span>
+    <table class="t"><tr><th></th>${ids.map(i => `<th>№${i}</th>`).join("")}</tr>
+    ${rows.sort((x, y) => x.id - y.id).map(a => `<tr><td>№${a.id}</td>${ids.map(i => `<td class="num">${cell(a, i)}</td>`).join("")}</tr>`).join("")}</table></div>`;
+}
+function renderSvc(d) {
+  const fw = d.fw || {}, ags = d.agents.filter(a => a.fw), old = ags.filter(a => fw.version && a.fw !== fw.version);
+  const usb = (d.usb || {}).boards || [], todo = usb.filter(b => b.status !== "online");
+  const rr = d.rest_rot || {};
+  $("t-svc").innerHTML = `
+    <div><b>Прошивка</b> · сборка ${esc(fw.version || "—")} · на платах: ${[...new Set(ags.map(a => a.fw))].map(esc).join(", ") || "—"}
+      ${old.length ? `<div class="warn small">◐ старее сборки: ${old.map(a => "№" + a.id).join(", ")}</div>` : ""}
+      <button class="btn" id="sOta">обновить всех по Wi-Fi</button></div>
+    <div><b>Платы на USB</b>: ${usb.length ? usb.map(b => `${esc(b.port)} ${b.id ? "№" + b.id : "новая"} (${b.status === "online" ? "✓ на связи" : b.status === "new" ? "★ новая" : "✗ не на связи"})`).join(" · ") : "нет"}
+      ${todo.length ? `<button class="btn" id="sUsb">прошить по USB: ${todo.map(b => esc(b.port)).join(", ")}</button>` : ""}</div>
+    <div><b>Отдых в группах</b>: ${rr.on ? (rr.mode === "group" ? "вся группа" : "по очереди") : "выключен"} <span class="small mut">(опыты 06.10: прироста не дал)</span></div>
+    ${hearingTable(d)}
+    <div><b>Документация</b>: <a href="/docs/modes.html" target="docs">режимы</a> · <a href="/docs/ui_concept.html" target="docs">экраны</a> · <a href="/docs/thermal.html" target="docs">тепло</a> · <a href="/docs/program.html" target="docs">программа</a> · <a href="/docs/static_watch.html" target="docs">статика</a></div>`;
+  $("sOta").onclick = async () => { if (!confirm("Обновить прошивку всех агентов на связи по Wi-Fi? Счёт остановится.")) return;
+    try { const r = await postJSON("/api/ota", { targets: "all" }); note(`✓ команда ушла ${r.sent.length} агентам`, "ok"); } catch (e) { note("✗ " + e.message, "bad"); } };
+  const su = $("sUsb"); if (su) su.onclick = async () => { if (!confirm("Прошить по USB (сборка 1–3 мин, кабели не отключать)?")) return;
+    try { await postJSON("/api/usb", { ports: todo.map(b => b.port) }); note("✓ прошивка по USB началась", "ok"); } catch (e) { note("✗ " + e.message, "bad"); } };
+}
+async function renderTab(force) {
+  try {
+    if (tab === "now") renderNow(D);
+    else if (tab === "prog") await renderProg(force);
+    else if (tab === "runs") await renderRuns(force);
+    else if (tab === "svc") renderSvc(D);
+  } catch (e) { $("t-" + tab).innerHTML = `<span class="bad">✗ ${esc(e.message)}</span>`; }
+}
+
+// ---------- сообщения ----------
+const notes = [];
+function note(text, cls) { notes.unshift({ t: Date.now(), text, cls }); notes.length = Math.min(notes.length, 6); renderFoot(D); }
+function renderFoot(d) {
+  if (!d) return;
+  const items = [];
+  const fresh = notes.filter(n => Date.now() - n.t < 20000);
+  for (const n of fresh) items.push(`<span class="${n.cls}">${esc(n.text)}</span>`);
+  for (const a of agentsGen(d)) {
+    const v = a.values || {};
+    if (!alive(a.status) && a.status !== "never" && (d.gen[a.mac] || {}).run) items.push(`<span class="bad">✗ №${a.id} нет связи</span>`);
+    if (v.work != null && v.work < 50 && v.temp >= (v.tmax || 70) - 2) items.push(`<span class="warn">◐ №${a.id} у предела ${fmt(v.temp, 1)} °C (работа ${fmt(v.work, 0)} %)</span>`);
+    const rt = a.rating || {};
+    if ((rt.sys || []).length) items.push(`<span class="bad">✗ №${a.id} систематически: ${rt.sys.map(esc).join(", ")}</span>`);
+  }
+  const sv = d.static_verdict;
+  if (sv && STATIC_VERDICT[sv.verdict]) { const v = STATIC_VERDICT[sv.verdict]; items.push(`<span class="${v.cls}">${v.icon} статика: ${v.word}</span>`); }
+  for (const g of Object.values(d.guard || {})) {
+    const bad = [["выход", g.z_yield], ["отсев", g.z_sieve], ["биты", g.z_bits]].filter(([, z]) => z != null && Math.abs(z) >= 5);
+    if (bad.length || g.fails || g.dups || g.div) items.push(`<span class="bad">✗ простые (агенты ${g.ids.join(", ")}): ${[...bad.map(([n, z]) => `${n} z ${fmtZ(z)}`),
+      g.fails ? `ошибок счёта ${g.fails}` : "", g.dups ? `повторов ${g.dups}` : "", g.div ? `делятся на малые ${g.div}` : ""].filter(Boolean).join(", ")}</span>`);
+    else items.push(`<span class="ok">✓ простые в пределах (${g.ids.map(i => "№" + i).join(" ")})</span>`);
+  }
+  $("foot").innerHTML = items.slice(0, 7).join("") || `<span class="mut">сообщений нет</span>`;
+}
+
+// ---------- опрос ----------
+async function refresh() {
+  D = await getJSON("/api/dash?window=10");
+  renderTop(D);
+  renderInst(D);
+  renderGroups(D);
+  if (tab === "now" || tab === "svc") renderTab(false);
+  renderFoot(D);
+}
+poll(refresh, 2000);
+setInterval(() => { if (tab === "prog" || tab === "runs") renderTab(false); }, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,1708 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Колесо-2 · живая схема</title>
+<style>
+/* Палитра Okabe-Ito: различима при нарушениях цветового зрения. Смысл всегда
+   дублируется формой и словом: роли — кружок, ромб, квадрат; кадры — подписью. */
+:root {
+  --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6;
+  --on:#0072B2; --warn:#E69F00; --bad:#D55E00; --ok:#009E73; --off:#8a8f98;
+  --nxt:#0072B2; --res:#009E73; --pcs:#E69F00; --req:#CC79A7; --num:#56B4E9; --ask:#D55E00;
+  --prime:#F0E442; --scat:#CC79A7; --chain:#56B4E9; --bgf:#8a8f98; --tel:#8a8f98;
+  --rng:#0072B2; --csi:#56B4E9; --adc:#E69F00; --jit:#009E73; --air:#CC79A7;
+  --ra:#0072B2; --rb:#D55E00; --rs:#009E73;
+  --capfg:#ffffff; --capdk:#1d2228;   /* подписи на цветных капсулах: на насыщенных и на светлых */
+}
+/* тёмная тема: по настройке системы, если зритель явно не выбрал светлую, и по явному выбору */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --ok:#3fc39a; --bad:#ff8a4c; --ra:#56B4E9; --rb:#ff8a4c; --rs:#3fc39a; --nxt:#56B4E9;
+          --capfg:#15181c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --ok:#3fc39a; --bad:#ff8a4c; --ra:#56B4E9; --rb:#ff8a4c; --rs:#3fc39a; --nxt:#56B4E9;
+          --capfg:#15181c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 16px; display:flex; gap:14px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line); }
+h1 { font-size:18px; margin:0; }
+h2 { font-size:14px; margin:0 0 8px; font-weight:650; }
+.mut { color:var(--mut); } .small { font-size:12px; } .ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); font-weight:600; }
+nav { display:flex; gap:12px; flex-wrap:wrap; }
+.bar { padding:8px 16px; display:grid; gap:8px; border-bottom:1px solid var(--line); }
+.row { display:flex; gap:8px 14px; flex-wrap:wrap; align-items:center; }
+.presets button { font-size:13px; }
+.presets button.sel { background:var(--on); color:var(--card); border-color:var(--on); }
+select, button, input[type=number] { font:inherit; padding:3px 8px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:inherit; }
+button { cursor:pointer; }
+button:hover { border-color:var(--on); }
+label { display:inline-flex; gap:6px; align-items:center; }
+input[type=range] { width:140px; }
+main { padding:12px 16px 24px; display:grid; gap:12px; grid-template-columns:minmax(0, 1fr) minmax(280px, 360px); align-items:start; }
+.panel { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; min-width:0; }
+.scene { grid-column:1; padding:0; overflow:hidden; }
+.scene svg { display:block; width:100%; }
+.logp { grid-column:2; grid-row:1 / span 2; max-height:calc(100vh - 150px); display:flex; flex-direction:column; position:sticky; top:8px; }
+#log { overflow:auto; font-size:12.5px; flex:1; min-height:200px; }
+#log div { padding:3px 0; border-bottom:1px solid var(--soft); display:grid; grid-template-columns:auto 1fr; gap:8px; }
+#log .t { color:var(--mut); font-variant-numeric:tabular-nums; white-space:nowrap; }
+#log .key { font-weight:600; }
+.below { grid-column:1; display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(min(360px, 100%), 1fr)); }
+.steps ol { margin:0; padding-left:20px; }
+.steps li { padding:3px 6px; border-radius:6px; margin:2px 0; transition:background .4s; }
+.steps li.hot { background:color-mix(in srgb, var(--warn) 28%, transparent); }
+.steps h3 { font-size:13px; margin:8px 0 4px; }
+table { border-collapse:collapse; width:100%; font-size:12.5px; }
+th, td { text-align:left; padding:3px 6px; border-bottom:1px solid var(--soft); vertical-align:top; }
+th { color:var(--mut); font-weight:600; }
+td.r, th.r { text-align:right; font-variant-numeric:tabular-nums; }
+.legend { display:flex; gap:6px 14px; flex-wrap:wrap; padding:6px 12px 10px; font-size:12px; color:var(--mut); border-top:1px solid var(--soft); }
+.cap { display:inline-block; padding:0 6px; border-radius:8px; font:600 11px/16px system-ui; color:var(--capfg); }
+.cap.dark { color:var(--capdk); }
+@media (max-width:1050px) { main { grid-template-columns:1fr; } .logp { grid-column:1; grid-row:auto; position:static; max-height:420px; } }
+/* SVG */
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+.c-bg { fill:var(--card); stroke:var(--line); stroke-width:1.2; }
+.c-bg.master { stroke:var(--warn); stroke-width:3; }
+.c-bg.sel { stroke:var(--on); stroke-width:2.5; }
+.c-title { font-size:13px; font-weight:700; }
+.c-small { font-size:11px; fill:var(--mut); }
+.c-act { font-size:11px; }
+.c-barbg { fill:var(--soft); }
+.c-bar0 { fill:var(--csi); } .c-bar1 { fill:var(--on); }
+.chip { fill:var(--soft); stroke:var(--line); }
+.chip.on { stroke:var(--ink); stroke-width:1.5; }
+.chip-t { font-size:10px; text-anchor:middle; fill:var(--mut); }
+.chip-t.on { fill:var(--ink); font-weight:700; }
+.box { fill:var(--card); stroke:var(--line); stroke-width:1.2; }
+.zone-t { font-size:12px; fill:var(--mut); font-weight:600; }
+.wire { stroke:var(--line); stroke-width:1; fill:none; }
+.ring { stroke:var(--mut); stroke-width:1; fill:none; stroke-dasharray:3 4; opacity:.7; }
+.msg-t { font-size:10.5px; font-weight:700; text-anchor:middle; dominant-baseline:central; }
+.ripple { fill:none; stroke-width:2; }
+.flash { font-size:13px; font-weight:800; text-anchor:middle; }
+.src-t { font-size:11px; text-anchor:middle; }
+.g-lane { font-size:11px; fill:var(--mut); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Колесо-2 · живая схема</h1>
+  <nav class="small"><a href="/">главная панель</a><a href="/acc">второй экран</a><a href="/docs/">документация</a></nav>
+  <span id="srcState" class="small mut">…</span>
+</header>
+
+<section class="bar">
+  <div class="row presets" id="presets"></div>
+  <div class="row">
+    <label class="small">данные
+      <select id="dataSrc">
+        <option value="auto">живые, если агенты считают</option>
+        <option value="demo">демонстрация (замеры 03–04.10.2026)</option>
+      </select></label>
+    <label class="small">замедление <input type="range" id="slow" min="0" max="100" value="50"> <b id="slowTxt" class="small"></b></label>
+    <button id="play" title="пауза / дальше">⏸ пауза</button>
+    <button id="step" title="одно событие модели">⏭ шаг</button>
+    <button id="restart" title="начать модель заново">⟲ сначала</button>
+  </div>
+  <div class="row small" id="demoCtl">
+    <label>сет A <select id="dA"></select></label>
+    <label>режим A <select id="dMode">
+      <option value="solo">каждый сам</option><option value="dc">каждый сам, два ядра</option><option value="group">сообща — все на одном числе</option>
+      <option value="relay">эстафета</option><option value="relay+dc">эстафета, два ядра</option>
+      <option value="cascade">каскад</option><option value="cascade+dc">каскад, два ядра</option></select></label>
+    <label>ждать кусочки <select id="dPw"><option value="0">всех</option><option value="5">5 мс</option><option value="20">20 мс</option></select></label>
+    <label>шум A <select id="dSrc">
+      <option value="1">ГСЧ чипа</option><option value="2">CSI Wi-Fi</option><option value="4">шум АЦП</option>
+      <option value="8">дрожание RC</option><option value="16">эфир сета B (петля)</option></select></label>
+    <label>длина <select id="dBits"><option>256</option><option>512</option><option>1024</option></select> бит</label>
+    <label>сет B <select id="dB"></select></label>
+    <label>рассеяние <select id="dSm">
+      <option value="1">каждый B — всё число</option><option value="2">россыпь</option><option value="3">эстафета</option><option value="0">тишина</option></select></label>
+    <label><input type="checkbox" id="dSham"> пустышка</label>
+    <label>фон B <select id="dBg"><option value="0">нет</option><option value="20">20/с</option><option value="50">50/с</option></select></label>
+  </div>
+</section>
+
+<main>
+  <section class="panel scene">
+    <svg id="scene" role="img" aria-label="схема агентов и сообщений"></svg>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="panel logp">
+    <h2>Что происходит</h2>
+    <div class="small mut" style="margin-bottom:6px">время — модельное, от начала; щелчок по агенту — только его события</div>
+    <div id="log"></div>
+  </section>
+
+  <div class="below">
+    <section class="panel steps"><h2>Шаги режима</h2><div id="steps"></div></section>
+    <section class="panel"><h2>Характерные времена</h2><div id="times" class="small"></div></section>
+    <section class="panel" style="grid-column:1 / -1"><h2 id="ganttTitle">По времени</h2>
+      <svg id="gantt" style="width:100%;display:block"></svg>
+      <div class="small mut" id="ganttNote"></div></section>
+  </div>
+</main>
+
+<script>
+"use strict";
+// =====================================================================
+// Живая схема. Модель протокола в модельном времени (мкс) — дискретные
+// события: шум, кандидат, отсев, Миллер — Рабин, сообщения ESP-NOW,
+// мастер и эстафета, запас и кусочки, рассеяние сетом B, петля через эфир.
+// Показывается замедленно. Параметры модели — замеры 03–04.10.2026; когда
+// агенты считают, состав, режимы и времена берутся с сервера (/api/dash),
+// а счётчики на карточках — живые.
+// =====================================================================
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+function mk(tag, attrs, parent) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs || {}) e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const fmtNum = (x, d = 0) => x == null || !isFinite(x) ? "—" :
+  Number(x).toLocaleString("ru-RU", { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtInt = x => x == null || !isFinite(x) ? "—" : Math.round(x).toLocaleString("ru-RU");
+const fmtUs = us => us == null || !isFinite(us) ? "—" : us < 1000 ? fmtNum(us, us < 10 ? 1 : 0) + " мкс" :
+  us < 1e6 ? fmtNum(us / 1000, us < 1e4 ? 2 : 1) + " мс" : fmtNum(us / 1e6, 2) + " с";
+const fmtMs = us => fmtNum(us / 1000, 3) + " мс";
+const rand = () => Math.random();
+const hexOf = n => Array.from({ length: n }, () => (Math.random() * 256 | 0).toString(16).padStart(2, "0")).join("").toUpperCase();
+const shortHex = h => h ? h.slice(0, 4) + "…" + h.slice(-4) : "—";
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// =====================================================================
+// Справочные числа (замеры 03–04.10.2026, docs/randomness.md, group_protocol.md)
+// =====================================================================
+const BASES = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
+const REF = {
+  word_us: 20.75,           // esp_random(): ~45 000 слов/с; 8 слов на 256 бит — 166 мкс
+  csi_pps: 97,              // CSI: пакетов в секунду (пинг роутера 100/с), 32 бита на пакет
+  adc_sps: 21000,           // АЦП: отсчётов в секунду, ¼ бита на отсчёт
+  jit_sps: 16000,           // дрожание RC: отсчётов в секунду, ¼ бита на отсчёт
+  sieve_us: 43,             // отсев делителями < 1000 на кандидата (256 бит)
+  base_us: { 32: 18, 64: 60, 128: 280, 256: 1050, 512: 5000, 1024: 25000, 2048: 181000 },
+  msg_us: 2000,             // кадр ESP-NOW от отправки до обработки: 24 Мбит/с, отчёт радио, задача протокола
+                            // с шагом 1 мс; подобрано по замерам циклов (1/3/4 агента — 3,0/6,2/7,6 мс)
+  gap_us: 1000,             // кадры уходят по одному: следующий — после отчёта радио о предыдущем
+  slot_us: 1000,            // окно места в сете B (место × 1 мс)
+  loss_b: 0.02,             // широковещательные кадры без подтверждения: ~2 % не слышат
+  K: 24, rsv_cap: 16,       // группа: кандидатов за сбор, предел запаса
+};
+const SRC = [
+  { bit: 1, key: "rng", name: "ГСЧ чипа", note: "45 000 слов/с" },
+  { bit: 2, key: "csi", name: "CSI Wi-Fi", note: "≈97 пакетов/с" },
+  { bit: 4, key: "adc", name: "шум АЦП (D0)", note: "¼ бита на отсчёт" },
+  { bit: 8, key: "jit", name: "дрожание RC", note: "¼ бита на отсчёт" },
+  { bit: 16, key: "air", name: "эфир сета B", note: "4 бита на байт" },
+];
+const PRIMES_ODD = (() => {
+  const N = 20000, c = new Uint8Array(N), out = [];
+  for (let i = 2; i < N; i++) if (!c[i]) { if (i > 2) out.push(i); for (let j = i * i; j < N; j += i) c[j] = 1; }
+  return out;
+})();
+function survFrac(td) {                   // доля нечётных без делителей < td
+  if (!td) return 1;
+  let s = 1;
+  for (const p of PRIMES_ODD) { if (p >= td) break; s *= 1 - 1 / p; }
+  return s;
+}
+const dens = bits => 2 / (bits * Math.LN2 - 0.307);       // простых среди нечётных длиной ровно bits
+function baseUs(bits) {
+  const t = REF.base_us;
+  if (t[bits]) return t[bits];
+  const ks = Object.keys(t).map(Number).sort((a, b) => a - b);
+  let lo = ks[0], hi = ks[ks.length - 1];
+  for (const k of ks) { if (k <= bits) lo = k; if (k >= bits) { hi = k; break; } }
+  if (lo === hi) return t[lo];
+  return t[lo] * Math.pow(t[hi] / t[lo], Math.log(bits / lo) / Math.log(hi / lo));
+}
+function makeParams(cfg, liveP) {
+  const bytes = cfg.bits / 8, blocks = Math.ceil(bytes / 32);
+  const perBlock = { 1: 8 * REF.word_us, 2: 8 / REF.csi_pps * 1e6, 4: 1024 / REF.adc_sps * 1e6, 8: 1024 / REF.jit_sps * 1e6 };
+  let noise = 0;
+  if (cfg.src === 1) noise = bytes / 4 * REF.word_us;
+  else for (const b of [1, 2, 4, 8]) if (cfg.src & b) noise += perBlock[b] * blocks;
+  const S = survFrac(cfg.td);
+  const P = { bytes, blocks, noise_us: noise, perBlock, sieve_us: REF.sieve_us * cfg.bits / 256, base_us: baseUs(cfg.bits),
+              S, pp: dens(cfg.bits) / S, msg_us: REF.msg_us, gap_us: REF.gap_us, slot_us: REF.slot_us, word_us: REF.word_us,
+              airNeed: blocks * 64 };     // эфир B: 256 бит на блок при 4 битах на байт
+  if (liveP) for (const k in liveP) if (liveP[k] != null && isFinite(liveP[k]) && liveP[k] > 0) P[k] = liveP[k];
+  return P;
+}
+
+// =====================================================================
+// События модели
+// =====================================================================
+class Heap {
+  constructor() { this.a = []; }
+  get size() { return this.a.length; }
+  peek() { return this.a[0]; }
+  push(x) {
+    const a = this.a; a.push(x);
+    let i = a.length - 1;
+    while (i > 0) { const p = (i - 1) >> 1; if (this.lt(a[i], a[p])) { [a[i], a[p]] = [a[p], a[i]]; i = p; } else break; }
+  }
+  pop() {
+    const a = this.a, top = a[0], last = a.pop();
+    if (a.length) {
+      a[0] = last;
+      let i = 0;
+      for (;;) {
+        const l = 2 * i + 1, r = l + 1;
+        let m = i;
+        if (l < a.length && this.lt(a[l], a[m])) m = l;
+        if (r < a.length && this.lt(a[r], a[m])) m = r;
+        if (m === i) break;
+        [a[i], a[m]] = [a[m], a[i]]; i = m;
+      }
+    }
+    return top;
+  }
+  lt(x, y) { return x.t < y.t || (x.t === y.t && x.s < y.s); }
+}
+class Sim {
+  constructor() { this.now = 0; this.q = new Heap(); this.seq = 0; }
+  at(t, fn) { this.q.push({ t, s: this.seq++, fn }); }
+  after(dt, fn) { this.at(this.now + Math.max(0, dt), fn); }
+  runUntil(t, maxN) {
+    let n = 0;
+    while (this.q.size && this.q.peek().t <= t && n < maxN) { const e = this.q.pop(); this.now = e.t; e.fn(); n++; }
+    if (n < maxN) this.now = Math.max(this.now, t);
+    return n;
+  }
+  next() { if (!this.q.size) return false; const e = this.q.pop(); this.now = e.t; e.fn(); return true; }
+}
+
+// =====================================================================
+// Агент модели
+// =====================================================================
+class Agent {
+  constructor(id, role, idx) {
+    this.id = id; this.role = role; this.idx = idx;          // idx — место в своём сете
+    this.lane = [{ act: "связь: слушает", t0: 0, t1: 0 }, { act: "свободно", t0: 0, t1: 0 }];
+    this.stage = null; this.master = false;
+    this.cnt = { cand: 0, rej: 0, mr: 0, pr: 0, cyc: 0, mcyc: 0, prx: 0, stx: 0, heard: 0, bg: 0, gath: 0, swait: 0, sdrop: 0 };
+    this.jq = []; this.busy = false; this.txFree = 0;
+    this.queue = 0; this.pool = 0; this.units = 2; this.reserve = 0; this.preReady = false; this.preBusy = false;
+    this.bq = []; this.bases = []; this.pos = idx; this.last = null; this.live = null; this.mac = null;
+  }
+}
+
+// =====================================================================
+// Модель
+// =====================================================================
+class Model {
+  constructor(cfg, P, ui) {
+    this.cfg = cfg; this.P = P; this.ui = ui; this.sim = new Sim();
+    this.A = []; this.B = [];
+    const idsA = cfg.idsA || Array.from({ length: cfg.nA }, (_, i) => i + 1);
+    const idsB = cfg.idsB || Array.from({ length: cfg.nB }, (_, i) => cfg.nA + i + 1);
+    idsA.forEach((id, i) => this.A.push(new Agent(id, "A", i)));
+    idsB.forEach((id, i) => this.B.push(new Agent(id, "B", i)));
+    this.all = this.A.concat(this.B);
+    this.recs = { cycles: [], solo: [], scat: [] };
+    this.g = null;
+  }
+  get now() { return this.sim.now; }
+  log(text, ag, step, key) { this.ui.log(this.sim.now, text, ag, step, key); }
+
+  // ---------- ядро 1: задания по очереди, проверка — первой ----------
+  job(a, prio, name, dur, done, stage) {
+    a.jq.push({ prio, name, dur, done, stage });
+    a.jq.sort((x, y) => x.prio - y.prio);
+    if (!a.busy) this.runJobs(a);
+  }
+  runJobs(a) {
+    if (!a.jq.length) { a.busy = false; a.lane[1] = { act: a.idleText || "свободно", t0: this.now, t1: this.now }; a.stage = null; return; }
+    const j = a.jq.shift();
+    a.busy = true;
+    a.lane[1] = { act: j.name, t0: this.now, t1: this.now + j.dur };
+    a.stage = j.stage || null;
+    this.sim.after(j.dur, () => { if (j.done) j.done(); this.runJobs(a); });
+  }
+  lane0(a, act, dur) { a.lane[0] = { act, t0: this.now, t1: this.now + (dur || 0) }; }
+
+  // ---------- радио ----------
+  // Эфир один на всех: кадр занимает его на время передачи (24 Мбит/с, с заголовками,
+  // паузами и подтверждением ~130 мкс сверху). При малой нагрузке не мешает, а каскад
+  // на 8–16 агентах упирается именно в него.
+  airSlot(at, bytes) {
+    const t0 = Math.max(at, this.airFree || 0);
+    this.airFree = t0 + 130 + bytes * 8 / 24;
+    this.airBusy = (this.airBusy || 0) + 130 + bytes * 8 / 24;
+    return t0;
+  }
+  // Адресный кадр: уходит, когда радио свободно (по одному), доходит через msg_us.
+  send(type, from, to, bytes, label, onArrive) {
+    const t0 = this.airSlot(Math.max(this.now, from.txFree), bytes);
+    from.txFree = t0 + this.P.gap_us;
+    const t1 = t0 + this.P.msg_us * (0.8 + 0.4 * rand()) + bytes * 8 / 24;
+    this.ui.msg(type, from, to, t0, t1, label);
+    if (this.rec) this.rec.msgs.push({ type, from: from.pos, to: to.pos, t0, t1 });
+    this.sim.at(t1, () => onArrive && onArrive());
+    return t1;
+  }
+  // Широковещательный кадр: волна от отправителя; каждый слышит с вероятностью 1 − loss.
+  bcast(type, from, tos, bytes, label, onHear, at) {
+    const t0 = this.airSlot(Math.max(at != null ? at : this.now, from.txFree), bytes);
+    from.txFree = t0 + this.P.gap_us;
+    const air = 120 + bytes * 8 / 24;
+    this.ui.ripple(from, t0, t0 + 2500, type);
+    for (const to of tos) {
+      if (to === from) continue;
+      const t1 = t0 + this.P.msg_us * 0.6 * (0.8 + 0.4 * rand()) + air;
+      const heard = rand() >= REF.loss_b;
+      this.ui.msg(type, from, to, t0, t1, label, !heard);
+      if (heard) this.sim.at(t1, () => onHear && onHear(to));
+    }
+    return t0;
+  }
+
+  // ---------- шум ----------
+  noiseText(src) { return "шум: " + SRC.filter(s => src & s.bit).map(s => s.name).join(" + "); }
+
+  start() {
+    const c = this.cfg;
+    this.B.forEach(b => this.bStart(b));
+    if (c.aMode === "group") this.gStart();
+    else if (c.aMode === "relay" || c.aMode === "cascade") this.rStart();
+    else this.A.forEach(a => { if (c.aMode === "dc") this.dcStart(a); else this.soloNext(a); });
+    this.recStart();
+  }
+
+  // =================== каждый сам ===================
+  soloNext(a) {
+    const P = this.P, c = this.cfg;
+    if (c.src & 16) {                                   // петля: шум — только из эфира сета B
+      if (a.pool < P.airNeed) {
+        a.waitPool = true; a.stage = "noise";
+        a.lane[1] = { act: `ждёт эфир B: ${a.pool} из ${P.airNeed} Б`, t0: this.now, t1: this.now };
+        return;
+      }
+      a.pool -= P.airNeed; a.waitPool = false;
+      this.job(a, 0, `шум из эфира B: ${P.airNeed} Б → SHA-256`, 30, () => this.soloSieve(a), "noise");
+      return;
+    }
+    const tn = P.noise_us * (0.9 + 0.2 * rand());
+    this.job(a, 0, this.noiseText(c.src), tn, () => this.soloSieve(a), "noise");
+    this.recSeg(a, "шум", tn);
+  }
+  soloSieve(a) {
+    const P = this.P;
+    a.cnt.cand++;
+    a.cand = hexOf(P.bytes);
+    this.job(a, 0, `кандидат ${shortHex(a.cand)}: отсев делителями < ${this.cfg.td}`, P.sieve_us, () => {
+      if (rand() >= P.S) { a.cnt.rej++; this.ui.step("s3"); this.soloNext(a); return; }
+      a.cnt.mr++;
+      this.soloMR(a, 0, rand() < P.pp, a.cand);
+    }, "sieve");
+    this.recSeg(a, "отсев", P.sieve_us);
+    this.ui.step("s2");
+  }
+  soloMR(a, k, isPrime, hex) {
+    const P = this.P, c = this.cfg;
+    const dur = P.base_us * (0.95 + 0.1 * rand());
+    this.job(a, 0, `Миллер — Рабин: база ${BASES[k]} (${k + 1} из ${c.nb})`, dur, () => {
+      if (!isPrime && !c.all) {
+        this.log(`№${a.id}: ${shortHex(hex)} — составное, свидетель — база ${BASES[k]}`, a, "s4");
+        this.soloNext(a); return;
+      }
+      if (k + 1 < c.nb) { this.soloMR(a, k + 1, isPrime, hex); return; }
+      if (!isPrime) { this.log(`№${a.id}: ${shortHex(hex)} — составное (все базы проверили, режим «все базы»)`, a, "s4"); this.soloNext(a); return; }
+      a.cnt.pr++;
+      this.ui.flash(a, "✓ простое");
+      this.log(`№${a.id}: ✓ ПРОСТОЕ ${shortHex(hex)} — прошло ${c.nb} баз`, a, "s5", true);
+      if (this.B.length) this.announce(a, hex);
+      if (c.aMode === "dc") return;                     // в конвейере дальше ведёт dcConsume
+      this.soloNext(a);
+    }, "mr");
+    this.recSeg(a, k ? "" : "МР", dur);
+  }
+
+  // =================== два ядра: конвейер ===================
+  dcStart(a) { a.idleText = "ждёт кандидата из очереди"; this.dcProduce(a); }
+  dcProduce(a) {                                       // ядро 0: шум и отсев в свободное от связи время
+    const P = this.P, c = this.cfg;
+    if (a.queue >= 16) { a.prodWait = true; this.lane0(a, "связь · очередь полна — ждёт"); return; }
+    a.prodWait = false;
+    const tn = P.noise_us * (0.9 + 0.2 * rand()) + P.sieve_us;
+    this.lane0(a, "связь + шум и отсев", tn);
+    a.stage0 = "noise";
+    this.sim.after(tn, () => {
+      a.cnt.cand++;
+      this.ui.step("d1");
+      if (rand() < P.S) {
+        a.queue++; a.cnt.mr++;
+        this.ui.step("d2");
+        if (!a.busy) this.dcConsume(a);
+      } else a.cnt.rej++;
+      this.dcProduce(a);
+    });
+  }
+  dcConsume(a) {                                       // ядро 1: только Миллер — Рабин
+    if (!a.queue) { a.busy = false; a.lane[1] = { act: "ждёт кандидата из очереди", t0: this.now, t1: this.now }; a.stage = null; return; }
+    a.queue--;
+    if (a.prodWait) this.dcProduce(a);
+    const hex = hexOf(this.P.bytes), isP = rand() < this.P.pp;
+    const n = isP || this.cfg.all ? this.cfg.nb : 1;
+    const dur = n * this.P.base_us * (0.95 + 0.1 * rand());
+    a.busy = true; a.stage = "mr";
+    a.lane[1] = { act: `Миллер — Рабин: ${n === 1 ? "база 2" : n + " баз"} · ${shortHex(hex)}`, t0: this.now, t1: this.now + dur };
+    this.ui.step("d3");
+    this.sim.after(dur, () => {
+      if (isP) {
+        a.cnt.pr++;
+        this.ui.flash(a, "✓ простое");
+        this.log(`№${a.id}: ✓ ПРОСТОЕ ${shortHex(hex)} — ядро счёта, кандидат из очереди (в очереди ${a.queue})`, a, "d3", true);
+        if (this.B.length) this.announce(a, hex);
+      }
+      this.dcConsume(a);
+    });
+  }
+
+  // =================== сообща (протокол третьей версии) ===================
+  gStart() {
+    const N = this.A.length, c = this.cfg;
+    this.A.forEach((a, i) => {
+      a.pos = i; a.bases = [];
+      for (let k = i; k < c.nb; k += N) a.bases.push(k);
+      a.idleText = "свободно";
+    });
+    const pb = Math.ceil(Math.ceil(this.P.bytes / N) / 4) * 4;
+    this.g = { N, pb, pcsBytes: REF.K * pb, cycle: 0, m: 0, num: {}, ans: {}, begun: {}, pcs: {}, gathering: null, fillWait: false };
+    this.A.forEach(a => this.gRefill(a));
+    this.log(`группа ${this.A.map(a => "№" + a.id).join(" → ")}: базы поделены по кругу (${this.A.map(a => `№${a.id} — ${a.bases.map(k => BASES[k]).join(", ") || "нет"}`).join("; ")})`, null, "g2", true);
+    this.sim.after(300, () => this.gStartNoNumber(0, 1));   // первый по порядку начинает через паузу
+  }
+  piecesTime() {                                       // набрать K кусочков своего шума
+    const P = this.P, bytes = this.g.pcsBytes;
+    if (this.cfg.src === 1) return bytes / 4 * P.word_us;
+    let per = 0;
+    for (const b of [1, 2, 4, 8]) if (this.cfg.src & b) per += P.perBlock[b];
+    return Math.ceil(bytes / 32) * per;
+  }
+  gRefill(a) {                                          // кусочки заранее (только один ГСЧ), когда ядро свободно
+    if (a.preReady || a.preBusy) return;
+    a.preBusy = true;
+    const pre = this.cfg.src === 1 && this.cfg.pre !== 0;
+    const t = this.piecesTime();
+    this.job(a, 2, `кусочки шума ${pre ? "заранее" : "по просьбе"}: ${REF.K} × ${this.g.pb} Б`, t, () => {
+      a.preReady = true; a.preBusy = false;
+      if (a.preWant) { const w = a.preWant; a.preWant = null; w(); }
+    }, "noise");
+  }
+  // кусочки для круга сбора cyc: отдать сразу из заготовки или набрать
+  gGivePieces(a, mi, cyc) {
+    const go = () => {
+      a.preReady = false;
+      const M = this.A[mi];
+      if (a.pos === mi) this.gOnPcs(mi, cyc, a);
+      else this.send("PCS", a, M, this.g.pcsBytes, "PCS", () => this.gOnPcs(mi, cyc, a));
+      this.gRefill(a);
+    };
+    if (a.preReady) go();
+    else { a.preWant = go; this.gRefill(a); }
+  }
+  gOnPcs(mi, cyc, a) {
+    const g = this.g;
+    (g.pcs[cyc] = g.pcs[cyc] || new Set()).add(a.pos);
+    if (g.pcs[cyc].size === g.N && g.gathering === cyc) this.gSieve(mi, cyc);
+  }
+  gStartNoNumber(mi, cyc) {                             // запаса нет (начало, сбой): REQ → PCS → отсев → NUM
+    const g = this.g, M = this.A[mi];
+    this.gSetMaster(mi); g.cycle = cyc; g.gathering = cyc; g.waitNum = cyc;
+    M.cnt.gath++;
+    this.log(`№${M.id}: цикл ${cyc} без числа — просит кусочки шума у всех (REQ)`, M, "g5", true);
+    this.lane0(M, "просит кусочки (REQ)");
+    this.A.forEach((a, i) => { if (i !== mi) this.send("REQ", M, a, 12, "REQ", () => this.gGivePieces(a, mi, cyc)); });
+    this.gGivePieces(M, mi, cyc);
+  }
+  gGatherRound(mi, cyc) {                               // запас пуст во время цикла — просить кусочки ещё раз
+    const g = this.g, M = this.A[mi];
+    g.gathering = cyc; g.pcs[cyc] = new Set();
+    M.cnt.gath++;
+    this.log(`№${M.id}: из отсева не уцелел никто — новый круг сбора (REQ)`, M, "g5");
+    this.A.forEach((a, i) => { if (i !== mi) this.send("REQ", M, a, 12, "REQ", () => this.gGivePieces(a, mi, cyc)); });
+    this.gGivePieces(M, mi, cyc);
+  }
+  gSieve(mi, cyc) {
+    const g = this.g, M = this.A[mi], K = REF.K;
+    g.gathering = null;
+    const dur = K * this.P.sieve_us + 150;
+    if (this.rec) this.rec.lanes[mi].push({ kind: "отсев", t0: this.now, t1: this.now + dur });
+    this.job(M, 1, `складывает ${K} кандидатов из кусочков всех и отсеивает`, dur, () => {
+      let n = 0;
+      for (let k = 0; k < K; k++) if (rand() < this.P.S) n++;
+      const add = Math.min(n, REF.rsv_cap - M.reserve);
+      M.reserve += add;
+      this.log(`№${M.id}: из ${K} кандидатов уцелело ${n} — в запас (стало ${M.reserve})`, M, "g5");
+      if (!M.reserve) { this.gGatherRound(mi, cyc); return; }
+      if (g.waitNum === cyc) {                           // цикл без числа: число всем (NUM) и проверка
+        g.waitNum = null;
+        M.reserve--;
+        g.num[cyc] = { X: hexOf(this.P.bytes), prime: rand() < this.P.pp };
+        this.log(`№${M.id}: число ${shortHex(g.num[cyc].X)} — всем (NUM)`, M, "g1");
+        this.A.forEach((a, i) => { if (i !== mi) this.send("NUM", M, a, 40 + this.P.bytes, "NUM", () => this.gTest(a, mi, cyc)); });
+        this.gBegin(mi, cyc);
+      } else if (g.fillWait === cyc) this.gFinish(mi, cyc);
+    }, "sieve");
+  }
+  gSetMaster(mi) { this.g.m = mi; this.A.forEach((a, i) => { a.master = i === mi; }); }
+  gBegin(mi, cyc) {                                     // мастер начинает цикл cyc: число уже есть
+    const g = this.g, M = this.A[mi];
+    this.gSetMaster(mi);
+    g.cycle = cyc; g.begun[cyc] = true;
+    g.ans[cyc] = g.ans[cyc] || new Map();
+    const n = g.num[cyc];
+    this.recCycle(mi, cyc);
+    this.log(`цикл ${cyc}: мастер №${M.id} · число ${shortHex(n.X)} · запас ${M.reserve}`, M, "g1", true);
+    this.gTest(M, mi, cyc);
+  }
+  gTest(a, mi, cyc) {                                   // проверить число цикла своими базами
+    const g = this.g, n = g.num[cyc], c = this.cfg;
+    const bases = a.bases;
+    const k = !bases.length ? 0 : (n.prime || c.all) ? bases.length : 1;
+    const dur = k * this.P.base_us * (0.95 + 0.1 * rand());
+    const name = bases.length ? `проверяет ${shortHex(n.X)} базами ${bases.map(i => BASES[i]).join(", ")}` : "своих баз нет";
+    this.lane0(a, a.pos === mi ? "мастер: ждёт ответы" : "ждёт итог цикла");
+    if (this.rec && this.rec.c === cyc) this.rec.lanes[a.pos].push({ kind: "проверка", t0: this.now, t1: this.now + dur, q: true });
+    else if (this.rec && this.rec.c === cyc - 1) (this.rec.next = this.rec.next || []).push({ pos: a.pos, t0: this.now });
+    this.ui.step("g2");
+    this.job(a, 0, name, dur, () => {
+      const w = bases.length && !n.prime ? bases[0] : -1;
+      if (a.pos === mi && g.m === mi) this.gAnswer(mi, cyc, a.pos, w);
+      else {
+        const M = this.A[mi];
+        this.send("RES", a, M, 16, "RES", () => {
+          this.log(`№${a.id} → №${M.id}: ${w >= 0 ? "свидетель — база " + BASES[w] : "свидетеля нет"}`, a, "g3");
+          this.gAnswer(mi, cyc, a.pos, w);
+        });
+      }
+      this.gRefill(a);
+    }, "mr");
+  }
+  gAnswer(mi, cyc, pos, w) {
+    const g = this.g;
+    (g.ans[cyc] = g.ans[cyc] || new Map()).set(pos, w);
+    if (!g.begun[cyc]) return;                          // ответ раньше итога: мастер ещё не начал цикл — сохранён
+    const M = this.A[mi], got = g.ans[cyc].size;
+    if (got < g.N) { this.lane0(M, `мастер: ждёт ответы ${got} из ${g.N}`); return; }
+    if (M.reserve > 0) this.gFinish(mi, cyc);
+    else {
+      g.fillWait = cyc;
+      this.lane0(M, "ответы есть — ждёт число из отсева");
+      if (g.gathering !== cyc + 1 && g.gathering !== cyc) { this.log(`№${M.id}: запас пуст — ждёт отсев`, M, "g5"); this.gGatherRound(mi, cyc); }
+    }
+  }
+  gFinish(mi, cyc) {
+    const g = this.g, M = this.A[mi], n = g.num[cyc], N = g.N;
+    g.fillWait = false;
+    const finders = [...g.ans[cyc].entries()].filter(([, w]) => w >= 0).map(([p]) => p);
+    let next;
+    if (!finders.length) {
+      next = (mi + 1) % N;
+      M.cnt.pr++;
+      this.ui.flash(M, "✓ простое");
+      this.log(`✓ ПРОСТОЕ ${shortHex(n.X)}: никто не нашёл свидетеля — №${M.id} записал; эстафета №${this.A[next].id}`, M, "g4", true);
+      if (this.B.length) this.announce(M, n.X);
+    } else {
+      next = finders.length === 1 ? finders[0] : finders[parseInt(n.X.slice(0, 6), 16) % finders.length];
+      this.log(`✗ составное: свидетель у ${finders.length} из ${N}; мастер следующего — №${this.A[next].id}` +
+               (finders.length > 1 ? " (выбран по зерну из самого числа)" : " (нашедший)"), M, "g4");
+    }
+    M.cnt.mcyc++;
+    this.A.forEach(a => a.cnt.cyc++);
+    this.recEnd(cyc);
+    // число следующего цикла — из запаса; запас — новому мастеру
+    M.reserve--;
+    const c2 = cyc + 1;
+    g.num[c2] = { X: hexOf(this.P.bytes), prime: rand() < this.P.pp };
+    const want = M.reserve === 0, rest = M.reserve;
+    if (want) g.gathering = c2;
+    g.pcs[c2] = new Set();
+    const NM = this.A[next];
+    if (next === mi) {                                  // мастер — снова он
+      this.log(`№${M.id} остаётся мастером цикла ${c2}${want ? "; запас пуст — все шлют кусочки" : ""}`, M, "g4");
+      if (want) this.gGivePieces(M, mi, c2);
+      this.gBegin(mi, c2);
+      this.A.forEach((a, i) => {
+        if (i === mi) return;
+        this.send("NXT", M, a, 40 + this.P.bytes, "NXT", () => { if (want) this.gGivePieces(a, mi, c2); this.gTest(a, mi, c2); });
+      });
+      return;
+    }
+    M.reserve = 0;
+    this.lane0(M, `итог → №${NM.id} первым, затем всем`);
+    this.send("NXT", M, NM, 40 + this.P.bytes * (1 + rest), "NXT", () => {
+      NM.reserve += rest;
+      this.log(`№${NM.id} получил итог: число ${shortHex(g.num[c2].X)} и запас ${rest}${want ? "; кусочки — сразу" : ""}`, NM, "g1");
+      if (want) this.gGivePieces(NM, next, c2);
+      this.gBegin(next, c2);
+    });
+    this.A.forEach((a, i) => {
+      if (i === next || i === mi) return;
+      this.send("NXT", M, a, 40 + this.P.bytes, "NXT", () => {
+        if (want) this.gGivePieces(a, next, c2);
+        this.gTest(a, next, c2);
+      });
+    });
+    if (want) this.gGivePieces(M, next, c2);            // прошлый мастер — участник: число у него уже есть
+    this.gTest(M, next, c2);
+  }
+
+  // =================== эстафета и каскад: число из шума всех, проверяет один / все ===================
+  // Как в прошивке (group.cpp, gv = 1 и 2): у проверяющего запас уцелевших кандидатов; круг сбора —
+  // просьба всем одним кадром (REQ), каждый отдаёт набор из K кусочков (PCS), проверяющий складывает
+  // K кандидатов и отсеивает (два ядра — на ядре связи), ядро счёта проверяет всеми базами. Простое —
+  // ход кончился: эстафета — ход и запас следующему (TURN), каскад — ход остаётся, простое — следующему
+  // на сверку. Срок pw: недостающие кусочки — своим шумом.
+  rStart() {
+    const N = this.A.length, c = this.cfg, P = this.P;
+    const pb = Math.ceil(Math.ceil(P.bytes / N) / 4) * 4;
+    const K = Math.max(1, Math.min(64, Math.floor((600 - 8) / pb), Math.floor(2048 / P.bytes)));
+    this.g = { N, pb, K, pcsBytes: K * pb, turnCap: Math.max(0, Math.floor((600 - 23) / P.bytes) - 1),
+               preCap: (c.src === 1 && c.pre !== 0) || c.dc ? 4 : 1, turns: [] };
+    this.A.forEach((a, i) => {
+      Object.assign(a, { pos: i, pre: 0, preBusy: false, wants: [], reserve: 0, turn: 0, turnPr: 0, checker: false,
+                         rnd: 0, gath: null, testing: false, idleText: c.aMode === "relay" ? "ждёт хода — даёт шум" : "свободно" });
+      a.cnt.trunc = 0; a.cnt.truncPcs = 0; a.cnt.agr = 0;
+      this.rRefill(a);
+    });
+    this.log(`${c.aMode === "relay" ? "эстафета" : "каскад"} ${this.A.map(a => "№" + a.id).join(" → ")}: набор — ${K} кусочков по ${pb} Б` +
+             `${c.dc ? "; два ядра: шум и отсев — ядро связи, проверка — ядро счёта" : ""}${c.pw ? `; кусочки ждать не дольше ${c.pw} мс` : ""}`, null, "r1", true);
+    if (c.aMode === "relay") this.sim.after(300, () => this.rTurn(this.A[0], 1, 0));
+    else this.A.forEach((a, i) => this.sim.after(300 + 3000 * i, () => this.rTurn(a, 1, 0)));
+  }
+  rRefill(a) {                                          // набор кусочков впрок: ядро счёта (одно ядро) или производитель (два ядра)
+    if (a.preBusy || a.pre >= this.g.preCap && a.wants.length <= a.pre) return;
+    a.preBusy = true;
+    const t = this.piecesTime();
+    const done = () => { a.preBusy = false; a.pre++; this.rServe(a); };
+    if (this.cfg.dc) { this.sim.after(t, done); return; }     // производитель на ядре связи — не мешает проверке
+    const urgent = a.wants.length > a.pre;               // кусочков уже ждут — раньше проверки
+    this.job(a, urgent ? 1.5 : 3, `кусочки шума: ${this.g.K} × ${this.g.pb} Б${urgent ? " (ждут)" : " впрок"}`, t, () => {
+      if (a.checker) this.recA(a, "шум", this.now - t, this.now, 1);
+      done();
+    }, "noise");
+  }
+  rGive(x, to, rnd) {
+    if (x.wants.some(w => w.to === to && w.rnd === rnd)) return;   // уже набирает
+    x.wants = x.wants.filter(w => w.to !== to);         // прежняя просьба того же проверяющего не нужна
+    x.wants.push({ to, rnd });
+    this.rServe(x);
+  }
+  rServe(x) {
+    while (x.pre > 0 && x.wants.length) {
+      const w = x.wants.shift();
+      x.pre--;
+      if (w.to === x) this.rOnPcs(x, x, w.rnd);
+      else this.send("PCS", x, w.to, this.g.pcsBytes, "PCS", () => this.rOnPcs(w.to, x, w.rnd));
+    }
+    this.rRefill(x);
+  }
+  rTarget() { return Math.max(1, Math.round(this.g.K * this.P.S)) + 2; }
+  rTurn(a, turn, rsv) {                                 // ход у агента
+    Object.assign(a, { checker: true, master: true, turn, turnPr: 0, turnT0: this.now, idleText: "ждёт числа" });
+    a.reserve += rsv;
+    this.log(`№${a.id}: ход ${turn}${rsv ? `, запас ${rsv} чисел от прошлого` : ""}`, a, "r1");
+    this.rFeed(a);
+  }
+  rFeed(a) {
+    if (!a.checker) return;
+    if (!a.gath && a.reserve < this.rTarget()) this.rGather(a);
+    if (a.reserve > 0 && !a.testing) this.rTest(a);
+  }
+  rGather(a) {
+    const rnd = ++a.rnd;
+    a.gath = { rnd, got: new Set(), t0: this.now };
+    a.cnt.gath++;
+    this.ui.step("r2");
+    this.lane0(a, "просит кусочки у всех (REQ)");
+    this.bcast("REQ", a, this.A, 12, "REQ", x => this.rGive(x, a, rnd));
+    this.rGive(a, a, rnd);
+    if (this.cfg.pw) this.sim.after(this.cfg.pw * 1000, () => this.rTruncate(a, rnd));
+    else this.sim.after(20000 + 2 * this.piecesTime(), () => this.rRetry(a, rnd, 1));
+  }
+  rRetry(a, rnd, n) {                                   // ждать всех: молчащим — просьбу ещё раз, адресно
+    const G = a.gath;
+    if (!G || G.rnd !== rnd || !a.checker || G.sieving) return;
+    const miss = this.A.filter(x => !G.got.has(x.pos) && x !== a);
+    if (!miss.length) return;
+    a.cnt.asks = (a.cnt.asks || 0) + miss.length;
+    this.log(`№${a.id}: нет кусочков от ${miss.map(x => "№" + x.id).join(", ")} — просит ещё раз адресно`, a, "r2");
+    miss.forEach(x => this.send("REQ", a, x, 12, "REQ", () => this.rGive(x, a, rnd)));
+    this.sim.after(20000 + 2 * this.piecesTime(), () => this.rRetry(a, rnd, n + 1));
+  }
+  rOnPcs(M, from, rnd) {
+    const G = M.gath;
+    if (!G || G.rnd !== rnd || !M.checker || G.sieving) return;
+    G.got.add(from.pos);
+    if (G.got.size === this.g.N) this.rSieve(M);
+  }
+  rTruncate(M, rnd) {                                   // срок вышел: недостающие кусочки — своим шумом
+    const G = M.gath;
+    if (!G || G.rnd !== rnd || !M.checker || G.sieving) return;
+    const miss = this.g.N - G.got.size;
+    if (!miss) return;
+    if (!G.got.has(M.pos) || M.pre < miss) { this.rRefill(M); this.sim.after(1000, () => this.rTruncate(M, rnd)); return; }
+    M.pre -= miss; M.cnt.trunc++; M.cnt.truncPcs += miss;
+    this.log(`№${M.id}: ${miss} наборов кусочков не пришли за ${this.cfg.pw} мс — заменены своим шумом`, M, "r2");
+    this.rSieve(M);
+    this.rRefill(M);
+  }
+  rSieve(M) {
+    const G = M.gath, K = this.g.K, dur = K * this.P.sieve_us + 100;
+    G.sieving = true;
+    this.ui.step("r3");
+    const done = () => {
+      let n = 0;
+      for (let k = 0; k < K; k++) if (rand() < this.P.S) n++;
+      M.gath = null;
+      M.cnt.cand += K; M.cnt.rej += K - n;
+      if (!M.checker) return;
+      M.reserve += n;
+      this.log(`№${M.id}: из ${K} кандидатов (кусочки всех) уцелело ${n} — запас ${M.reserve}`, M, "r3");
+      this.rFeed(M);
+    };
+    if (this.cfg.dc) { this.lane0(M, `складывает ${K} кандидатов и отсеивает (ядро связи)`, dur); this.recA(M, "отсев", this.now, this.now + dur, 0); this.sim.after(dur, done); }
+    else this.job(M, 1, `складывает ${K} кандидатов и отсеивает`, dur, () => { this.recA(M, "отсев", this.now - dur, this.now, 1); done(); }, "sieve");
+  }
+  rTest(M) {
+    const c = this.cfg, isP = rand() < this.P.pp, hex = hexOf(this.P.bytes);
+    const n = isP || c.all ? c.nb : 1;
+    const dur = n * this.P.base_us * (0.95 + 0.1 * rand());
+    M.testing = true; M.reserve--;
+    this.ui.step("r4");
+    this.job(M, 2, `Миллер — Рабин: ${n === 1 ? "база 2" : n + " баз"} · ${shortHex(hex)}`, dur, () => {
+      this.recA(M, isP ? "простое" : "МР", this.now - dur, this.now, 1);
+      M.testing = false; M.cnt.mr++;
+      if (!M.checker) return;
+      if (isP) this.rPrime(M, hex); else this.rFeed(M);
+    }, "mr");
+  }
+  rPrime(M, hex) {
+    const c = this.cfg;
+    M.cnt.pr++; M.turnPr++;
+    this.ui.flash(M, "✓ простое");
+    this.log(`№${M.id}: ✓ ПРОСТОЕ ${shortHex(hex)} — проверил один, всеми ${c.nb} базами (ход ${M.turn})`, M, "r4", true);
+    if (this.B.length) this.announce(M, hex);
+    if (M.turnPr >= (c.rk || 1)) this.rPass(M, hex); else this.rFeed(M);
+  }
+  rPass(M, hex) {
+    const c = this.cfg, N = this.g.N, nx = this.A[(M.pos + 1) % N];
+    M.cnt.mcyc++;
+    this.g.turns.push({ pos: M.pos, t0: M.turnT0, t1: this.now });
+    if (this.g.turns.length > 200) this.g.turns.shift();
+    if (c.aMode === "relay" && nx !== M) {             // эстафета: ход и запас — следующему
+      const rn = Math.min(M.reserve, this.g.turnCap);
+      Object.assign(M, { checker: false, master: false, reserve: 0, gath: null, idleText: "ждёт хода — даёт шум" });
+      M.wants = M.wants.filter(w => w.to !== M);
+      this.lane0(M, `ход → №${nx.id}`);
+      this.log(`№${M.id} → №${nx.id}: ход и запас ${rn} (TURN); простое — ему на сверку`, M, "r5", true);
+      this.send("TURN", M, nx, 23 + this.P.bytes * (1 + rn), "TURN", () => {
+        this.send("TURN", nx, M, 23, "ACK");
+        this.rAudit(nx, hex);
+        this.rTurn(nx, M.turn + 1, rn);
+      });
+      return;
+    }
+    if (nx !== M) this.send("TURN", M, nx, 23 + this.P.bytes, "сверка", () => this.rAudit(nx, hex));
+    else this.rAudit(M, hex);
+    M.turn++; M.turnPr = 0; M.turnT0 = this.now;
+    this.ui.step("r5");
+    this.rFeed(M);
+  }
+  rAudit(a, hex) {                                      // сверка простого соседа одной базой, которой он не проверял
+    const k = this.cfg.nb < 12 ? this.cfg.nb : 0;
+    this.job(a, 0, `сверка простого №${shortHex(hex)}: база ${BASES[k]}`, this.P.base_us, () => {
+      a.cnt.agr++;
+      this.log(`№${a.id}: сверка ${shortHex(hex)} базой ${BASES[k]} — простое ✓`, a, "r6");
+    }, "mr");
+  }
+  recA(a, kind, t0, t1, core) {                         // полоса «по времени»: работа агентов эстафеты и каскада
+    (this.recs.ra = this.recs.ra || []).push({ pos: a.pos, kind, t0, t1, core });
+    if (this.recs.ra.length > 1500) this.recs.ra.splice(0, 500);
+  }
+
+  // =================== рассеяние: сет A объявляет, сет B рассеивает ===================
+  announce(a, hex) {
+    this.ui.step("b1");
+    this.log(`№${a.id} → всем: простое для сета B (PRIME, один широковещательный кадр)`, a, "b1");
+    this.bcast("PRIME", a, this.B, 8 + this.P.bytes, "PRIME", b => this.bOnPrime(b, hex, a));
+  }
+  bStart(b) {
+    b.pos = b.idx; b.units = 2; b.idleText = "свободно";
+    this.bRefill(b);
+    if (this.cfg.bgr) {
+      const per = 1e6 / this.cfg.bgr;
+      const tick = () => {
+        if (b.units > 0 && !b.bq.length) {
+          b.units--; b.cnt.bg++;
+          this.bcast("BG", b, this.all, 8 + this.P.bytes, "фон", x => this.onHearScat(x, b, true));
+          this.bRefill(b);
+        }
+        this.sim.after(per * (0.97 + 0.06 * rand()), tick);
+      };
+      this.sim.after(per * rand(), tick);
+    }
+  }
+  bRefill(b) {
+    if (b.units >= 8 || b.refilling) return;
+    b.refilling = true;
+    this.job(b, 2, "набирает шум: 2 блока", 64 / 4 * this.P.word_us, () => {
+      b.units = Math.min(8, b.units + 2); b.refilling = false;
+      this.bPump(b); this.bRefill(b);
+    }, "noise");
+  }
+  bOnPrime(b, hex, from) {
+    const sm = this.cfg.sm;
+    b.cnt.prx++;
+    if (sm === 0) { this.log(`B №${b.id}: услышал простое — тишина, только считает`, b, "b3"); return; }
+    if (sm === 3 && b.pos !== 0) return;                 // эстафету начинает первый
+    if (b.bq.length >= 4) { b.cnt.sdrop++; this.log(`B №${b.id}: не успевает — простое пропущено`, b, "b2"); return; }
+    b.bq.push({ hex, from, chain: false, t: this.now });
+    this.bPump(b);
+  }
+  bPump(b) {
+    while (b.bq.length && b.units > 0) { const w = b.bq.shift(); b.units--; this.bProcess(b, w); }
+    if (b.bq.length) { b.cnt.swait++; this.lane0(b, "простое ждёт шум"); }
+    this.bRefill(b);
+  }
+  bProcess(b, w) {
+    const c = this.cfg, nB = this.B.length, P = this.P;
+    const fn = ["хеш SHA-256", "XOR с шумом", "умножение на случайное", "перестановка бит"][b.sf || 0];
+    const sham = c.sham;
+    const mixUs = 40;
+    this.ui.step("b2");
+    if (c.sm === 3) {                                   // эстафета: по цепочке адресно, последний — в эфир
+      this.job(b, 0, `${sham ? "пустышка: шум" : "смешивает: " + fn}`, mixUs, () => {
+        if (b.pos + 1 >= nB) {
+          b.cnt.stx++;
+          this.log(`B №${b.id}: последний в цепочке — кадр в эфир${sham ? " (пустышка)" : ""}`, b, "b3");
+          this.bcast("SCAT", b, this.all, 12 + P.bytes, sham ? "шум" : "SCAT", x => this.onHearScat(x, b));
+          this.recScat(b, w, this.now);
+        } else {
+          const nx = this.B[b.pos + 1];
+          this.log(`B №${b.id} → B №${nx.id}: шаг эстафеты (CHAIN)`, b, "b3");
+          this.send("CHAIN", b, nx, 8 + P.bytes, "CHAIN", () => { nx.bq.push({ ...w, chain: true }); this.bPump(nx); });
+        }
+      }, "mix");
+      return;
+    }
+    const slot = b.pos * P.slot_us;
+    const piece = c.sm === 2 ? Math.ceil(P.bytes / nB) : P.bytes;
+    this.job(b, 0, `${sham ? "пустышка: шум вместо числа" : "смешивает " + (c.sm === 2 ? `свой кусок ${b.pos + 1}/${nB} (${piece} Б)` : "всё число") + ": " + fn}`, mixUs, () => {
+      b.cnt.stx++;
+      this.lane0(b, slot ? `ждёт своё окно: место ${b.pos} × 1 мс` : "окно 0 — сразу", slot);
+      const t = this.now + slot;
+      this.sim.at(t, () => {
+        this.log(`B №${b.id}: кадр рассеяния в эфир${c.sm === 2 ? ` — кусок ${b.pos + 1} из ${nB}` : ""}${sham ? " (пустышка)" : ""}${slot ? ` (окно ${b.pos} мс)` : ""}`, b, "b3");
+        this.bcast("SCAT", b, this.all, 12 + piece, sham ? "шум" : (c.sm === 2 ? `кус. ${b.pos + 1}` : "SCAT"), x => this.onHearScat(x, b));
+        this.recScat(b, w, t);
+      });
+    }, "mix");
+  }
+  onHearScat(x, from, bg) {
+    x.cnt.heard++;
+    if (x.role === "A" && (this.cfg.src & 16)) {         // петля: байты кадров B — шум сета A
+      x.pool = Math.min(4096, x.pool + this.P.bytes);
+      this.ui.step("l2");
+      if (x.waitPool && x.pool >= this.P.airNeed) { x.waitPool = false; this.soloNext(x); }
+    }
+  }
+
+  // =================== запись по времени (для полосы «по времени») ===================
+  recStart() { this.rec = null; }
+  recCycle(mi, cyc) {
+    this.rec = { c: cyc, t0: this.now, master: mi, lanes: this.A.map(() => []), msgs: [] };
+    for (const x of (this.prevRec && this.prevRec.next) || []) this.rec.lanes[x.pos].push({ kind: "проверка", t0: x.t0, t1: x.t0 + 1, early: true });
+  }
+  recEnd(cyc) {
+    if (!this.rec || this.rec.c !== cyc) return;
+    this.rec.t1 = this.now;
+    this.recs.cycles.push({ ...this.rec, lanes: this.rec.lanes.map(l => l.slice()) });
+    if (this.recs.cycles.length > 40) this.recs.cycles.shift();
+    this.prevRec = this.rec;
+  }
+  recSeg(a, kind, dur) {
+    if (a !== this.A[0]) return;
+    const list = this.recs.solo;
+    const t0 = Math.max(this.now, a.lane[1].t0);
+    list.push({ kind, t0, t1: t0 + dur });
+    if (list.length > 400) list.splice(0, 100);
+  }
+  recScat(b, w, t) {
+    this.recs.scat.push({ b: b.pos, id: b.id, tPrime: w.t, tOut: t });
+    if (this.recs.scat.length > 60) this.recs.scat.shift();
+  }
+}
+
+// =====================================================================
+// Вид: сцена SVG
+// =====================================================================
+const MSG_STYLE = {
+  NXT: ["var(--nxt)", "итог цикла и число следующего"], RES: ["var(--res)", "ответ мастеру: нашёл ли свидетеля"],
+  PCS: ["var(--pcs)", "кусочки шума мастеру или проверяющему"], REQ: ["var(--req)", "просьба о кусочках"],
+  NUM: ["var(--num)", "число цикла без итога"], PRIME: ["var(--prime)", "простое — сету B", true],
+  SCAT: ["var(--scat)", "кадр рассеяния"], CHAIN: ["var(--chain)", "шаг эстафеты B → B"],
+  BG: ["var(--bgf)", "фон сета B"], TEL: ["var(--tel)", "телеметрия на сервер"], CFG: ["var(--on)", "настройка с сервера"],
+  TURN: ["var(--ask)", "ход и запас следующему, подтверждение; в каскаде — простое на сверку"],
+};
+const ROLE = { A: ["генерация", "var(--ra)"], B: ["рассеяние", "var(--rb)"], S: ["статический", "var(--rs)"] };
+
+class View {
+  constructor(svg) {
+    this.svg = svg; this.msgs = []; this.ripples = []; this.flashes = []; this.parts = [];
+    this.cards = new Map(); this.sel = null; this.vt = 0;
+  }
+  reset(model, liveAgents) {
+    this.model = model; this.msgs = []; this.ripples = []; this.flashes = []; this.parts = [];
+    this.static = liveAgents || [];
+    this.layout();
+  }
+  layout() {
+    const svg = this.svg, m = this.model;
+    const W = Math.max(320, Math.floor(svg.parentNode.getBoundingClientRect().width) || 900);
+    this.layoutW = W;
+    const narrow = W < 760;
+    const cw = narrow ? Math.min(W - 24, 230) : 214, ch = 160, gap = 12;
+    const nA = m.A.length, nB = m.B.length, nS = this.static.length;
+    const top = 92;
+    let H, posA = [], posB = [], posS = [];
+    const grid = (n, x0, x1, y0) => {
+      const cols = Math.max(1, Math.min(n, Math.floor((x1 - x0 + gap) / (cw + gap))));
+      const rows = Math.ceil(n / cols);
+      const ww = cols * cw + (cols - 1) * gap, sx = x0 + (x1 - x0 - ww) / 2;
+      const out = [];
+      for (let i = 0; i < n; i++) out.push({ x: sx + (i % cols) * (cw + gap), y: y0 + Math.floor(i / cols) * (ch + gap + 14) });
+      return { out, h: rows * (ch + gap + 14) };
+    };
+    if (narrow || !nB) {
+      const ga = grid(nA, 12, W - 12, top + 18);
+      posA = ga.out;
+      let y = top + 18 + ga.h + (nB ? 26 : 0);
+      if (nB) { const gb = grid(nB, 12, W - 12, y + 18); posB = gb.out; this.zoneB = { x: 12, y, w: W - 24 }; y += 18 + gb.h; }
+      this.zoneA = { x: 12, y: top, w: W - 24 };
+      if (nS) { const gs = grid(nS, 12, W - 12, y + 18); posS = gs.out; this.zoneS = { x: 12, y, w: W - 24 }; y += 18 + gs.h; }
+      H = y + 96;
+    } else {
+      const split = W * (nA >= nB * 1.6 ? 0.62 : 0.52);
+      const ga = grid(nA, 12, split - 24, top + 18), gb = grid(nB, split + 24, W - 12, top + 18);
+      posA = ga.out; posB = gb.out;
+      this.zoneA = { x: 12, y: top, w: split - 36 }; this.zoneB = { x: split + 24, y: top, w: W - split - 36 };
+      let y = top + 18 + Math.max(ga.h, gb.h);
+      if (nS) { const gs = grid(nS, 12, W - 12, y + 18); posS = gs.out; this.zoneS = { x: 12, y, w: W - 24 }; y += 18 + gs.h; }
+      H = y + 96;
+    }
+    this.W = W; this.H = H; this.cw = cw; this.ch = ch;
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    svg.setAttribute("height", H);
+    svg.innerHTML = "";
+    this.gBack = mk("g", {}, svg); this.gTel = mk("g", {}, svg); this.gCards = mk("g", {}, svg);
+    this.gFx = mk("g", {}, svg); this.gMsg = mk("g", {}, svg);
+    // сервер и роутер
+    this.server = { x: 12, y: 10, w: Math.min(250, W * 0.36), h: 54 };
+    this.router = { x: W / 2 - 80, y: 10, w: 160, h: 54 };
+    if (narrow) { this.server.w = W * 0.46; this.router = { x: W - 12 - W * 0.42, y: 10, w: W * 0.42, h: 54 }; }
+    const box = (b, title, sub) => {
+      mk("rect", { x: b.x, y: b.y, width: b.w, height: b.h, rx: 8, class: "box" }, this.gBack);
+      const t = mk("text", { x: b.x + 10, y: b.y + 20, class: "c-title" }, this.gBack); t.textContent = title;
+      const s = mk("text", { x: b.x + 10, y: b.y + 38, class: "c-small" }, this.gBack); s.textContent = sub;
+    };
+    box(this.server, "▣ сервер", narrow ? "телеметрия, команды" : "телеметрия, команды, журнал опытов");
+    box(this.router, "⌂ роутер Wi-Fi", "канал роутера");
+    mk("path", { d: `M${this.server.x + this.server.w} ${this.server.y + 27} L${this.router.x} ${this.router.y + 27}`, class: "wire" }, this.gBack);
+    const zone = (z, t) => { if (!z) return; const e = mk("text", { x: z.x, y: z.y + 10, class: "zone-t" }, this.gBack); e.textContent = t; };
+    zone(this.zoneA, m.cfg.aMode === "group" ? `сет A — генерация сообща (эстафета по кругу)` : m.cfg.aMode === "dc" ? "сет A — каждый сам, два ядра"
+      : m.cfg.aMode === "relay" ? `сет A — эстафета: число из шума всех, проверяет один${m.cfg.dc ? " · два ядра" : ""}`
+      : m.cfg.aMode === "cascade" ? `сет A — каскад: проверяют все, шум — от всех ко всем${m.cfg.dc ? " · два ядра" : ""}` : "сет A — каждый сам за себя");
+    if (nB) zone(this.zoneB, `сет B — рассеяние: ${["тишина", "каждый — всё число", "россыпь", "эстафета"][m.cfg.sm]}${m.cfg.sham ? ", пустышка" : ""}${m.cfg.bgr ? `, фон ${m.cfg.bgr}/с` : ""}`);
+    if (nS) zone(this.zoneS, "статические акселерометры — только меряют");
+    // источники шума внизу
+    this.srcY = H - 70;
+    const sw = Math.min(150, (W - 24 - 4 * 8) / 5);
+    this.srcPos = {};
+    SRC.forEach((s, i) => {
+      const x = 12 + i * (sw + 8), on = this.srcActive(s.bit);
+      this.srcPos[s.bit] = { x: x + sw / 2, y: this.srcY };
+      mk("rect", { x, y: this.srcY, width: sw, height: 46, rx: 8, class: "chip" + (on ? " on" : "") }, this.gBack);
+      mk("circle", { cx: x + 12, cy: this.srcY + 15, r: 5, fill: `var(--${s.key})` }, this.gBack);
+      const t = mk("text", { x: x + sw / 2 + 6, y: this.srcY + 18, class: "chip-t" + (on ? " on" : "") }, this.gBack); t.textContent = s.name;
+      const n = mk("text", { x: x + sw / 2, y: this.srcY + 34, class: "chip-t" }, this.gBack); n.textContent = on ? s.note : "не используется";
+    });
+    const st = mk("text", { x: W - 12, y: this.srcY - 8, class: "c-small", "text-anchor": "end" }, this.gBack);
+    st.textContent = "источники шума агентов";
+    // карточки
+    this.cards = new Map();
+    m.A.forEach((a, i) => this.makeCard(a, posA[i]));
+    m.B.forEach((b, i) => this.makeCard(b, posB[i]));
+    this.static.forEach((s, i) => this.makeCard(s, posS[i]));
+    // кольцо эстафеты группы и цепочка B
+    if ((m.cfg.aMode === "group" || m.cfg.aMode === "relay" || m.cfg.aMode === "cascade") && nA > 1) {
+      for (let i = 0; i < nA; i++) {
+        const p = this.center(m.A[i]), q = this.center(m.A[(i + 1) % nA]);
+        mk("path", { d: this.curve(p, q, 0.18), class: "ring" }, this.gBack);
+      }
+    }
+    if (m.cfg.sm === 3 && nB > 1) for (let i = 0; i + 1 < nB; i++) mk("path", { d: this.curve(this.center(m.B[i]), this.center(m.B[i + 1]), 0.12), class: "ring" }, this.gBack);
+    // Wi-Fi к роутеру
+    for (const a of m.all.concat(this.static)) {
+      const c = this.cards.get(a); if (!c) continue;
+      mk("path", { d: `M${c.x + c.w / 2} ${c.y} L${this.router.x + this.router.w / 2} ${this.router.y + this.router.h}`, class: "wire", opacity: 0.35 }, this.gBack);
+    }
+  }
+  srcActive(bit) {
+    const m = this.model;
+    return (m.cfg.src & bit) || (bit === 1 && m.B.length) || (bit === 1 && ["group", "relay", "cascade"].includes(m.cfg.aMode));
+  }
+  makeCard(a, p) {
+    const w = this.cw, h = this.ch, g = mk("g", { transform: `translate(${p.x},${p.y})`, style: "cursor:pointer" }, this.gCards);
+    const c = { a, x: p.x, y: p.y, w, h, g, t: {} };
+    c.bg = mk("rect", { x: 0, y: 0, width: w, height: h, rx: 9, class: "c-bg" }, g);
+    const col = ROLE[a.role][1];
+    if (a.role === "A") mk("circle", { cx: 14, cy: 15, r: 6, fill: col }, g);
+    else if (a.role === "B") mk("path", { d: "M14 8 L21 15 L14 22 L7 15 Z", fill: col }, g);
+    else mk("rect", { x: 8, y: 9, width: 12, height: 12, fill: col }, g);
+    const T = (k, x, y, cls, anchor) => { const e = mk("text", { x, y, class: cls }, g); if (anchor) e.setAttribute("text-anchor", anchor); c.t[k] = e; return e; };
+    T("title", 26, 20, "c-title").textContent = `№${a.id} · ${a.role}` + (w >= 200 ? ` ${ROLE[a.role][0]}` : "");
+    T("badge", w - 8, 20, "c-small", "end");
+    const lane = (i, y) => {
+      T("l" + i, 8, y, "c-small").textContent = i ? "ядро 1" : "ядро 0";
+      mk("rect", { x: 52, y: y - 9, width: w - 60, height: 12, rx: 3, class: "c-barbg" }, g);
+      c["bar" + i] = mk("rect", { x: 52, y: y - 9, width: 0, height: 12, rx: 3, class: "c-bar" + i, opacity: 0.35 }, g);
+      T("a" + i, 55, y, "c-act");
+    };
+    lane(0, 42); lane(1, 62);
+    const st = ["шум", "канд.", "делит.", "МР", "✓"];
+    c.chips = st.map((s, i) => {
+      const cw = (w - 16 - 4 * 3) / 5, x = 8 + i * (cw + 3);
+      const r = mk("rect", { x, y: 72, width: cw, height: 16, rx: 4, class: "chip" }, g);
+      const t = mk("text", { x: x + cw / 2, y: 84, class: "chip-t" }, g); t.textContent = s;
+      return { r, t };
+    });
+    T("info", 8, 104, "c-act");
+    T("cnt", 8, 121, "c-small");
+    T("live", 8, 138, "c-small");
+    T("live2", 8, 153, "c-small");
+    g.addEventListener("click", () => { this.sel = this.sel === a ? null : a; ui.renderLog(); });
+    this.cards.set(a, c);
+  }
+  center(a) { const c = this.cards.get(a); return c ? { x: c.x + c.w / 2, y: c.y + c.h / 2 } : { x: 0, y: 0 }; }
+  edge(a, toward) {                                     // точка на краю карточки в сторону toward
+    const c = this.cards.get(a);
+    if (!c) return toward;
+    const cx = c.x + c.w / 2, cy = c.y + c.h / 2, dx = toward.x - cx, dy = toward.y - cy;
+    const s = Math.min(Math.abs((c.w / 2) / (dx || 1e-9)), Math.abs((c.h / 2) / (dy || 1e-9)));
+    return { x: cx + dx * Math.min(1, s), y: cy + dy * Math.min(1, s) };
+  }
+  curve(p, q, k) {
+    const mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2, dx = q.x - p.x, dy = q.y - p.y;
+    return `M${p.x} ${p.y} Q${mx - dy * k} ${my + dx * k} ${q.x} ${q.y}`;
+  }
+  bez(p, q, k, f) {
+    const mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2, dx = q.x - p.x, dy = q.y - p.y;
+    const cx = mx - dy * k, cy = my + dx * k, u = 1 - f;
+    return { x: u * u * p.x + 2 * u * f * cx + f * f * q.x, y: u * u * p.y + 2 * u * f * cy + f * f * q.y };
+  }
+  // ---------- то, что модель просит показать ----------
+  msg(type, from, to, t0, t1, label, lost) {
+    if (this.msgs.length > 260) this.msgs.splice(0, 60).forEach(x => x.g && x.g.remove());
+    this.msgs.push({ type, from, to, t0, t1, label, lost, k: (this.msgs.length % 3 - 1) * 0.12 });
+  }
+  ripple(from, t0, t1, type) { this.ripples.push({ from, t0, t1, type }); if (this.ripples.length > 60) this.ripples.shift(); }
+  flash(a, text) { this.flashes.push({ a, text, born: performance.now() }); }
+  // ---------- кадр ----------
+  frame(vt, realNow) {
+    this.vt = vt;
+    const m = this.model;
+    // карточки
+    for (const [a, c] of this.cards) this.drawCard(a, c, vt);
+    // сообщения
+    const keep = [];
+    for (const x of this.msgs) {
+      if (vt > x.t1 + (x.lost ? 0 : 0)) { if (x.g) x.g.remove(); continue; }
+      keep.push(x);
+      if (vt < x.t0) { if (x.g) x.g.setAttribute("visibility", "hidden"); continue; }
+      const f = Math.min(1, Math.max(0, (vt - x.t0) / Math.max(1, x.t1 - x.t0)));
+      const p0 = this.edge(x.from, this.center(x.to)), p1 = this.edge(x.to, this.center(x.from));
+      const pt = this.bez(p0, p1, x.k, f);
+      if (!x.g) {
+        const st = MSG_STYLE[x.type] || ["var(--mut)"];
+        x.g = mk("g", {}, this.gMsg);
+        const wv = 12 + x.label.length * 6.6;
+        x.path = mk("path", { d: this.curve(p0, p1, x.k), fill: "none", stroke: st[0], "stroke-width": 1.4, opacity: 0.45,
+                              "stroke-dasharray": x.lost ? "2 3" : "" }, x.g);
+        x.cap = mk("g", {}, x.g);
+        mk("rect", { x: -wv / 2, y: -8, width: wv, height: 16, rx: 8, fill: x.lost ? "none" : st[0], stroke: st[0], "stroke-width": 1.5 }, x.cap);
+        const t = mk("text", { x: 0, y: 0, class: "msg-t", fill: x.lost ? st[0] : (st[2] ? "var(--capdk)" : "var(--capfg)") }, x.cap);
+        t.textContent = x.lost ? x.label + " ✗" : x.label;
+      }
+      x.g.setAttribute("visibility", "visible");
+      x.path.setAttribute("d", this.curve(p0, p1, x.k));
+      x.cap.setAttribute("transform", `translate(${pt.x},${pt.y})`);
+      const hl = !this.sel || x.from === this.sel || x.to === this.sel;
+      x.g.setAttribute("opacity", hl ? 1 : 0.15);
+    }
+    this.msgs = keep;
+    // волны широковещания
+    this.gFx.innerHTML = "";
+    for (const r of this.ripples) {
+      if (vt < r.t0 || vt > r.t1) continue;
+      const f = (vt - r.t0) / (r.t1 - r.t0), c = this.center(r.from);
+      mk("circle", { cx: c.x, cy: c.y, r: 30 + f * 260, class: "ripple", stroke: (MSG_STYLE[r.type] || ["var(--mut)"])[0], opacity: 0.55 * (1 - f) }, this.gFx);
+    }
+    this.ripples = this.ripples.filter(r => vt <= r.t1);
+    // частицы шума (видимость, не модель): от источника к агенту, пока он набирает шум
+    for (const a of m.all) {
+      const busyNoise = a.stage === "noise" || a.stage0 === "noise";
+      if (!busyNoise || rand() > 0.35) continue;
+      const src = a.role === "B" ? 1 : m.cfg.src;
+      const bits = SRC.filter(s => src & s.bit).map(s => s.bit);
+      const bit = bits[(Math.random() * bits.length) | 0];
+      let from;
+      if (bit === 2) from = { x: this.router.x + this.router.w / 2, y: this.router.y + this.router.h };
+      else if (bit === 16 && m.B.length) from = this.center(m.B[(Math.random() * m.B.length) | 0]);
+      else from = this.srcPos[bit];
+      if (!from) continue;
+      const to = this.edge(a, from);
+      this.parts.push({ from: { x: from.x, y: from.y }, to, born: realNow, life: 650, color: `var(--${SRC.find(s => s.bit === bit).key})` });
+    }
+    this.parts = this.parts.filter(p => realNow - p.born < p.life).slice(-160);
+    for (const p of this.parts) {
+      const f = (realNow - p.born) / p.life;
+      mk("circle", { cx: p.from.x + (p.to.x - p.from.x) * f, cy: p.from.y + (p.to.y - p.from.y) * f, r: 2.6, fill: p.color, opacity: 0.85 }, this.gFx);
+    }
+    // вспышки
+    this.flashes = this.flashes.filter(f => realNow - f.born < 1600);
+    for (const fl of this.flashes) {
+      const c = this.cards.get(fl.a); if (!c) continue;
+      const f = (realNow - fl.born) / 1600;
+      const t = mk("text", { x: c.x + c.w / 2, y: c.y - 6 - f * 14, class: "flash", fill: "var(--ok)", opacity: 1 - f * f }, this.gFx);
+      t.textContent = fl.text;
+    }
+    // телеметрия — в реальном времени
+    this.drawTelemetry(realNow);
+  }
+  drawTelemetry(now) {
+    const m = this.model, period = 1000;
+    this.gTel.innerHTML = "";                           // под карточками: не заслоняет текст
+    for (const a of m.all.concat(this.static)) {
+      const c = this.cards.get(a); if (!c) continue;
+      const ph = ((now + a.id * 137) % period) / period;
+      if (ph > 0.55) continue;
+      const f = ph / 0.55;
+      const p0 = { x: c.x + c.w / 2, y: c.y }, r = { x: this.router.x + this.router.w / 2, y: this.router.y + this.router.h };
+      const s = { x: this.server.x + this.server.w, y: this.server.y + 27 };
+      const pt = f < 0.6 ? { x: p0.x + (r.x - p0.x) * f / 0.6, y: p0.y + (r.y - p0.y) * f / 0.6 }
+                         : { x: r.x + (s.x - r.x) * (f - 0.6) / 0.4, y: r.y - 27 + (s.y - r.y + 27) * (f - 0.6) / 0.4 };
+      mk("rect", { x: pt.x - 5, y: pt.y - 3.5, width: 10, height: 7, rx: 2, fill: "var(--tel)", opacity: 0.6 }, this.gTel);
+    }
+  }
+  drawCard(a, c, vt) {
+    const m = this.model, set = (k, s) => { if (c.t[k] && c.t[k].__s !== s) { c.t[k].textContent = s; c.t[k].__s = s; } };
+    c.bg.setAttribute("class", "c-bg" + (a.master ? " master" : "") + (this.sel === a ? " sel" : ""));
+    set("badge", a.master ? "★ мастер" : "");
+    for (let i = 0; i < 2; i++) {
+      const L = a.lane[i] || { act: "" };
+      const prog = L.t1 > L.t0 ? Math.min(1, Math.max(0, (vt - L.t0) / (L.t1 - L.t0))) : (L.act && !/свободно|слушает|ждёт/.test(L.act) ? 1 : 0);
+      c["bar" + i].setAttribute("width", (c.w - 60) * prog);
+      let s = L.act || "";
+      if (s.length > 34) s = s.slice(0, 33) + "…";
+      set("a" + i, s);
+    }
+    const st = a.stage || a.stage0;
+    const idx = { noise: 0, sieve: 2, mr: 3, mix: 3 }[st];
+    c.chips.forEach((ch, i) => {
+      const on = i === idx || (i === 1 && st === "sieve");
+      ch.r.setAttribute("class", "chip" + (on ? " on" : ""));
+      ch.t.setAttribute("class", "chip-t" + (on ? " on" : ""));
+    });
+    let info = "";
+    if (a.role === "A" && m.cfg.aMode === "group") info = `базы ${a.bases.map(k => BASES[k]).join(", ") || "—"}` + (a.master ? ` · запас ${a.reserve}` : "") + (a.preReady ? " · кусочки готовы" : "");
+    else if (a.role === "A" && (m.cfg.aMode === "relay" || m.cfg.aMode === "cascade")) info = (a.checker ? `ход ${a.turn} · запас ${a.reserve}` : "даёт шум") +
+      ` · наборов ${a.pre}${a.wants && a.wants.length ? ` · ждут ${a.wants.length}` : ""}`;
+    else if (a.role === "A" && m.cfg.aMode === "dc") info = `очередь кандидатов ${"▮".repeat(Math.min(a.queue, 12))} ${a.queue}`;
+    else if (a.role === "A" && (m.cfg.src & 16)) info = `запас эфира B: ${a.pool} Б (нужно ${m.P.airNeed})`;
+    else if (a.role === "B") info = `место ${a.idx}${m.cfg.sm === 3 ? "" : ` (окно ${a.idx} мс)`} · ${["хеш", "XOR", "умножение", "перестановка"][a.sf || 0]} · шум ${a.units}`;
+    else if (a.role === "S") info = "1000 Гц → 500 Гц → сервер";
+    else info = `отсеяно ${fmtNum(a.cnt.cand ? 100 * a.cnt.rej / a.cnt.cand : 0, 0)} % из ${fmtInt(a.cnt.cand)}`;
+    set("info", info);
+    const secs = Math.max(1e-6, vt / 1e6);
+    let cnt;
+    if (a.role === "B") cnt = `модель: получено ${a.cnt.prx}, выпущено ${a.cnt.stx}${a.cnt.bg ? `, фон ${a.cnt.bg}` : ""}`;
+    else if (a.role === "S") cnt = "";
+    else if (m.cfg.aMode === "group") cnt = `модель: мастером ${a.cnt.mcyc} · простых ${a.cnt.pr}`;
+    else if ((m.cfg.aMode === "relay" || m.cfg.aMode === "cascade")) cnt = `модель: ходов ${a.cnt.mcyc} · простых ${a.cnt.pr}${a.cnt.trunc ? ` · без чужих ${a.cnt.trunc}` : ""}`;
+    else cnt = `модель: простых ${a.cnt.pr} · ${fmtNum(a.cnt.cand / secs, 0)} канд./с`;
+    set("cnt", cnt);
+    const L = a.live;
+    if (L) {
+      set("live", `на плате: ${L.temp != null ? fmtNum(L.temp, 1) + " °C" : "—"}${L.work != null && L.work < 99.9 ? ` · работа ${fmtNum(L.work, 0)} %` : ""} · ${L.rssi != null ? L.rssi + " дБм" : ""}`);
+      set("live2", L.text || "");
+    } else { set("live", a.role === "S" ? "" : "демонстрация"); set("live2", ""); }
+  }
+}
+
+// =====================================================================
+// Шаги режимов (подсвечиваются, когда модель их проходит)
+// =====================================================================
+const STEPS = {
+  solo: ["Каждый сам за себя", [
+    ["s1", "Шум: ГСЧ чипа даёт слово за ~21 мкс; на кандидата 256 бит — 8 слов, 166 мкс. Другие источники — блоки SHA-256 по 256 зачтённых бит от каждого (CSI, АЦП, дрожание — десятки миллисекунд)."],
+    ["s2", "Кандидат: старший бит и нечётность выставлены — длина ровно n бит."],
+    ["s3", "Отсев делителями < 1000: 84 % кандидатов делятся на малое простое и отброшены за 43 мкс."],
+    ["s4", "Миллер — Рабин: для составного почти всегда свидетель — уже база 2 (≈1 мс на базу при 256 битах)."],
+    ["s5", "Прошёл все 8 баз — простое. В среднем 1 на 88,6 кандидата (1 на 14,3 уцелевших после отсева)."],
+  ]],
+  dc: ["Два ядра (конвейер)", [
+    ["d1", "Ядро 0 (связь) в свободное время берёт шум и отсеивает — один источник шума, одно ядро."],
+    ["d2", "Уцелевший кандидат — в очередь (до 16)."],
+    ["d3", "Ядро 1 только проверяет Миллером — Рабином; темп ×1,8 (4100 кандидатов/с на плату), узкое место — проверка."],
+  ]],
+  group: ["Сообща (протокол v3)", [
+    ["g1", "Число цикла приходит вместе с итогом прошлого (NXT): новому мастеру первым, с остатком запаса; остальным — только число."],
+    ["g2", "Каждый сразу проверяет число своими базами: база i — у агента на месте i по кругу (при 4 агентах и 8 базах: 2 и 11, 3 и 13, 5 и 17, 7 и 19)."],
+    ["g3", "Ответ мастеру (RES) с меткой числа. Ответ раньше итога сохраняется — мастер ещё может не знать, что он мастер."],
+    ["g4", "Итог: свидетель нашёлся → составное, мастер следующего — нашедший (нашли несколько — по зерну из самого числа); не нашёл никто → простое, эстафета следующему по порядку."],
+    ["g5", "Запас кончился → в итоге «шлите кусочки»: каждый отдаёт K = 24 кусочка своего шума (заготовленных заранее), мастер складывает 24 кандидата, отсеивает, уцелевшие (≈4) — в запас."],
+  ]],
+  relay: ["Эстафета сета A", [
+    ["r1", "Ход у одного: он проверяет, остальные дают шум. Порядок — по номерам, по кругу."],
+    ["r2", "Круг сбора: просьба всем одним кадром (REQ), каждый отдаёт набор из K кусочков своего шума (PCS) — набранный заранее. Срок ожидания: кто не успел — его кусочки заменяются своим шумом."],
+    ["r3", "Проверяющий складывает K кандидатов из кусочков всех в случайном порядке и отсеивает делителями; уцелевшие — в запас. Два ядра: складывает и отсеивает ядро связи."],
+    ["r4", "Ядро счёта проверяет запас всеми базами, без кругов ответов: составное — одна база, простое — все."],
+    ["r5", "Простое — ход кончился: ход и остаток запаса следующему (TURN), он подтверждает приём и сразу проверяет."],
+    ["r6", "Следующий сверяет простое прошлого хода одной базой, которой тот не проверял (при 8 базах — 23)."],
+  ]],
+  cascade: ["Каскад сета A", [
+    ["r1", "Ход у всех сразу: каждый проверяет свои числа, и каждый же даёт шум для чисел всех остальных."],
+    ["r2", "Каждый проверяющий просит кусочки у всех одним кадром (REQ) и получает от каждого набор из K кусочков (PCS). Срок ожидания: кто не успел — его кусочки заменяются своим шумом."],
+    ["r3", "Складывает K кандидатов из кусочков всех, отсеивает (два ядра — на ядре связи), уцелевшие — в свой запас."],
+    ["r4", "Ядро счёта проверяет свои числа всеми базами."],
+    ["r5", "Простое — следующему по порядку на сверку (TURN без хода); ход остаётся."],
+    ["r6", "Сверка простого соседа одной другой базой. Кусочки идут от всех ко всем — на 8–16 агентах эфир становится узким местом."],
+  ]],
+  scatter: ["Рассеяние (сет B)", [
+    ["b1", "Сет A нашёл простое → один широковещательный кадр PRIME всему сету B."],
+    ["b2", "Агент B смешивает число со своим шумом своей функцией (хеш, XOR, умножение, перестановка); пустышка — тот же кадр, но только шум."],
+    ["b3", "Каждый сам и россыпь: свой кадр SCAT в своё окно (место × 1 мс) — иначе кадры сталкивались. Эстафета: B1 → B2 → … адресно, последний — в эфир. Тишина: только слушают."],
+  ]],
+  loop: ["Петля через эфир", [
+    ["l1", "Сет B выпускает кадры (рассеянное и фон)."],
+    ["l2", "Агенты A слышат кадры, байты — в запас «эфир сета B» (засчитываем 4 бита на байт)."],
+    ["l3", "Набралось 64 байта (256 бит) → кандидат; простое → PRIME → B рассеивает → снова в эфир."],
+  ]],
+};
+
+// =====================================================================
+// Интерфейс: журнал, шаги, времена, полоса по времени
+// =====================================================================
+const ui = {
+  logs: [], hot: {},
+  log(t, text, ag, step, key) {
+    this.logs.push({ t, text, ag, key });
+    if (this.logs.length > 600) this.logs.splice(0, 200);
+    if (step) this.step(step);
+    this.dirty = true;
+  },
+  step(id) { this.hot[id] = performance.now(); },
+  renderLog() {
+    const sel = view.sel;
+    const rows = [];
+    for (let i = this.logs.length - 1; i >= 0 && rows.length < 140; i--) {
+      const x = this.logs[i];
+      if (sel && x.ag !== sel) continue;
+      rows.push(`<div><span class="t">+${fmtNum(x.t / 1000, 3)} мс</span><span class="${x.key ? "key" : ""}">${esc(x.text)}</span></div>`);
+    }
+    $("log").innerHTML = (sel ? `<div><span></span><span class="mut">только №${sel.id} — щёлкните по нему ещё раз, чтобы видеть всех</span></div>` : "") + rows.join("");
+    this.dirty = false;
+  },
+  renderSteps(model) {
+    const c = model.cfg, keys = [["group", "relay", "cascade", "dc"].includes(c.aMode) ? c.aMode : "solo"];
+    if (c.aMode === "dc") keys.unshift("solo");
+    if (model.B.length) keys.push("scatter");
+    if (c.src & 16) keys.push("loop");
+    $("steps").innerHTML = keys.map(k => `<h3>${STEPS[k][0]}</h3><ol>${STEPS[k][1].map(([id, t]) => `<li data-step="${id}">${t}</li>`).join("")}</ol>`).join("");
+  },
+  tickSteps() {
+    const now = performance.now();
+    document.querySelectorAll("#steps li").forEach(li => {
+      const on = now - (this.hot[li.dataset.step] || -1e9) < 1300;
+      if (on !== li.classList.contains("hot")) li.classList.toggle("hot", on);
+    });
+  },
+  msg(...a) { view.msg(...a); }, ripple(...a) { view.ripple(...a); }, flash(...a) { view.flash(...a); },
+};
+
+function renderTimes(model, live) {
+  const P = model.P, c = model.cfg, secs = Math.max(1e-6, model.now / 1e6);
+  const rows = [];
+  const L = live && live.stats;
+  const add = (what, mv, lv, note) => rows.push(`<tr><td>${what}</td><td class="r">${mv}</td><td class="r">${lv == null ? "—" : lv}</td><td class="mut">${note || ""}</td></tr>`);
+  if (c.aMode === "relay" || c.aMode === "cascade") {
+    const g = model.g, G = L && L.group, A = model.A;
+    const tr = g ? g.turns : [], meanTurn = tr.length ? tr.reduce((s, r) => s + r.t1 - r.t0, 0) / tr.length : null;
+    const pr = A.reduce((s, a) => s + a.cnt.pr, 0), cand = A.reduce((s, a) => s + a.cnt.cand, 0);
+    const turns = A.reduce((s, a) => s + a.cnt.mcyc, 0), trunc = A.reduce((s, a) => s + (a.cnt.trunc || 0), 0);
+    add("ход (до простого)", meanTurn ? fmtUs(meanTurn) : "…", G && G.avg_ms ? fmtUs(G.avg_ms[4] * 1000) : null, c.aMode === "relay" ? "один проверяет, потом ход следующему" : "у каждого свой");
+    add("набор кусочков", g ? `${g.K} × ${g.pb} Б` : "—", null, `${fmtUs(model.piecesTime())} шума на набор${c.dc ? " — производитель на ядре связи" : " — ядро счёта"}`);
+    add("проверка базой", fmtUs(P.base_us), G && G.avg_ms ? fmtUs(G.avg_ms[2] * 1000) + " (проверка за ход)" : null, `${c.bits} бит`);
+    add("ядро счёта ждало числа", "—", G && G.avg_ms ? fmtUs(G.avg_ms[0] * 1000) + " за ход" : null, G && G.sync_pct != null ? `ожидание ${fmtNum(G.sync_pct, 1)} % хода` : "");
+    add("кандидатов/с на группу", fmtNum(cand / secs, 0), null, `из кусочков всех · уцелевает ${fmtNum(100 * P.S, 1)} %`);
+    add("ходов/с", fmtNum(turns / secs, 1), G ? fmtNum(G.cyc_s, 1) : null, "");
+    add("простых/с", fmtNum(pr / secs, 1), G ? fmtNum(G.pr_s, 2) : null, c.aMode === "relay" ? "одна проверяющая плата за раз" : "проверяют все");
+    if (c.pw || trunc) add("кругов без чьих-то кусочков", fmtInt(trunc), G ? fmtInt(G.truncs) : null, c.pw ? `срок ${c.pw} мс, недостающие — своим шумом` : "");
+    if (G) add("сбои и сверка", "—", `переспросов ${fmtInt(G.asks)}, разрывов ${fmtInt(G.breaks)}`, `сверено простых ${fmtInt(G.agree)}, расхождений ${fmtInt(G.split)}`);
+  } else if (c.aMode !== "group") {
+    const A = model.A, cand = A.reduce((s, a) => s + a.cnt.cand, 0), pr = A.reduce((s, a) => s + a.cnt.pr, 0);
+    add("шум на кандидата", fmtUs(P.noise_us), L && L.us_ent != null ? fmtUs(L.us_ent) : null, SRC.filter(s => c.src & s.bit).map(s => s.name).join(" + "));
+    add("отсев на кандидата", fmtUs(P.sieve_us), L && L.us_td != null ? fmtUs(L.us_td) : null, `уцелевает ${fmtNum(100 * P.S, 1)} %`);
+    add("проверка базой", fmtUs(P.base_us), null, `${c.bits} бит, ускоритель через mbedtls`);
+    add("МР на кандидата (среднее)", fmtUs(P.S * P.base_us * (1 + (c.nb - 1) * P.pp)), L && L.us_mr != null ? fmtUs(L.us_mr) : null, "только уцелевшие, у составных — 1 база");
+    add("кандидатов/с на агента", fmtNum(cand / secs / Math.max(1, A.length), 0), L && L.cand_s != null ? fmtNum(L.cand_s, 0) : null, c.aMode === "dc" ? "два ядра" : "");
+    add("простых/с всего", fmtNum(pr / secs, 1), L && L.pr_s != null ? fmtNum(L.pr_s, 1) : null, `1 на ${fmtNum(1 / dens(c.bits), 1)} кандидатов`);
+  } else {
+    const cyc = model.recs.cycles, n = cyc.length;
+    const hop = model.A.length > 1 ? P.msg_us : 0;     // итог до нового мастера — как в замере платы
+    const mean = n ? cyc.reduce((s, r) => s + (r.t1 - r.t0), 0) / n + hop : null;
+    const G = L && L.group;
+    add("цикл (с передачей эстафеты)", mean ? fmtUs(mean) : "…", G && G.avg_ms ? fmtUs(G.avg_ms[4] * 1000) : null, `${model.A.length} агентов`);
+    add("кадр ESP-NOW до обработки", fmtUs(P.msg_us), G && G.hop_ms != null ? fmtUs(G.hop_ms * 1000) + " (итог до мастера)" : null, "24 Мбит/с, шаг задачи 1 мс");
+    add("проверка своими базами", fmtUs(P.base_us), G && G.avg_ms ? fmtUs(G.avg_ms[2] * 1000) + " (проверка и ответы)" : null, "составное — 1 база у каждого");
+    add("сбор и отсев", fmtUs(REF.K * P.sieve_us + 150), G && G.avg_ms ? fmtUs((G.avg_ms[0] + G.avg_ms[1]) * 1000) : null, "раз в ~4 цикла");
+    add("синхронизация", "—", G && G.sync_pct != null ? fmtNum(G.sync_pct, 1) + " %" : null, "доля цикла без счёта");
+    const pr = model.A.reduce((s, a) => s + a.cnt.pr, 0), mc = model.A.reduce((s, a) => s + a.cnt.mcyc, 0);
+    add("циклов/с", fmtNum(mc / secs, 0), G ? fmtNum(G.cyc_s, 0) : null, "");
+    add("простых/с", fmtNum(pr / secs, 1), G ? fmtNum(G.pr_s, 2) : null, "");
+    if (G) add("сбои", "—", `переспросов ${fmtInt(G.asks)}, разрывов ${fmtInt(G.breaks)}`, `согласие: ${fmtInt(G.agree)} сравнено, расхождений ${fmtInt(G.split)}`);
+  }
+  if (model.B.length) {
+    const sc = model.recs.scat;
+    const byPos = model.B.map(b => { const x = sc.filter(r => r.b === b.pos && r.tOut > r.tPrime); return x.length ? x.reduce((s, r) => s + r.tOut - r.tPrime, 0) / x.length : null; });
+    add("рассеяние: от простого до своего кадра", byPos.map((v, i) => `№${model.B[i].id} ${v ? fmtUs(v) : "—"}`).join(" · "),
+        L && L.scat && L.scat.length ? L.scat.map(x => `№${x.id} ${x.lat_ms != null ? fmtNum(x.lat_ms, 2) + " мс" : "—"}`).join(" · ") : null, c.sm === 3 ? "эстафета: по шагам" : "окно места × 1 мс");
+    const heard = model.all.reduce((s, a) => s + a.cnt.heard, 0);
+    add("кадров рассеяния услышано", fmtInt(heard), L && L.heard_s != null ? fmtNum(L.heard_s, 1) + "/с" : null, "широковещательные: ~2 % не слышат");
+  }
+  if (L && L.tel) add("телеметрия", "раз в 1 с", L.tel, "");
+  $("times").innerHTML = `<div style="overflow-x:auto"><table><tr><th>что</th><th class="r">модель</th><th class="r">на платах сейчас</th><th></th></tr>${rows.join("")}</table></div>` +
+    `<div class="mut small" style="margin-top:6px">Модель — по замерам 03–04.10.2026${live && live.on ? " и живым параметрам" : ""}; правый столбец — с сервера, когда агенты считают.</div>`;
+}
+
+function renderGantt(model) {
+  const svg = $("gantt"), W = Math.max(320, svg.clientWidth || 600);
+  svg.innerHTML = "";
+  const c = model.cfg;
+  if (c.aMode === "group") {
+    const r = model.recs.cycles[model.recs.cycles.length - 1];
+    $("ganttTitle").textContent = "Последний цикл группы — по времени";
+    if (!r) { svg.setAttribute("height", 40); return; }
+    const N = r.lanes.length, H = 34 + N * 26 + 30, x0 = 70, x1 = W - 12, span = r.t1 - r.t0;
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("height", H);
+    const X = t => x0 + (x1 - x0) * Math.min(1, Math.max(0, (t - r.t0) / span));
+    for (let i = 0; i < N; i++) {
+      const y = 22 + i * 26, a = model.A[i];
+      const t = mk("text", { x: 4, y: y + 13, class: "g-lane" }, svg); t.textContent = `№${a.id}${i === r.master ? " ★" : ""}`;
+      mk("rect", { x: x0, y, width: x1 - x0, height: 18, fill: "var(--soft)" }, svg);
+      for (const s of r.lanes[i]) {
+        if (s.early) continue;
+        const col = s.kind === "отсев" ? "var(--pcs)" : "var(--on)";
+        mk("rect", { x: X(s.t0), y: y + 2, width: Math.max(2, X(s.t1) - X(s.t0)), height: 14, rx: 3, fill: col, opacity: 0.8 }, svg);
+        const tt = mk("text", { x: X(s.t0) + 3, y: y + 13, class: "g-lane", fill: "#fff" }, svg); tt.textContent = s.kind === "отсев" ? "отсев" : "проверка";
+      }
+    }
+    for (const m of r.msgs) {
+      if (m.t0 < r.t0 || m.from == null || m.to == null) continue;
+      const ya = 22 + m.from * 26 + 9, yb = 22 + m.to * 26 + 9;
+      mk("line", { x1: X(m.t0), y1: ya, x2: X(m.t1), y2: yb, stroke: (MSG_STYLE[m.type] || ["var(--mut)"])[0], "stroke-width": 1.6, opacity: 0.85 }, svg);
+      mk("circle", { cx: X(m.t1), cy: yb, r: 2.6, fill: (MSG_STYLE[m.type] || ["var(--mut)"])[0] }, svg);
+    }
+    const ax = mk("text", { x: x0, y: H - 8, class: "g-lane" }, svg); ax.textContent = "0";
+    const ax2 = mk("text", { x: x1, y: H - 8, class: "g-lane", "text-anchor": "end" }, svg); ax2.textContent = fmtMs(span);
+    $("ganttNote").textContent = `Цикл ${r.c}: синие полосы — проверка своими базами, оранжевые — отсев 24 кандидатов у мастера; линии — кадры (синие NXT, зелёные RES, оранжевые PCS). Всего ${fmtMs(span)}.`;
+  } else if ((c.aMode === "relay" || c.aMode === "cascade") && model.recs.ra && model.recs.ra.length) {
+    const N = model.A.length, tEnd = model.now, span = Math.max(4 * model.P.base_us, Math.min(60000, 12 * model.P.base_us));
+    const t0 = tEnd - span, x0 = 70, x1 = W - 12, H = 22 + N * 30 + 26;
+    $("ganttTitle").textContent = c.aMode === "relay" ? "Эстафета — работа агентов по времени" : "Каскад — работа агентов по времени";
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("height", H);
+    const X = t => x0 + (x1 - x0) * Math.min(1, Math.max(0, (t - t0) / span));
+    const col = { "МР": "var(--res)", "простое": "var(--prime)", "отсев": "var(--pcs)", "шум": "var(--rng)" };
+    for (let i = 0; i < N; i++) {
+      const y = 16 + i * 30, a = model.A[i];
+      const t = mk("text", { x: 4, y: y + 15, class: "g-lane" }, svg); t.textContent = `№${a.id}${a.checker ? " ★" : ""}`;
+      mk("rect", { x: x0, y, width: x1 - x0, height: 9, fill: "var(--soft)" }, svg);
+      mk("rect", { x: x0, y: y + 11, width: x1 - x0, height: 9, fill: "var(--soft)" }, svg);
+    }
+    for (const r of model.recs.ra) {
+      if (r.t1 < t0 || r.t0 > tEnd) continue;
+      const y = 16 + r.pos * 30 + (r.core === 0 ? 0 : 11);
+      mk("rect", { x: X(r.t0), y, width: Math.max(1.5, X(r.t1) - X(r.t0)), height: 9, rx: 2, fill: col[r.kind] || "var(--mut)", opacity: 0.85 }, svg);
+    }
+    for (const r of (model.g ? model.g.turns : [])) {
+      if (r.t1 < t0) continue;
+      const y = 16 + r.pos * 30 + 21;
+      mk("line", { x1: X(r.t1), y1: y - 23, x2: X(r.t1), y2: y + 2, stroke: "var(--ask)", "stroke-width": 2 }, svg);
+    }
+    const ax = mk("text", { x: x0, y: H - 6, class: "g-lane" }, svg); ax.textContent = "−" + fmtMs(span);
+    const ax2 = mk("text", { x: x1, y: H - 6, class: "g-lane", "text-anchor": "end" }, svg); ax2.textContent = "сейчас";
+    $("ganttNote").textContent = "У каждого агента верхняя полоса — ядро связи, нижняя — ядро счёта. Зелёное — проверка (Миллер — Рабин), жёлтое — простое (все базы), оранжевое — сборка и отсев, синее — набор шума на ядре счёта; красная черта — ход кончился (простое найдено)." +
+      (c.dc ? " Два ядра: шум набирает производитель, отсев — ядро связи, ядро счёта только проверяет." : "");
+  } else if (model.B.length && model.recs.scat.length) {
+    const L = model.recs.scat.slice(-model.B.length * 3);
+    $("ganttTitle").textContent = "Рассеяние — от получения простого до своего кадра";
+    const H = 30 + L.length * 22, x0 = 70, x1 = W - 12;
+    const span = Math.max(...L.map(r => r.tOut - r.tPrime), 1500);
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("height", H);
+    L.forEach((r, i) => {
+      const y = 14 + i * 22;
+      const t = mk("text", { x: 4, y: y + 12, class: "g-lane" }, svg); t.textContent = `B №${r.id}`;
+      mk("rect", { x: x0, y, width: x1 - x0, height: 16, fill: "var(--soft)" }, svg);
+      mk("rect", { x: x0, y: y + 2, width: Math.max(2, (x1 - x0) * (r.tOut - r.tPrime) / span), height: 12, rx: 3, fill: "var(--scat)", opacity: 0.8 }, svg);
+      const tt = mk("text", { x: x0 + 4, y: y + 12, class: "g-lane" }, svg); tt.textContent = fmtUs(r.tOut - r.tPrime);
+    });
+    $("ganttNote").textContent = "Каждый B выпускает кадр в своё окно: место 0 — сразу, место 1 — через 1 мс, место 2 — через 2 мс; в эстафете — через шаги цепочки.";
+  } else {
+    const seg = model.recs.solo.filter(s => s.t1 <= model.now).slice(-60);
+    $("ganttTitle").textContent = `№${model.A[0] ? model.A[0].id : "—"}: последние кандидаты — по времени`;
+    if (!seg.length) { svg.setAttribute("height", 40); return; }
+    const t0 = seg[0].t0, t1 = seg[seg.length - 1].t1, x0 = 8, x1 = W - 8, H = 70;
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`); svg.setAttribute("height", H);
+    const X = t => x0 + (x1 - x0) * (t - t0) / Math.max(1, t1 - t0);
+    const col = { "шум": "var(--rng)", "отсев": "var(--pcs)", "МР": "var(--res)", "": "var(--res)" };
+    for (const s of seg) mk("rect", { x: X(s.t0), y: 14, width: Math.max(1, X(s.t1) - X(s.t0)), height: 22, fill: col[s.kind] || "var(--mut)", opacity: 0.85 }, svg);
+    const a = mk("text", { x: x0, y: 54, class: "g-lane" }, svg); a.textContent = "0";
+    const b = mk("text", { x: x1, y: 54, class: "g-lane", "text-anchor": "end" }, svg); b.textContent = fmtMs(t1 - t0);
+    $("ganttNote").textContent = "Синее — набор шума, оранжевое — отсев делителями, зелёное — Миллер — Рабин (длинные зелёные — простые: все 8 баз).";
+  }
+}
+
+// =====================================================================
+// Живые данные с сервера
+// =====================================================================
+const live = { on: false, d: null, stats: null, sig: "" };
+// опубликованная копия (tools/build_docs.py --static): только демонстрация, к серверу не обращается
+const STATIC_BUILD = false;
+function liveConfig(d) {
+  const run = d.agents.filter(a => a.status === "online" && d.gen[a.mac] && d.gen[a.mac].run);
+  const A = run.filter(a => !(d.gen[a.mac].role)), B = run.filter(a => d.gen[a.mac].role === 1);
+  if (!A.length) return null;
+  const g0 = d.gen[A[0].mac], b0 = B.length ? d.gen[B[0].mac] : g0;
+  const cfg = {
+    nA: A.length, nB: B.length, idsA: A.map(a => a.id), idsB: B.map(a => a.id), macsA: A.map(a => a.mac), macsB: B.map(a => a.mac),
+    aMode: g0.mode === 1 ? (["group", "relay", "cascade"][g0.gv || 0] || "group") : g0.dc ? "dc" : "solo",
+    dc: g0.dc ? 1 : 0, rk: g0.rk || 1, pw: g0.pw || 0, src: g0.src || 1, bits: g0.bits || 256, nb: g0.nb || 8, td: g0.td ?? 1000,
+    all: g0.all || 0, pre: g0.pre ?? 1, sm: b0.sm === 4 ? 1 : (b0.sm ?? 1), sham: !!(b0.sh || b0.sm === 4), bgr: b0.bgr || 0,
+    sf: B.map(a => d.gen[a.mac].sf || 0),
+  };
+  const sig = JSON.stringify([cfg.idsA, cfg.idsB, cfg.aMode, cfg.dc, cfg.pw, cfg.src, cfg.bits, cfg.nb, cfg.td, cfg.all, cfg.sm, cfg.sham, cfg.bgr, A.map(a => d.gen[a.mac].cid)]);
+  return { cfg, sig };
+}
+function liveParams(d, cfg) {
+  const rates = cfg.macsA.map(m => (d.gen[m] || {}).rate || {}).filter(r => r.g_cand_s);
+  const avg = k => { const v = rates.map(r => r[k]).filter(x => x != null && isFinite(x)); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
+  const P = {};
+  if (cfg.aMode !== "group") {
+    const ent = avg("g_us_ent"), td = avg("g_us_td");
+    if (ent) P.noise_us = ent;
+    if (td) P.sieve_us = td;
+  }
+  const grp = (d.groups || [])[0];
+  if (grp && grp.hop_ms) P.msg_us = Math.min(5000, Math.max(300, grp.hop_ms * 1000));
+  return P;
+}
+function liveStats(d, cfg) {
+  if (!cfg) return null;
+  const st = {};
+  const rates = cfg.macsA.map(m => (d.gen[m] || {}).rate || {});
+  const sum = k => rates.reduce((s, r) => s + (r[k] || 0), 0), avg = k => { const v = rates.map(r => r[k]).filter(x => x != null); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
+  st.us_ent = avg("g_us_ent"); st.us_td = avg("g_us_td"); st.us_mr = avg("g_us_mr"); st.cand_s = avg("g_cand_s"); st.pr_s = sum("g_pr_s");
+  const grp = (d.groups || []).find(g => g.members.some(x => cfg.macsA.includes(x.mac)));
+  if (grp) st.group = grp;
+  st.scat = (d.scatter || []).filter(x => x.role === 1).map(x => ({ id: x.id, lat_ms: x.lat_ms }));
+  const hs = (d.scatter || []).filter(x => x.role === 0).map(x => x.g_heard_s || 0);
+  st.heard_s = hs.length ? hs.reduce((s, x) => s + x, 0) : null;
+  const ags = d.agents.filter(a => cfg.macsA.concat(cfg.macsB).includes(a.mac));
+  const lost = ags.reduce((s, a) => s + (a.lost || 0), 0);
+  st.tel = `${ags.length} агентов · потеряно пакетов ${fmtInt(lost)}`;
+  return st;
+}
+function applyLiveToCards(d, cfg) {
+  if (!model) return;
+  const byId = new Map(d.agents.map(a => [a.id, a]));
+  for (const a of model.all) {
+    const x = byId.get(a.id);
+    if (!x) { a.live = null; continue; }
+    const v = x.values || {}, g = d.gen[x.mac] || {}, r = g.rate || {}, gs = g.gstat || {};
+    let text = "";
+    if (a.role === "B") text = `получено ${fmtInt(g.prx)} · выпущено ${fmtInt(g.stx)}${g.lat_ms ? "" : ""}`;
+    else if (cfg.aMode === "group") text = `мастером ${fmtInt(gs.cycles_m)} · простых ${fmtInt(gs.primes_m)}${gs.role === 2 ? " · ★ сейчас" : ""}`;
+    else if (cfg.aMode === "relay" || cfg.aMode === "cascade") text = `ходов ${fmtInt(gs.cycles_m)} · простых ${fmtInt(gs.primes_m)}${gs.role === 2 && cfg.aMode === "relay" ? " · ★ ход у него" : ""}`;
+    else text = `простых ${fmtInt(g.pr)} · ${fmtNum(r.g_pr_s, 1)}/с · ${fmtNum(r.g_cand_s, 0)} канд./с`;
+    a.live = { temp: v.temp, work: v.work, rssi: v.rssi, text };
+    if (a.role === "B") a.sf = g.sf || 0;
+  }
+}
+async function poll() {
+  if (STATIC_BUILD || $("dataSrc").value === "demo") { live.on = false; updateSrcState(); return; }
+  try {
+    const r = await fetch("/api/dash?window=10", { cache: "no-store" });
+    const d = await r.json();
+    live.d = d;
+    const lc = liveConfig(d);
+    live.stats = lc ? liveStats(d, lc.cfg) : null;
+    if (lc) {
+      if (!live.on || lc.sig !== live.sig) {
+        live.on = true; live.sig = lc.sig;
+        buildModel(lc.cfg, liveParams(d, lc.cfg), d);
+      }
+      applyLiveToCards(d, lc.cfg);
+    } else if (live.on) { live.on = false; live.sig = ""; buildModel(demoCfg()); }
+    live.online = d.agents.filter(a => a.status === "online").length;
+  } catch (e) { live.d = null; live.on = false; live.err = true; }
+  updateSrcState();
+}
+function updateSrcState() {
+  const s = $("srcState");
+  if (STATIC_BUILD) s.innerHTML = "◌ демонстрация: модель на замерах 03–04.10.2026 · живые данные агентов — только на сервере в сети опыта";
+  else if ($("dataSrc").value === "demo") s.innerHTML = "◌ демонстрация: модель на замерах 03–04.10.2026";
+  else if (live.on) s.innerHTML = `<span class="ok">● живые данные</span>: состав и режим — как на агентах сейчас (${model.A.length} A${model.B.length ? ", " + model.B.length + " B" : ""}); схема — замедленная модель, счётчики «на плате» — живые`;
+  else if (live.err && !live.d) s.innerHTML = "○ сервер недоступен — демонстрация";
+  else s.innerHTML = `○ агенты не считают${live.online ? ` (на связи ${live.online})` : ""} — демонстрация`;
+  $("demoCtl").style.display = live.on ? "none" : "";
+  document.querySelectorAll("#presets button").forEach(b => { b.disabled = live.on; });
+}
+
+// =====================================================================
+// Предустановки и управление
+// =====================================================================
+const PRESETS = [
+  ["Каждый сам", { nA: 4, aMode: "solo", nB: 0, src: 1, slow: 41 }],
+  ["Два ядра", { nA: 4, aMode: "dc", nB: 0, src: 1, slow: 41 }],
+  ["Сообща", { nA: 4, aMode: "group", nB: 0, src: 1, slow: 49 }],
+  ["Сообща + рассеяние", { nA: 3, aMode: "group", nB: 1, sm: 1, src: 1, slow: 49 }],
+  ["Россыпь", { nA: 1, aMode: "solo", nB: 3, sm: 2, src: 1, slow: 46 }],
+  ["Эстафета сета B", { nA: 1, aMode: "solo", nB: 3, sm: 3, src: 1, slow: 46 }],
+  ["Тишина и фон", { nA: 2, aMode: "solo", nB: 2, sm: 0, bgr: 20, src: 1, slow: 41 }],
+  ["Пустышка", { nA: 2, aMode: "group", nB: 2, sm: 1, sham: true, src: 1, slow: 49 }],
+  ["Петля", { nA: 2, aMode: "solo", nB: 2, sm: 1, bgr: 50, src: 16, slow: 30 }],
+  ["Сообща на CSI", { nA: 4, aMode: "group", nB: 0, src: 2, slow: 19 }],
+  ["Эстафета сета A", { nA: 4, aMode: "relay", dc: 1, nB: 0, src: 1, slow: 46 }],
+  ["Каскад сета A", { nA: 4, aMode: "cascade", dc: 1, nB: 0, src: 1, pw: 20, slow: 46 }],
+];
+let preset = 2;
+function fillSelects() {
+  $("dA").innerHTML = [1, 2, 3, 4, 5, 6].map(n => `<option>${n}</option>`).join("");
+  $("dB").innerHTML = [0, 1, 2, 3, 4].map(n => `<option>${n}</option>`).join("");
+  $("presets").innerHTML = PRESETS.map((p, i) => `<button data-i="${i}">${p[0]}</button>`).join("");
+  document.querySelectorAll("#presets button").forEach(b => b.onclick = () => { applyPreset(+b.dataset.i); });
+  ["dA", "dMode", "dSrc", "dBits", "dB", "dSm", "dSham", "dBg", "dPw"].forEach(id => $(id).onchange = () => { preset = -1; markPreset(); buildModel(demoCfg()); });
+}
+function markPreset() { document.querySelectorAll("#presets button").forEach(b => b.classList.toggle("sel", +b.dataset.i === preset)); }
+function applyPreset(i) {
+  preset = i;
+  const p = PRESETS[i][1];
+  $("dA").value = p.nA; $("dMode").value = p.aMode + (p.dc ? "+dc" : ""); $("dSrc").value = p.src; $("dBits").value = 256;
+  $("dPw").value = p.pw || 0;
+  $("dB").value = p.nB; $("dSm").value = p.sm ?? 1; $("dSham").checked = !!p.sham; $("dBg").value = p.bgr || 0;
+  $("slow").value = p.slow; slowChanged();
+  markPreset();
+  buildModel(demoCfg());
+}
+function demoCfg() {
+  const [aMode, dc] = $("dMode").value.split("+");
+  return { nA: +$("dA").value, aMode, dc: dc === "dc" ? 1 : 0, src: +$("dSrc").value, bits: +$("dBits").value, nb: 8, td: 1000, all: 0, pre: 1,
+           nB: +$("dB").value, sm: +$("dSm").value, sham: $("dSham").checked, bgr: +$("dBg").value, sf: [0, 1, 2, 3],
+           rk: 1, pw: +$("dPw").value };
+}
+let slow = 400;
+function slowChanged() {
+  const v = +$("slow").value;
+  slow = Math.round(10 * Math.pow(4000, v / 100));      // ×10 … ×40 000
+  $("slowTxt").textContent = `×${fmtInt(slow)} · 1 мс модели = ${fmtNum(slow / 1000, slow < 1000 ? 2 : 1)} с`;
+}
+
+// =====================================================================
+// Сборка и цикл кадров
+// =====================================================================
+let model = null, view = null, paused = false, vt = 0, lastReal = 0;
+function buildModel(cfg, liveP, d) {
+  if (cfg.src & 16 && !cfg.nB) cfg.src = 1;              // петля без сета B невозможна
+  const P = makeParams(cfg, liveP);
+  model = new Model(cfg, P, ui);
+  model.B.forEach((b, i) => { b.sf = (cfg.sf || [])[i] ?? (i % 4); });
+  ui.logs = []; ui.hot = {};
+  const stat = d ? d.agents.filter(a => a.status === "online" && a.kind === "S").map((a, i) => { const s = new Agent(a.id, "S", i); s.live = { temp: (a.values || {}).temp, rssi: (a.values || {}).rssi, text: "статический: только меряет" }; return s; }) : [];
+  view.reset(model, stat);
+  model.start();
+  vt = 0;
+  ui.renderSteps(model);
+  ui.log(0, `начало модели: ${cfg.nA} агентов A (${{ solo: "каждый сам", dc: "каждый сам, два ядра", group: "сообща — все на одном числе",
+                                                     relay: "эстафета", cascade: "каскад" }[cfg.aMode]}${cfg.dc && cfg.aMode !== "dc" ? ", два ядра" : ""})` +
+         (cfg.nB ? `, ${cfg.nB} B (${["тишина", "каждый — всё число", "россыпь", "эстафета"][cfg.sm]}${cfg.sham ? ", пустышка" : ""}${cfg.bgr ? `, фон ${cfg.bgr}/с` : ""})` : "") +
+         `; шум: ${SRC.filter(s => cfg.src & s.bit).map(s => s.name).join(" + ")}; ${cfg.bits} бит`, null, null, true);
+  updateLegend();
+  updateSrcState();
+}
+function updateLegend() {
+  const used = new Set(["TEL"]);
+  const c = model.cfg;
+  if (c.aMode === "group") ["NXT", "RES", "PCS", "REQ", "NUM"].forEach(x => used.add(x));
+  if (c.aMode === "relay" || c.aMode === "cascade") ["REQ", "PCS", "TURN"].forEach(x => used.add(x));
+  if (model.B.length) { used.add("PRIME"); used.add("SCAT"); if (c.sm === 3) used.add("CHAIN"); if (c.bgr) used.add("BG"); }
+  $("legend").innerHTML =
+    `<span>● A генерация</span><span>◆ B рассеяние</span><span>■ S статический</span><span>★ мастер (рамка)</span>` +
+    [...used].map(k => { const s = MSG_STYLE[k]; return `<span><span class="cap${s[2] ? " dark" : ""}" style="background:${s[0]}">${k === "BG" ? "фон" : k}</span> ${s[1]}</span>`; }).join("") +
+    `<span>пунктир и ✗ — кадр не услышан</span><span>серые точки вверх — телеметрия раз в 1 с (в реальном времени)</span>`;
+}
+function loop(real) {
+  const dtReal = Math.min(100, real - (lastReal || real));
+  lastReal = real;
+  if (!paused && model) {
+    vt += dtReal * 1000 / slow;
+    model.sim.runUntil(vt, 3000);
+    if (model.sim.now < vt) vt = model.sim.now;
+  }
+  if (view && model) view.frame(vt, real);
+  if (ui.dirty && (!loop.lastLog || real - loop.lastLog > 250)) { ui.renderLog(); loop.lastLog = real; }
+  ui.tickSteps();
+  if (!loop.lastTimes || real - loop.lastTimes > 700) { if (model) { renderTimes(model, live); renderGantt(model); } loop.lastTimes = real; }
+  requestAnimationFrame(loop);
+}
+
+$("play").onclick = () => { paused = !paused; $("play").textContent = paused ? "▶ дальше" : "⏸ пауза"; };
+$("step").onclick = () => {
+  paused = true; $("play").textContent = "▶ дальше";
+  if (model && model.sim.next()) { vt = model.sim.now; ui.renderLog(); }
+};
+$("restart").onclick = () => { if (live.on && live.d) { const lc = liveConfig(live.d); if (lc) buildModel(lc.cfg, liveParams(live.d, lc.cfg), live.d); } else buildModel(demoCfg()); };
+$("slow").oninput = slowChanged;
+$("dataSrc").onchange = () => { live.sig = ""; live.on = false; if ($("dataSrc").value === "demo") buildModel(demoCfg()); poll(); };
+// ширина сцены меняется (окно, планшет повернули, панель разложилась) — разложить заново
+new ResizeObserver(() => {
+  clearTimeout(window.__rz);
+  window.__rz = setTimeout(() => {
+    const w = Math.floor($("scene").parentNode.getBoundingClientRect().width);
+    if (model && Math.abs(w - (view.layoutW || 0)) > 8) view.layout();
+  }, 120);
+}).observe($("scene").parentNode);
+
+view = new View($("scene"));
+fillSelects();
+const hashMode = (location.hash || "").slice(1);
+const hashIdx = { solo: 0, dc: 1, group: 2, scatter: 3, pieces: 4, chain: 5, silence: 6, sham: 7, loop: 8, csi: 9, relay: 10, cascade: 11 }[hashMode];
+if (STATIC_BUILD) { $("dataSrc").value = "demo"; $("dataSrc").parentNode.style.display = "none"; }
+applyPreset(hashIdx ?? 2);
+poll();
+if (!STATIC_BUILD) setInterval(poll, 2000);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

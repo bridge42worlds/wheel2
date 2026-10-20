@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Откуда берётся случайность (замеры 03.10.2026) · Колесо-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Колесо-2 · документация</a>
+  <nav><a href="../flow">живая схема</a><a href="../">главная панель</a><a href="../acc">второй экран</a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Документы</h4>
+    <ul><li><a href="index.html">Обзор</a></li><li><a href="modes.html">Режимы</a></li><li><a href="ui_concept.html">Концепт: пульт и наблюдение</a></li><li><a href="how_it_works.html">Как всё работает</a></li><li><a href="group_protocol.html">Сообща: протокол группы</a></li><li><a href="scatter.html">Рассеяние: сет B</a></li><li><a href="randomness.html" class=cur>Откуда берётся случайность</a></li><li><a href="thermal.html">Температура агентов</a></li><li><a href="program.html">Программа эксперимента</a></li><li><a href="static_watch.html">Статические акселерометры</a></li><li><a href="sensors.html">Датчики</a></li></ul>
+    <h4>На этой странице</h4><ul class="toc"><li class="l2"><a href="#1-esp_random-и-шум-wi-fi">1. esp_random() и шум Wi-Fi</a></li><li class="l2"><a href="#2-источники-которые-можно-включать-галочками">2. Источники, которые можно включать галочками</a></li><li class="l2"><a href="#3-как-смешиваются">3. Как смешиваются</a></li><li class="l3"><a href="#шум-без-хеша-настройка-raw-с-05-10-2026">Шум без хеша (настройка raw, с 05.10.2026)</a></li><li class="l2"><a href="#4-проверка-простоты">4. Проверка простоты</a></li><li class="l2"><a href="#5-скорость-одна-плата-замер-03-10-2026-tools-gen_sweep-py">5. Скорость (одна плата, замер 03.10.2026, tools/gen_sweep.py)</a></li></ul>
+  </aside>
+  <main class="doc">
+<a class="live" href="../flow#solo">▶ посмотреть вживую на живой схеме</a>
+<h1>Откуда берётся случайность (замеры 03.10.2026)</h1>
+<p>Плата XIAO ESP32-S3, ядро Arduino-ESP32 3.3.7 (ESP-IDF 5.5). Сырые журналы: <code>logs/probe*.log</code>, разбор — <code>tools/probe_report.py</code>, прошивка замеров — <code>firmware/entropy_probe</code>.</p>
+<h2 id="1-esp_random-и-шум-wi-fi">1. esp_random() и шум Wi-Fi<a class="anc" href="#1-esp_random-и-шум-wi-fi">#</a></h2>
+<p><code>esp_random()</code> — та самая «специальная функция»: по документации Espressif при включённом Wi-Fi она выдаёт истинно случайные числа, потому что в аппаратный генератор непрерывно подмешивается тепловой шум АЦП радиоприёмника (2 бита за такт шины 80 МГц).</p>
+<p>Что проверено в скомпилированной библиотеке (<code>libesp_hw_support.a</code>, разбор дизассемблером):</p>
+<ul><li>функция читает регистр генератора <code>0x6003507C</code> (<code>WDEV_RND_REG</code>);</li><li>между словами ждёт <b>1778 тактов шины</b> (22,2 мкс), все чтения за время ожидания складывает исключающим ИЛИ; отсюда предел <b>~45 000 слов/с</b> (замер: 44 800), одинаковый при любом состоянии Wi-Fi;</li><li>сам регистр без ожидания читается со скоростью 10,5 млн слов/с.</li></ul>
+<p>Чтобы шум радио шёл в генератор всё время, прошивка держит Wi-Fi включённым и <b>без сна</b> (<code>WiFi.setSleep(false)</code>); телеметрия сообщает это полем <code>rf=1</code>.</p>
+<p><b>Чего проверить нельзя.</b> По самим числам не видно, есть ли в них шум радио: у генератора есть второй источник — дрожание внутреннего генератора RC_FAST (бит <code>DIG_CLK8M_EN</code> включён, проверено чтением регистра). Опыт: выход генератора в четырёх состояниях (Wi-Fi выкл/вкл × RC_FAST выкл/вкл) проверен на линейную сложность (Берлекэмп — Мэсси, 4096 слов). Во всех четырёх она равна n/2, как у случайной последовательности, — линейной структуры нет, но и отличить «с шумом радио» от «без» по выходу невозможно. Значит, участие радио мы принимаем по документации Espressif и по коду функции, а наблюдать шум Wi-Fi напрямую — через CSI (ниже).</p>
+<h2 id="2-источники-которые-можно-включать-галочками">2. Источники, которые можно включать галочками<a class="anc" href="#2-источники-которые-можно-включать-галочками">#</a></h2>
+<div class="tw"><table><thead><tr><th>источник</th><th>как берём</th><th>сырья в секунду</th><th>оценка (мин-энтропия)</th><th>засчитываем</th></tr></thead><tbody>
+<tr><td>ГСЧ чипа + шум радио</td><td><code>esp_random()</code></td><td>44 800 слов</td><td>по Espressif — полные 32 бита</td><td>32 бита на слово</td></tr>
+<tr><td>CSI Wi-Fi</td><td>замеры канала в ответах роутера на пинг 100 Гц: 104 числа на пакет</td><td>~95 пакетов</td><td>~1,5 бита на число, ~150 на пакет</td><td>32 бита на пакет</td></tr>
+<tr><td>Шум АЦП</td><td>ножка D0 (GPIO1) с подтяжками вверх и вниз — середина питания</td><td>21 000 отсчётов</td><td>2,9 бита на отсчёт, но соседние отсчёты связаны (наводка)</td><td>1/4 бита на отсчёт</td></tr>
+<tr><td>Дрожание RC-генератора</td><td>такты кварца за 8 периодов внутреннего RC 136 кГц (<code>rtc_clk_cal_ratio</code>)</td><td>16 000 отсчётов</td><td>~1 бит на отсчёт, медленный дрейф</td><td>1/4 бита на отсчёт</td></tr>
+</tbody></table></div>
+<p>Отвергнуты:</p>
+<ul><li><b>датчик температуры</b> — за 4096 чтений два разных значения с шагом 1 °C;</li><li>**<code>noise_floor</code> Wi-Fi** — у всех пакетов −97 дБм;</li><li><b>CSI без пинга</b> — пакетов для нас почти нет; в режиме прослушки эфира 16 пакетов/с от десятков разных устройств.</li></ul>
+<p><b>CSI и 802.11n.</b> Пока агенту разрешён 802.11n, роутер отвечает пакетами 802.11n, и чип строит CSI лишь для части из них: поток скачет от 3 до 82 пакетов/с при ~95 ответах на пинг (<code>tools/csi_watch.py</code>). С пакетами 802.11g CSI приходит на каждый ответ — ровно 97–99 в секунду. Поэтому <code>prime_lab</code> разрешает агенту только 802.11b/g (<code>esp_wifi_set_protocol</code>); телеметрии 54 Мбит/с с избытком. Шум при этом тот же: младший бит — единица в 51 %, совпадает с прошлым пакетом в 50 %.</p>
+<p>Ещё не подключены, но годятся, когда появятся датчики: шум акселерометра ICM-42688 (до 32 000 отсчётов/с), тёмный кадр камеры и микрофон платы Sense, счётчик Гейгера.</p>
+<h2 id="3-как-смешиваются">3. Как смешиваются<a class="anc" href="#3-как-смешиваются">#</a></h2>
+<ul><li>Отмечен только ГСЧ — слова <code>esp_random()</code> идут в число как есть.</li><li>Любой другой набор — блоки SHA-256 (аппаратный блок чипа) по 32 байта. В каждый блок <b>каждый</b> отмеченный источник кладёт не меньше 256 засчитанных бит. Число остаётся случайным, даже если все источники, кроме одного, плохие. Источники набираются по очереди, времена складываются: на 256-битного кандидата CSI ~82 мс, АЦП ~49 мс, дрожание ~64 мс, ГСЧ 0,17 мс — все четыре вместе ~195 мс (~5 кандидатов/с), в 2,4 раза медленнее одного CSI.</li></ul>
+<h3 id="шум-без-хеша-настройка-raw-с-05-10-2026">Шум без хеша (настройка <code>raw</code>, с 05.10.2026)<a class="anc" href="#шум-без-хеша-настройка-raw-с-05-10-2026">#</a></h3>
+<p>Хеш собирает рассеянную случайность сырья в плотные 256 бит, но заодно полностью размешивает структуру источника: перекосы, связь соседних отсчётов, ритмы. Числа выходят равномерными при любом сырье. Чтобы видеть, не проступает ли в числах физика источника, есть режим без хеша:</p>
+<ul><li><code>raw</code> = 1 — в число идут младшие биты сырья как есть: CSI — младший бит каждого замера поднесущих с данными (2–26 и 38–63, 102 бита на пакет; нулевая, защитные и первая, которую чип иногда портит, — мимо); АЦП и дрожание — младший бит отсчёта; ГСЧ — слова целиком; эфир сета B — байты целиком.</li><li><code>raw</code> = 2 — то же с выравниванием фон Неймана: пара бит 01 → 0, 10 → 1, 00 и 11 отбрасываются. Снимает перекос нулей и единиц, но не связь соседних отсчётов; бит выходит вчетверо меньше.</li><li>Несколько отмеченных источников складываются побитно (XOR) — структура конкретного источника видна, когда он отмечен один.</li></ul>
+<p>Без хеша медленные источники быстрее: на четырёх платах АЦП — 253 кандидата/с (с хешем ~70), CSI примерно втрое, дрожание вчетверо. Выход простых без хеша может отличаться от теории просто из-за перекоса сырья — это и есть то, что режим показывает: сравнивайте с тем же источником с хешем (<code>tools/anomaly_run.py</code>).</p>
+<p><b>Прогон аномалий 05.10.2026</b> (<code>tools/anomaly_run.py 3</code>, четыре платы, 256 бит, по 3 мин на шаг, отчёт <code>data/tests/anomaly_20261005_174844.json</code>), всего ~77 тыс. простых:</p>
+<div class="tw"><table><thead><tr><th>шаг</th><th>простых</th><th>отсев, z</th><th>выход на проверенных, z</th><th>единиц в разрядах</th></tr></thead><tbody>
+<tr><td>каждый сам, два ядра, ГСЧ с хешем (эталон)</td><td>25 644</td><td>+0,7</td><td>+0,7</td><td>50,03 %</td></tr>
+<tr><td>эстафета, два ядра</td><td>6 744</td><td>−0,4</td><td>+1,1</td><td>50,02 %</td></tr>
+<tr><td>каскад, два ядра, срок 20 мс</td><td>11 546</td><td>−1,8</td><td>+0,3</td><td>49,97 %</td></tr>
+<tr><td>АЦП без хеша</td><td>584</td><td>+1,2</td><td>+1,1</td><td><b>54,43 % (+34 σ)</b></td></tr>
+<tr><td>АЦП без хеша, фон Нейман</td><td>141</td><td>−2,2</td><td>−0,3</td><td>50,37 %</td></tr>
+<tr><td>дрожание без хеша</td><td>481</td><td>−0,2</td><td>+0,5</td><td>49,64 %</td></tr>
+<tr><td>CSI без хеша</td><td>243</td><td>−0,3</td><td>−0,5</td><td>50,39 %</td></tr>
+<tr><td>АЦП с хешем</td><td>144</td><td>−0,2</td><td>+0,4</td><td>49,90 %</td></tr>
+<tr><td>ГСЧ без хеша, фон Нейман</td><td>7 720</td><td>−0,1</td><td>0,0</td><td>49,91 %</td></tr>
+<tr><td>эталон ещё раз</td><td>24 351</td><td>−0,6</td><td>+0,6</td><td>49,97 %</td></tr>
+</tbody></table></div>
+<ul><li>Ни одного составного (сервер проверил каждое), ни одного повтора; выход простых во всех режимах — как у теории (|z| ≤ 1,1), разницы между режимами нет. Прежний «ранний избыток +2 %» на 50 тыс. простых эталона не повторился.</li><li>Единственная настоящая структура — <b>АЦП без хеша</b>: младший бит отсчёта чаще 1, и это прямо видно в простых (54 % единиц, +34 σ). Фон Нейман её снимает; CSI и дрожание без хеша почти без перекоса. На отсев и выход перекос в одну сторону почти не влияет.</li><li>Остатки по 3, 5, 7, 11 равномерны; отдельные p ≈ 0,02–0,04 на сотнях простых — ожидаемая доля при ~40 проверках.</li><li>Промежутки между простыми в режимах с двумя ядрами: разброс меньше пуассоновского (коэффициент вариации ~0,8 — на простое нужна хотя бы одна полная проверка) и связь соседних промежутков у самых горячих плат (№5, №6: z 5–8) — след регулятора температуры, который работает периодами; на холодных платах и медленном шуме её нет.</li><li>Разобрано: «нехватка простых» в эстафете (z −6,8 на уцелевших) — бухгалтерия: 9 % уцелевших уходит непроверенными при передаче хода; на проверенных — z +1,1. Скрипт теперь считает выход на проверенных.</li></ul>
+<h2 id="4-проверка-простоты">4. Проверка простоты<a class="anc" href="#4-проверка-простоты">#</a></h2>
+<p>Кандидат нужной длины (старший бит и нечётность выставляются) → отсев малыми делителями меньше порога → Миллер — Рабин по первым <code>nb</code> простым базам (2, 3, 5, 7, 11, …). 32 бита — свой код, длиннее — <code>mbedtls_mpi</code> с аппаратным ускорителем. Для 32 бит каждое найденное простое дополнительно проверяется точно (базы 2, 7, 61), так считаются «ложные простые». Сервер перепроверяет присланные агентом простые (до 256 бит) своим Миллером — Рабином.</p>
+<p>Ловушка: <code>mbedtls_mpi_mod_int</code> даёт верный остаток только для делителей меньше 2^16 (делит по полслова). На произведениях простых до 2^31 она теряла 84 % простых; остатки теперь считаются своим кодом.</p>
+<h2 id="5-скорость-одна-плата-замер-03-10-2026-tools-gen_sweep-py">5. Скорость (одна плата, замер 03.10.2026, <code>tools/gen_sweep.py</code>)<a class="anc" href="#5-скорость-одна-плата-замер-03-10-2026-tools-gen_sweep-py">#</a></h2>
+<p>Отсев делителями меньше 1000, 8 баз, проверка до первой «составное», если не сказано иначе.</p>
+<div class="tw"><table><thead><tr><th>настройка</th><th>кандидатов/с</th><th>простых/с</th><th>время на простое</th><th>одна проверка базой</th></tr></thead><tbody>
+<tr><td>ГСЧ, 32 бита, 1 база</td><td>32 000</td><td>3 000</td><td>0,3 мс</td><td>18 мкс</td></tr>
+<tr><td>ГСЧ, 32 бита, все 8 баз на каждого</td><td>19 400</td><td>1 770</td><td>0,6 мс</td><td>18 мкс</td></tr>
+<tr><td>ГСЧ, 256 бит</td><td>2 300</td><td>28</td><td>36 мс</td><td>1,05 мс</td></tr>
+<tr><td>ГСЧ, 256 бит, все 8 баз на каждого</td><td>950</td><td>11</td><td>89 мс</td><td>1,06 мс</td></tr>
+<tr><td>CSI, 256 бит</td><td>9–10</td><td>0,07</td><td>7–8 с</td><td>—</td></tr>
+<tr><td>АЦП, 256 бит</td><td>18</td><td>0,2</td><td>4,3 с</td><td>—</td></tr>
+<tr><td>дрожание, 256 бит</td><td>15</td><td>0,3</td><td>3,4 с</td><td>—</td></tr>
+<tr><td>все четыре источника, 256 бит</td><td>1,9</td><td>—</td><td>~45 с (оценка)</td><td>—</td></tr>
+<tr><td>ГСЧ, 1024 бита</td><td>185</td><td>0,4</td><td>2,4 с</td><td>25 мс</td></tr>
+<tr><td>ГСЧ, 2048 бит</td><td>30</td><td>0,1</td><td>9 с (мало данных)</td><td>181 мс</td></tr>
+</tbody></table></div>
+<p>Одно простое приходится примерно на ln(2^n)/2 нечётных кандидатов (256 бит — 88,57 с учётом того, что числа лежат в [2²⁵⁵, 2²⁵⁶); прогоны 05–07.10.2026 дают 88,2–88,7; раннее «83–87» было замером по малому числу простых). При 256 битах время делится так: шум 166 мкс (8 слов по 22 мкс), отсев 43 мкс, Миллер — Рабин 217 мкс на кандидата. Проверка базой через mbedtls с аппаратным ускорителем заметно медленнее чистого счёта ускорителя: на каждый вызов уходят блокировка, подготовка R² и прерывание. Прямая работа с ускорителем — резерв для ТЗ.</p>
+  </main>
+</div>
+<footer>Страница собрана из docs/randomness.md командой tools/build_docs.py — правьте markdown. Ссылки на живую схему и панель
+работают, когда документация открыта с сервера (http://&lt;сервер&gt;:8090/docs/).</footer>
+</body>
+</html>

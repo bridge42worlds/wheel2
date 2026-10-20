@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Колесо-2 · статические</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.min.css">
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.iife.min.js"></script>
+<style>
+/* Палитра Okabe-Ito: различима при нарушениях цветового зрения. Состояния
+   всегда дублируются значком и словом, линии графиков — штрихом. */
+:root {
+  --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0;
+  --on:#0072B2; --warn:#E69F00; --bad:#D55E00; --ok:#009E73; --off:#8a8f98; --band:#0072B21f;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#2e333b;
+          --on:#56B4E9; --warn:#E69F00; --bad:#ff8a4c; --ok:#3fc39a; --off:#7d838c; --band:#56B4E926; }
+}
+* { box-sizing:border-box; }
+body { margin:0; font:14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+header { padding:10px 16px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line); }
+h1 { font-size:18px; margin:0; }
+h2 { font-size:14px; margin:0 0 8px; font-weight:650; }
+main { padding:12px 16px 24px; display:grid; gap:12px; }
+.panel { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; min-width:0; }
+.mut { color:var(--mut); } .small { font-size:12px; }
+.ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); font-weight:600; } .off { color:var(--off); }
+a { color:var(--on); }
+button, select, input[type=number] { font:inherit; padding:4px 8px; border:1px solid var(--line); border-radius:6px;
+  background:var(--card); color:var(--ink); }
+button { cursor:pointer; } button:disabled { opacity:.5; cursor:default; }
+button.main { background:var(--on); color:#fff; border-color:var(--on); font-weight:600; }
+.btns { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.num { font-variant-numeric:tabular-nums; }
+
+/* главный вывод */
+.verdict { display:grid; grid-template-columns:auto 1fr; gap:4px 14px; align-items:start; border-left:6px solid var(--off); }
+.verdict .big { font-size:28px; font-weight:750; line-height:1.1; white-space:nowrap; }
+@media (max-width:600px) { .verdict { grid-template-columns:1fr; } }
+.verdict.ok { border-left-color:var(--ok); } .verdict.ok .big { color:var(--ok); }
+.verdict.repeat { border-left-color:var(--warn); } .verdict.repeat .big { color:var(--warn); }
+.verdict.check { border-left-color:var(--bad); } .verdict.check .big { color:var(--bad); }
+.verdict ul { margin:4px 0 0; padding-left:18px; }
+
+/* эталон */
+.top { display:grid; gap:12px; grid-template-columns:minmax(300px, 1fr) minmax(300px, 1.3fr); }
+@media (max-width:900px) { .top { grid-template-columns:1fr; } }
+.prog { height:8px; background:var(--line); border-radius:4px; overflow:hidden; margin:6px 0; }
+.prog > i { display:block; height:100%; background:var(--on); }
+.q { list-style:none; margin:4px 0 0; padding:0; }
+.q li { padding:1px 0; }
+
+/* датчики */
+.cards { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(min(440px, 100%), 1fr)); }
+@media (max-width:520px) { .cards { grid-template-columns:1fr; } }
+.card .hd { display:flex; justify-content:space-between; gap:8px; align-items:baseline; flex-wrap:wrap; }
+.card .id { font-size:22px; font-weight:750; }
+.st { font-weight:600; }
+.st.ok { color:var(--ok); } .st.known, .st.maybe { color:var(--warn); } .st.dev, .st.inst { color:var(--bad); }
+.st.dist { color:var(--warn); } .st.nobase, .st.none { color:var(--mut); }
+.axbtn { padding:1px 9px; }
+.axbtn.on { background:var(--on); color:#fff; border-color:var(--on); }
+.spec { width:100%; min-height:210px; }
+table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+th, td { text-align:left; padding:2px 8px 2px 0; vertical-align:top; }
+th { color:var(--mut); font-weight:500; font-size:12px; }
+td.r, th.r { text-align:right; }
+.conds { margin:6px 0 0; padding-left:18px; }
+.charts { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(min(380px, 100%), 1fr)); }
+@media (max-width:520px) { .charts { grid-template-columns:1fr; } }
+.chart .box { width:100%; min-height:170px; }
+.empty { color:var(--mut); padding:50px 0; text-align:center; }
+.tw { overflow-x:auto; }
+.uplot, .u-legend { color:var(--ink); } .u-legend { font-size:12px; }
+@media (max-width:600px) { main { padding:10px; } header { padding:10px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Колесо-2 · статические акселерометры</h1>
+  <span id="srv" class="mut">подключение…</span>
+  <label class="small">графики за <select id="window">
+    <option value="300">5 мин</option><option value="900" selected>15 мин</option>
+    <option value="3600">1 час</option><option value="7200">2 часа</option></select></label>
+  <a href="/" class="small">← главный экран</a>
+  <span id="err" class="bad"></span>
+</header>
+<main>
+  <section class="panel verdict" id="verdict"><div class="big">…</div><div></div></section>
+
+  <div class="top">
+    <section class="panel">
+      <h2>Эталон шума</h2>
+      <div class="mut small">Записывается, пока основные группы стоят: форма спектра, уровни полос, форма шума,
+        квантование, разброс за секунду. Дальше каждые 10 с всё сравнивается с ним.</div>
+      <div id="rec" style="margin-top:8px"></div>
+      <div class="btns" style="margin-top:8px">
+        <label>на <input type="number" id="recMin" min="1" max="120" step="1" value="5" style="width:64px"> мин</label>
+        <button class="main" id="recStart">Записать эталон</button>
+        <button id="recStop">Закончить сейчас</button>
+        <span id="recMsg" class="small"></span>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>Как читать</h2>
+      <div class="small" id="legend"></div>
+    </section>
+  </div>
+
+  <section class="cards" id="cards"></section>
+
+  <section class="charts" id="charts"></section>
+
+  <section class="panel">
+    <h2>Отклонения (закончившиеся, свежие сверху)</h2>
+    <div class="tw" id="events"><span class="mut">пока не было</span></div>
+  </section>
+</main>
+<script>
+const PALETTE = ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442", "#7f7f7f"];
+const DASHES = [[], [7, 4], [2, 3], [10, 3, 2, 3]];
+const AX = ["x", "y", "z"];
+const VERDICT = {
+  ok: ["✓ продолжать", "всё как в эталоне"],
+  repeat: ["↻ повторить", "данные испорчены: помеха или сбой прибора"],
+  check: ["⚠ проверить", "отклонение от эталона держится — повторить для проверки"],
+  nobase: ["◌ нет эталона", "сравнивать не с чем — запишите эталон, пока группы стоят"],
+  nodata: ["✗ нет данных", "окна ещё не набрались или датчики молчат"],
+};
+const KIND = { knock: "↻ толчок", spikes: "↻ выбросы", moved: "↻ сдвиг", quant: "⚠ квантование", gap: "⚠ пропуск", sat: "⚠ зашкал",
+  mode: "⚠ режим датчика", line: "⚠ линия", gone: "◐ линия пропала", band: "⚠ полоса", gauss: "⚠ форма шума" };
+const CLS = { dist: "помеха — повторить", inst: "прибор — повторить", dev: "отклонение — проверить" };
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const fmt = (x, d = 1) => x == null || !isFinite(x) ? "—" : (+x).toLocaleString("ru-RU", { maximumFractionDigits: d });
+const tm = t => t ? new Date(t * 1000).toLocaleTimeString("ru-RU") : "—";
+const dur = s => s == null ? "—" : s < 60 ? `${Math.round(s)} с` : `${Math.floor(s / 60)} мин ${Math.round(s % 60)} с`;
+let last = null, specs = {}, charts = {}, axSel = {};
+try { axSel = JSON.parse(localStorage.getItem("acc_ax") || "{}"); } catch (e) { axSel = {}; }
+
+async function getJSON(url, init) {
+  const r = await fetch(url, Object.assign({ cache: "no-store" }, init || {}));
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.status);
+  return j;
+}
+const name = s => s.id ? `№${s.id} ${esc(s.label || "")} · …${s.mac.slice(-5)}` : `…${s.mac.slice(-5)}`;
+
+function renderVerdict(v) {
+  const el = $("verdict");
+  if (!v) { el.className = "panel verdict"; el.innerHTML = `<div class="big off">—</div><div class="mut">нет слежения</div>`; return; }
+  const [big, note] = VERDICT[v.verdict] || ["—", ""];
+  const rows = Object.entries(v.sensors || {}).map(([mac, p]) => {
+    const s = (last.sensors || []).find(x => x.mac === mac) || { mac, id: 0 };
+    const [b] = VERDICT[p.verdict] || ["—"];
+    return `<li><b>${name(s)}</b>: ${b}${p.reasons && p.reasons.length ? " — " + p.reasons.map(esc).join("; ") : ""}` +
+      `${p.known && p.known.length ? ` <span class="mut">(известные: ${p.known.map(esc).join(", ")})</span>` : ""}</li>`;
+  }).join("");
+  el.className = "panel verdict " + v.verdict;
+  const notes = (v.notes || []).map(n => `<div class="warn">◐ ${esc(n)}</div>`).join("");
+  el.innerHTML = `<div class="big">${big}</div><div><b>${esc(v.what || "")}</b> · ${note}${notes}<ul>${rows}</ul></div>`;
+}
+
+function renderRec(d) {
+  const r = d.rec, lr = d.last_rec;
+  let h = "";
+  if (r) {
+    const left = Math.max(0, r.t1 - r.now), all = r.t1 - r.t0;
+    h += `<div><b>идёт запись</b>: осталось ${dur(left)} из ${dur(all)}</div><div class="prog"><i style="width:${100 * (1 - left / all)}%"></i></div>`;
+    if (r.busy && r.busy.length) h += `<div class="bad">⚠ во время записи считали ${r.busy.map(esc).join(", ")} — эталон будет не чистым</div>`;
+  } else if (d.generators_busy && d.generators_busy.length) {
+    h += `<div class="warn">◐ сейчас считают ${d.generators_busy.map(esc).join(", ")} — для эталона остановите группы</div>`;
+  }
+  h += (d.sensors || []).map(s => {
+    const b = s.base;
+    if (!b) return `<div><b>${name(s)}</b>: <span class="mut">◌ эталона нет</span></div>`;
+    return `<div style="margin-top:6px"><b>${name(s)}</b>: записан ${tm(b.t0)}–${tm(b.t1)}, окон ${b.n}` +
+      `${b.fits ? "" : ` · <span class="warn">◐ для другого режима датчика — перепишите</span>`}
+      <ul class="q small">${(b.quality || []).map(q => `<li>${q.ok ? '<span class="ok">✓</span>' : '<span class="warn">◐</span>'} ${esc(q.text)}</li>`).join("")}</ul></div>`;
+  }).join("");
+  if (lr) {
+    const bad = Object.entries(lr.sensors || {}).filter(([, v]) => !v.ok);
+    if (bad.length) h += `<div class="warn small" style="margin-top:6px">последняя запись ${tm(lr.t0)}: не вышло у ` +
+      bad.map(([m, v]) => `…${m.slice(-5)} — ${esc(v.why)}`).join("; ") + "</div>";
+  }
+  $("rec").innerHTML = h || `<span class="mut">датчиков нет</span>`;
+  $("recStart").disabled = !!r || !(d.sensors || []).length;
+  $("recStop").disabled = !r;
+}
+
+function renderLegend(d) {
+  const t = d.thresholds || {};
+  $("legend").innerHTML = `
+    <div><b>Окно</b> — ${t.win_s || 10} с. Спектр (Уэлч, отрезки по 2 с) каждого окна сравнивается с эталоном по каждой частоте.</div>
+    <div><b>⚠ линия</b> — частота выше эталона больше чем на ${t.line} его разбросов; <b>⚠ полоса</b> — широкий шум в октаве
+      ушёл на ${t.band} разбросов (частоты линий не считаются); <b>⚠ форма шума</b> — эксцесс или асимметрия ушли на ${t.gauss}
+      (у гауссова шума оба около нуля).</div>
+    <div><b>↻ толчок</b> — разброс секунды в ${t.knock} раза выше обычного; <b>↻ сдвиг</b> — среднее ушло больше чем на ${t.moved_mg} мg.
+      <b>⚠ квантование</b> — значения кратны крупному шагу (урок LIS3DH); пропуски, зашкал — тоже прибор.</div>
+    <div><b>Вывод</b>: ↻ повторить — помеха или прибор; ⚠ проверить — отклонение держится ${t.persist} окна подряд или видно
+      за весь отрезок; ✓ продолжать — всё как в эталоне. Линии сети 50 Гц, пинга CSI, маяков роутера, своей телеметрии и
+      оборотов колеса помечаются и тревогой не считаются.</div>
+    <div class="mut">На графике спектра: серая полоса — эталон ±3 разброса (для среднего за минуту), пунктир — эталон,
+      сплошная — последняя минута, точки — найденные линии.</div>`;
+}
+
+const mid = mac => mac.replace(/:/g, "");
+function cardShell(s) {                       // каркас карточки: график не трогается, пока не придёт новый спектр
+  const ax = axSel[s.mac] ?? 2;
+  return `<section class="panel card">
+    <div class="hd"><span><span class="id">${s.id ? "№" + s.id : "…" + s.mac.slice(-5)}</span> <span class="mut small">${s.id ? esc(s.label || "") + " · …" + s.mac.slice(-5) : "не в реестре"}</span></span>
+      <span class="btns">${AX.map((a, i) => `<button class="axbtn${i === ax ? " on" : ""}" data-mac="${s.mac}" data-ax="${i}">${a}</button>`).join("")}</span></div>
+    <div class="st" id="st_${mid(s.mac)}"></div>
+    <div class="spec" id="sp_${mid(s.mac)}"></div>
+    <div id="inf_${mid(s.mac)}"></div>
+  </section>`;
+}
+
+function cardInfo(s) {
+  const l = s.last || {}, t = s.tel || {}, acc = t.acc || {}, imu = t.imu || {};
+  const row = (k, f) => `<tr><td class="mut">${k}</td>${[0, 1, 2].map(i => `<td class="r">${f(i)}</td>`).join("")}</tr>`;
+  const bdev = i => {                          // полосы против эталона, дБ
+    if (!l.band_db || !s.base || !s.base.band_mean || !s.base.fits) return "—";
+    const d = l.band_db[i].map((v, b) => v - (s.base.band_mean[i][b] ?? v));
+    const worst = d.reduce((m, v, b) => Math.abs(v) > Math.abs(m.v) ? { v, b } : m, { v: 0, b: 0 });
+    return `${worst.v >= 0 ? "+" : ""}${fmt(worst.v, 1)} дБ <span class="mut">(${esc((last.bands || [])[worst.b] || "")})</span>`;
+  };
+  const qtxt = i => {
+    if (!l.q) return "—";
+    const q = l.q[i]; let step = 1;
+    q.forEach((v, k) => { if (v > 0.9) step = 2 ** (k + 1); });
+    return step > 1 ? `<span class="bad">кратны ${step}</span>` : `чётных ${fmt(100 * q[0], 0)} %`;
+  };
+  return `<div class="tw"><table>
+      <tr><th></th>${AX.map(a => `<th class="r">${a}</th>`).join("")}</tr>
+      ${row("разброс, мкg", i => fmt(l.sd && l.sd[i], 0))}
+      ${row("среднее, мg", i => fmt(l.mean && l.mean[i] / 1000, 2))}
+      ${row("эксцесс", i => fmt(l.kurt && l.kurt[i], 2))}
+      ${row("асимметрия", i => fmt(l.skew && l.skew[i], 2))}
+      ${row("квантование", qtxt)}
+      ${row("полоса дальше всех от эталона", bdev)}
+    </table></div>
+    <div class="small mut" style="margin-top:4px">${fmt(s.fs || s.hz, 2)} Гц · ±${(s.mode || [])[1] ?? acc.afs ?? "?"} g · пропущено отсчётов ${fmt(s.lost, 0)}` +
+      `${acc.wait ? ` · ждут отправки ${fmt(acc.wait, 0)}` : ""}${imu.ovf ? ` · <span class="warn">FIFO переполнялся ${imu.ovf}</span>` : ""}` +
+      `${imu.err ? ` · <span class="warn">ошибок I2C ${imu.err}</span>` : ""}` +
+      `${imu.cfg ? ` · регистры ${imu.cfg.map(v => "0x" + v.toString(16)).join(" ")} / FIFO ${(imu.fifo || []).map(v => "0x" + v.toString(16)).join(" ")}` : ""}` +
+      `${s.temp != null ? ` · датчик ${fmt(s.temp, 1)} °C` : ""}${s.age != null && s.age > 3 ? ` · <span class="warn">тишина ${fmt(s.age, 0)} с</span>` : ""}</div>
+    ${(s.conds || []).length ? `<ul class="conds small">${s.conds.map(c => `<li>${KIND[c.kind] || c.kind}: ${esc(c.text)}` +
+      ` <span class="mut">· с ${tm(c.t0)}, окон ${c.n}${c.known ? " · известный источник" : ""}</span></li>`).join("")}</ul>` : ""}`;
+}
+
+function renderCards(d) {
+  const box = $("cards");
+  const key = (d.sensors || []).map(s => s.mac + s.id).join(",");
+  if (box.dataset.k !== key) {                 // список датчиков сменился — каркас заново
+    box.dataset.k = key;
+    box.innerHTML = (d.sensors || []).length ? d.sensors.map(cardShell).join("")
+      : `<section class="panel"><span class="mut">Статических акселерометров нет. Роль «статический акселерометр» задаётся
+         агенту на главном экране, в «Своих параметрах»: агент перезапустится и начнёт мерить.</span></section>`;
+    box.querySelectorAll(".axbtn").forEach(b => b.onclick = () => {
+      axSel[b.dataset.mac] = +b.dataset.ax;
+      try { localStorage.setItem("acc_ax", JSON.stringify(axSel)); } catch (e) { }
+      box.querySelectorAll(`.axbtn[data-mac="${b.dataset.mac}"]`).forEach(x => x.classList.toggle("on", x === b));
+      drawSpectra();
+    });
+    drawSpectra();
+  }
+  for (const s of (d.sensors || [])) {
+    const st = $("st_" + mid(s.mac)), inf = $("inf_" + mid(s.mac));
+    if (st) { st.className = "st " + s.status; st.textContent = s.text; }
+    if (inf) inf.innerHTML = cardInfo(s);
+  }
+}
+
+function drawSpectra() {
+  if (!last) return;
+  for (const s of (last.sensors || [])) {
+    const el = $("sp_" + mid(s.mac)), sp = specs[s.mac];
+    if (!el) continue;
+    if (typeof uPlot === "undefined") { el.innerHTML = `<div class="empty">библиотека графиков не загрузилась (нужен интернет)</div>`; continue; }
+    if (!sp || !sp.f || !sp.f.length) { el.innerHTML = `<div class="empty">спектр появится через 10–20 с</div>`; continue; }
+    const ax = axSel[s.mac] ?? 2, a = sp.axes[ax], hasB = !!a.base;
+    const marks = sp.f.map(() => null);
+    (sp.finds || []).filter(x => x.ax === ax).forEach(x => {
+      let k = 0; for (let i = 1; i < sp.f.length; i++) if (Math.abs(sp.f[i] - x.f) < Math.abs(sp.f[k] - x.f)) k = i;
+      marks[k] = a.cur[k];
+    });
+    const data = [sp.f, hasB ? a.hi : sp.f.map(() => null), hasB ? a.lo : sp.f.map(() => null),
+                  hasB ? a.base : sp.f.map(() => null), a.cur, marks];
+    el.innerHTML = "";
+    new uPlot({
+      width: el.clientWidth || 420, height: 210,
+      scales: { x: { time: false, distr: 3 } },
+      legend: { live: false },
+      series: [{ label: "Гц" },
+        { label: "эталон +3σ", stroke: "#8a8f98", width: 1, points: { show: false } },
+        { label: "эталон −3σ", stroke: "#8a8f98", width: 1, points: { show: false } },
+        { label: "эталон", stroke: "#8a8f98", width: 1.5, dash: [6, 4], points: { show: false } },
+        { label: `${AX[ax]}, последняя минута`, stroke: PALETTE[0], width: 1.5, points: { show: false } },
+        { label: "найденные линии", stroke: getComputedStyle(document.body).getPropertyValue("--bad"), width: 0,
+          points: { show: true, size: 9, fill: getComputedStyle(document.body).getPropertyValue("--bad") } }],
+      bands: hasB ? [{ series: [1, 2], fill: getComputedStyle(document.body).getPropertyValue("--band") }] : [],
+      axes: [{ stroke: "#8a8f98", grid: { stroke: "#8a8f9833" }, size: 30, values: (u, v) => v.map(x => x == null ? "" : fmt(x, x < 10 ? 1 : 0)) },
+             { stroke: "#8a8f98", grid: { stroke: "#8a8f9833" }, size: 48, label: "дБ (g²/Гц)", labelSize: 14,
+               values: (u, v) => v.map(x => x == null ? "" : fmt(x, 0)) }],
+    }, data, el);
+  }
+}
+
+// ---------- графики по времени: все статические ----------
+const TCHARTS = [
+  { id: "zmax", title: "Наибольшее отклонение от эталона, z (каждые 10 с)", metric: "s_zmax" },
+  { id: "sdz", title: "Разброс за секунду по z, мкg — толчки видны у всех сразу", metric: "s_sd_z" },
+  { id: "sdx", title: "Разброс за секунду по x, мкg", metric: "s_sd_x" },
+  { id: "kz", title: "Эксцесс по z (форма шума; у гаусса 0)", metric: "s_kurt_z" },
+];
+const timeTicks = (u, splits) => splits.map(v => new Date(v * 1000).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }));
+async function renderCharts() {
+  if (!last) return;
+  const box = $("charts");
+  if (!box.children.length) box.innerHTML = TCHARTS.map(c => `<section class="panel chart"><h2>${c.title}</h2><div class="box" id="tc_${c.id}"></div></section>`).join("");
+  if (typeof uPlot === "undefined") return;
+  const d = await getJSON(`/api/dash?window=${$("window").value}&metrics=${TCHARTS.map(c => c.metric).join(",")}`);
+  for (const c of TCHARTS) {
+    const el = $("tc_" + c.id), per = (d.series || {})[c.metric] || {};
+    const macs = (last.sensors || []).map(s => s.mac).filter(m => per[m]);
+    if (!macs.length) { el.innerHTML = `<div class="empty">нет данных в окне</div>`; charts[c.id] = null; continue; }
+    const data = uPlot.join(macs.map(m => per[m]));
+    const key = macs.join(",");
+    const ch = charts[c.id];
+    if (ch && ch.key === key) { ch.u.setData(data); continue; }
+    el.innerHTML = "";
+    const u = new uPlot({ width: el.clientWidth || 380, height: 170, scales: { x: { time: true } }, legend: { live: false },
+      series: [{}].concat(macs.map((m, i) => { const s = last.sensors.find(x => x.mac === m);
+        return { label: s.id ? `№${s.id} …${m.slice(-5)}` : `…${m.slice(-5)}`, stroke: PALETTE[i % 8], dash: DASHES[i % 4], width: 1.5, spanGaps: false, points: { show: false } }; })),
+      axes: [{ stroke: "#8a8f98", grid: { stroke: "#8a8f9833" }, size: 30, values: timeTicks },
+             { stroke: "#8a8f98", grid: { stroke: "#8a8f9833" }, size: 52, values: (u, v) => v.map(x => x == null ? "" : fmt(x, Math.abs(x) < 10 ? 1 : 0)) }],
+    }, data, el);
+    charts[c.id] = { u, key };
+  }
+}
+
+function renderEvents(d) {
+  const ev = d.events || [];
+  $("events").innerHTML = ev.length ? `<table><tr><th>когда</th><th>датчик</th><th>что</th><th>подробно</th><th class="r">окон</th><th>значит</th></tr>
+    ${ev.slice(0, 60).map(c => { const s = (d.sensors || []).find(x => x.mac === c.mac) || { mac: c.mac };
+      return `<tr><td class="num">${tm(c.t0)}–${tm(c.end || c.t1)}</td><td>${s.id ? "№" + s.id + " " : ""}…${c.mac.slice(-5)}</td>
+      <td>${KIND[c.kind] || esc(c.kind)}</td><td>${esc(c.text)}</td><td class="r">${c.n ?? ""}</td>
+      <td class="small">${c.known ? "известный источник" : CLS[c.cls] || ""}</td></tr>`; }).join("")}</table>`
+    : `<span class="mut">пока не было</span>`;
+}
+
+async function tick() {
+  try {
+    last = await getJSON("/api/static");
+    $("err").textContent = last.error ? last.error : "";
+    $("srv").textContent = `${(last.sensors || []).length} датчика · ${new Date().toLocaleTimeString("ru-RU")}`;
+    renderVerdict(last.now_verdict);
+    renderRec(last);
+    renderLegend(last);
+    renderCards(last);
+    renderEvents(last);
+  } catch (e) { $("err").textContent = "сервер недоступен"; }
+}
+let nSpec = 0;
+async function tickSpectra() {
+  if (!last) return;
+  for (const s of (last.sensors || [])) {
+    try { specs[s.mac] = await getJSON(`/api/static/spectrum?mac=${encodeURIComponent(s.mac)}&n=6`); } catch (e) { }
+  }
+  drawSpectra();
+  if (nSpec++ % 2 === 0) renderCharts().catch(() => { });
+}
+$("recStart").onclick = async () => {
+  try {
+    const r = await getJSON("/api/static/baseline", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "start", minutes: +$("recMin").value }) });
+    $("recMsg").innerHTML = r.busy && r.busy.length ? `<span class="warn">запись идёт, но считают ${r.busy.join(", ")}</span>` : `<span class="ok">запись идёт</span>`;
+  } catch (e) { $("recMsg").innerHTML = `<span class="bad">✗ ${esc(e.message)}</span>`; }
+  tick();
+};
+$("recStop").onclick = async () => {
+  try { await getJSON("/api/static/baseline", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "stop" }) }); $("recMsg").textContent = ""; }
+  catch (e) { $("recMsg").innerHTML = `<span class="bad">✗ ${esc(e.message)}</span>`; }
+  tick();
+};
+$("window").onchange = () => { charts = {}; renderCharts().catch(() => { }); };
+new ResizeObserver(() => { drawSpectra(); charts = {}; renderCharts().catch(() => { }); }).observe($("cards"));
+setInterval(tick, 2000);
+setInterval(tickSpectra, 5000);
+tick().then(tickSpectra);
+</script>
+</body>
+</html>

@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Статические акселерометры: эталон шума и слежение · Колесо-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Колесо-2 · документация</a>
+  <nav><a href="../flow">живая схема</a><a href="../">главная панель</a><a href="../acc">второй экран</a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Документы</h4>
+    <ul><li><a href="index.html">Обзор</a></li><li><a href="modes.html">Режимы</a></li><li><a href="ui_concept.html">Концепт: пульт и наблюдение</a></li><li><a href="how_it_works.html">Как всё работает</a></li><li><a href="group_protocol.html">Сообща: протокол группы</a></li><li><a href="scatter.html">Рассеяние: сет B</a></li><li><a href="randomness.html">Откуда берётся случайность</a></li><li><a href="thermal.html">Температура агентов</a></li><li><a href="program.html">Программа эксперимента</a></li><li><a href="static_watch.html" class=cur>Статические акселерометры</a></li><li><a href="sensors.html">Датчики</a></li></ul>
+    <h4>На этой странице</h4><ul class="toc"><li class="l2"><a href="#агент">Агент</a></li><li class="l2"><a href="#сервер-что-считается">Сервер: что считается</a></li><li class="l2"><a href="#эталон">Эталон</a></li><li class="l2"><a href="#слежение-каждое-окно-против-эталона">Слежение: каждое окно против эталона</a></li><li class="l2"><a href="#вывод-продолжать-повторить-проверить">Вывод: продолжать, повторить, проверить</a></li><li class="l2"><a href="#где-смотреть">Где смотреть</a></li><li class="l2"><a href="#проверка-без-плат">Проверка без плат</a></li></ul>
+  </aside>
+  <main class="doc">
+
+<h1>Статические акселерометры: эталон шума и слежение</h1>
+<p>Статический акселерометр — это агент с ролью <b>S</b> в общей прошивке. Он только меряет и шлёт оси: ничего не генерирует, в группах не участвует, по ESP-NOW не говорит, CSI не пингует. Всё остальное считает сервер (<code>server/static_watch.py</code>). Статических может быть сколько угодно, код один.</p>
+<h2 id="агент">Агент<a class="anc" href="#агент">#</a></h2>
+<ul><li>ICM-42688 на I2C (D4 — SDA, D5 — SCL): только ускорение, <b>1000 Гц</b>, режим малого шума, гироскоп выключен.</li><li>Отсчёты идут через <b>FIFO датчика</b>: он держит 256 отсчётов, агент забирает их каждые 10 мс. Ни один отсчёт не теряется, даже если задача задержалась. Переполнение FIFO считается и видно на панели.</li><li><b>Среднее по avg отсчётам</b> (1, 2, 4, 8; по умолчанию 2) — на сервер идёт 1000/avg Гц (500 Гц). Фильтр датчика 3-го порядка стоит ниже половины этой частоты, чтобы спектр не заворачивался.</li><li>Предел ±2 g (можно 4, 8, 16). При ±2 g единица — 61 мкg, шум датчика около 1,1 мg (18 единиц): квантование далеко ниже шума.</li><li>Пакеты <code>acc</code> по 140 отсчётов (x y z, int16, base64), с номером первого отсчёта и меткой времени. Номера сквозные: пропуск сервер видит сразу.</li><li>В молчании (<code>tl</code> = 2) отсчёты копятся в кольце (около 25 с при 500 Гц), потом уходят. Если молчать дольше — старое затирается, сервер увидит пропуск. В шагах программы с молчанием статические <b>не молчат</b>: молчат генераторы.</li><li>Регистры датчика (режим, FIFO, фильтр) читаются обратно и идут в телеметрию — урок LIS3DH.</li></ul>
+<p><b>Роль S</b> задаётся на панели в карточке агента («Свои параметры», роль «статический»). Агент запоминает её у себя (NVS) и перезапускается; после перезапуска сразу меряет, даже без сервера. Обратно — та же карточка, роль «генерация». Если агент стартовал статическим, а на сервере роль не задана, сервер принимает роль S и не переключает агент обратно.</p>
+<h2 id="сервер-что-считается">Сервер: что считается<a class="anc" href="#сервер-что-считается">#</a></h2>
+<p>Окно — <b>10 с</b>. По каждому окну и оси:</p>
+<div class="tw"><table><thead><tr><th>показатель</th><th>как</th></tr></thead><tbody>
+<tr><td>спектр</td><td>Уэлч: отрезки 1024 отсчёта (при 500 Гц — 2 с, шаг частоты 0,49 Гц), окно Ханна, перекрытие наполовину; 8 отрезков на окно</td></tr>
+<tr><td>полосы</td><td>мощность в октавах 1–2, 2–4, … 128–250 Гц</td></tr>
+<tr><td>форма шума</td><td>асимметрия и эксцесс после вычитания среднего каждой секунды; у гауссова шума оба около нуля</td></tr>
+<tr><td>квантование</td><td>доля чётных значений, кратных 4, 8 … — у живого шума 1/2, 1/4, 1/8</td></tr>
+<tr><td>среднее</td><td>наклон, сдвиг датчика</td></tr>
+<tr><td>по каждой секунде</td><td>среднее, разброс, крайние значения — графики и толчки</td></tr>
+</tbody></table></div>
+<p>Отсчёты хранятся как есть: <code>data/accel/&lt;дата&gt;/&lt;mac&gt;.bin</code> (int16 x y z подряд) и <code>&lt;mac&gt;.idx.jsonl</code> (строка на пакет: номер первого отсчёта, сколько, частота, метка времени). В общий сырой журнал они не пишутся — их слишком много.</p>
+<p>Нужен numpy (<code>pip install numpy</code>). Без него сервер работает, но статических не считает.</p>
+<h2 id="эталон">Эталон<a class="anc" href="#эталон">#</a></h2>
+<p><b>Эталон</b> — те же показатели за несколько минут (по умолчанию 5), <b>пока основные группы стоят</b>. Записывается кнопкой на странице <code>/acc</code> или в начале программы (<code>baseline_min</code>). В эталон идут только чистые окна: без толчков и пропусков.</p>
+<p>Что хранится: форма спектра — среднее и разброс по окнам <b>в каждом бине</b>, уровни полос, форма шума, доли кратных, среднее, обычный разброс за секунду.</p>
+<p>Сервер сразу оценивает эталон:</p>
+<ul><li>шум, мкg/√Гц на 10–100 Гц (у ICM-42688 по паспорту 70);</li><li>гауссов ли шум (эксцесс и асимметрия около нуля);</li><li>ровный ли фон (первая и вторая половина записи совпадают до 1 дБ);</li><li>мелкое ли квантование;</li><li>стояли ли основные группы — если кто-то считал, эталон помечается «не чистый».</li></ul>
+<p>Эталон привязан к режиму датчика (предел, усреднение): сменили режим — эталон нужно переписать, панель об этом скажет. Хранится в <code>data/static/baselines/&lt;mac&gt;.json</code> (и копия с датой).</p>
+<h2 id="слежение-каждое-окно-против-эталона">Слежение: каждое окно против эталона<a class="anc" href="#слежение-каждое-окно-против-эталона">#</a></h2>
+<div class="tw"><table><thead><tr><th>вид</th><th>когда</th><th>класс</th></tr></thead><tbody>
+<tr><td>⚠ <b>линия</b></td><td>частота выше эталона больше чем на <b>6</b> его разбросов</td><td>отклонение</td></tr>
+<tr><td>◐ линия пропала</td><td>линия эталона ниже себя на 6 разбросов</td><td>отклонение</td></tr>
+<tr><td>⚠ <b>полоса</b></td><td>широкий шум в октаве ушёл на <b>5</b> разбросов (частоты линий не считаются — одна линия не тревожит дважды)</td><td>отклонение</td></tr>
+<tr><td>⚠ <b>форма шума</b></td><td>эксцесс или асимметрия ушли на <b>5</b></td><td>отклонение</td></tr>
+<tr><td>⚠ квантование</td><td>значения кратны крупному шагу, или доля чётных не та</td><td>прибор</td></tr>
+<tr><td>⚠ пропуск, зашкал, смена режима датчика</td><td>—</td><td>прибор</td></tr>
+<tr><td>↻ <b>толчок</b></td><td>разброс секунды в <b>4</b> раза выше обычного или выброс в 8 обычных разбросов</td><td>помеха</td></tr>
+<tr><td>↻ <b>сдвиг</b></td><td>среднее ушло больше чем на <b>5 мg</b> (тепло даёт меньше)</td><td>помеха</td></tr>
+</tbody></table></div>
+<p>Разброс каждой частоты берётся из эталона, сглаживается по соседним частотам и не может быть меньше теоретического для Уэлча (4,34/√8 дБ): по немногим окнам у отдельной частоты он бывает мал случайно.</p>
+<p><b>Известные источники.</b> Линия рядом с известной частотой помечается и тревогой не считается: сеть 50 Гц и гармоники, маяки роутера (102,4 мс), пинг CSI работающих агентов, телеметрия, пакеты отсчётов, обороты колеса. Частоты выше половины частоты отсчётов учитываются с заворотом.</p>
+<p><b>За весь отрезок.</b> Кроме окон, весь отрезок (шаг, сессия) сравнивается с эталоном целиком: средние по окнам. Слабая линия, невидимая в одном окне, за отрезок из n окон видна в √n раз лучше. Проверка на синтетике: линия 120 мкg (+1,3 дБ над шумом) в отдельных окнах почти не видна, за 3 минуты — z 8,6.</p>
+<h2 id="вывод-продолжать-повторить-проверить">Вывод: продолжать, повторить, проверить<a class="anc" href="#вывод-продолжать-повторить-проверить">#</a></h2>
+<p>По отрезку — шагу программы, сессии или последним 2 минутам:</p>
+<ul><li><b>↻ повторить</b> — в отрезке толчок, сдвиг, сбой прибора: данные испорчены. В программе такой шаг помечается испорченным, не идёт в сравнение и сразу повторяется (не больше <code>redo</code> раз, по умолчанию 2).</li><li><b>⚠ проверить</b> — отклонение от эталона без известной причины держится <b>2 окна подряд</b> или видно за весь отрезок. В программе дальше работает правило аномалий: проверка парами «опыт — контроль».</li><li><b>✓ продолжать</b> — всё как в эталоне.</li><li><b>◌ нет эталона</b> — сравнивать не с чем; толчки, пропуски и квантование видны и без эталона.</li></ul>
+<h2 id="где-смотреть">Где смотреть<a class="anc" href="#где-смотреть">#</a></h2>
+<ul><li>**Второй экран — <code>http://&lt;сервер&gt;:8090/acc</code>.** Крупно — вывод для того, что идёт сейчас; эталон (запись, качество); по каждому датчику — спектр последней минуты на фоне полосы эталона (±3 разброса), найденные линии точками, разброс, среднее, эксцесс, асимметрия, квантование, полоса дальше всех от эталона, регистры датчика; графики по времени у всех статических сразу; журнал отклонений.</li><li><b>Главный экран.</b> Переключатель «экран: один / два». Один — блок статических показывает вывод, состояние каждого и графики. Два — только вывод одной строкой; подробности — на втором мониторе (кнопка «открыть на втором экране»).</li></ul>
+<h2 id="проверка-без-плат">Проверка без плат<a class="anc" href="#проверка-без-плат">#</a></h2>
+<ul><li><code>python tools/test_static_watch.py</code> — синтетика: эталон, чистый шум (ни одной тревоги), линия 37 Гц, слабая линия 23 Гц, сеть 50 Гц (известная), толчок, значения кратны 256, выбросы, пропуск, датчик без эталона.</li><li><code>python tools/sim_agents.py 900 --port 5015</code> с отдельным сервером <code>python server/monitor.py --http 8091 --udp 5015 --data data/test/sim --no-beacon</code> — три статических агента по расписанию: первые 3 минуты чистые (записать эталон), с 180-й секунды каждые 75 с толчок у всех, 300–420 с линия 37 Гц у первого, 480–540 с у третьего значения кратны 256; у второго всегда сеть 50 Гц.</li></ul>
+  </main>
+</div>
+<footer>Страница собрана из docs/static_watch.md командой tools/build_docs.py — правьте markdown. Ссылки на живую схему и панель
+работают, когда документация открыта с сервера (http://&lt;сервер&gt;:8090/docs/).</footer>
+</body>
+</html>

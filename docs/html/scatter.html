@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Рассеяние (сет B) — как устроено и что мерим · Колесо-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Колесо-2 · документация</a>
+  <nav><a href="../flow">живая схема</a><a href="../">главная панель</a><a href="../acc">второй экран</a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Документы</h4>
+    <ul><li><a href="index.html">Обзор</a></li><li><a href="modes.html">Режимы</a></li><li><a href="ui_concept.html">Концепт: пульт и наблюдение</a></li><li><a href="how_it_works.html">Как всё работает</a></li><li><a href="group_protocol.html">Сообща: протокол группы</a></li><li><a href="scatter.html" class=cur>Рассеяние: сет B</a></li><li><a href="randomness.html">Откуда берётся случайность</a></li><li><a href="thermal.html">Температура агентов</a></li><li><a href="program.html">Программа эксперимента</a></li><li><a href="static_watch.html">Статические акселерометры</a></li><li><a href="sensors.html">Датчики</a></li></ul>
+    <h4>На этой странице</h4><ul class="toc"><li class="l2"><a href="#как-простое-попадает-к-сету-b">Как простое попадает к сету B</a></li><li class="l2"><a href="#режимы-рассеяния-общий-параметр-рассеяние">Режимы рассеяния (общий параметр «Рассеяние»)</a></li><li class="l2"><a href="#функции-рассеяния-свой-параметр-агента-b">Функции рассеяния (свой параметр агента B)</a></li><li class="l2"><a href="#петля-попадает-ли-рассеянное-в-шум-сета-a">Петля: попадает ли рассеянное в шум сета A</a></li><li class="l2"><a href="#что-мерим">Что мерим</a></li><li class="l2"><a href="#проверка-на-четырёх-платах-04-10-2026">Проверка на четырёх платах (04.10.2026)</a></li><li class="l2"><a href="#сообщения-esp-now-метка-w3">Сообщения ESP-NOW (метка "W3")</a></li></ul>
+  </aside>
+  <main class="doc">
+<a class="live" href="../flow#pieces">▶ посмотреть вживую на живой схеме</a>
+<h1>Рассеяние (сет B) — как устроено и что мерим</h1>
+<p>Прошивка <code>prime_lab</code> (одна на всех), модули <code>group.cpp</code> и <code>prime_lab.ino</code>. Роль агента — его свой параметр на панели: <b>генерация (сет A)</b> или <b>рассеяние (сет B)</b>. Перевести агента из сета в сет — сменить роль и нажать «Применить», без перепрошивки.</p>
+<h2 id="как-простое-попадает-к-сету-b">Как простое попадает к сету B<a class="anc" href="#как-простое-попадает-к-сету-b">#</a></h2>
+<p>Агент сета A, найдя простое, объявляет его <b>одним широковещательным кадром</b> ESP-NOW (PRIME): в режиме «каждый сам» — каждый агент A сам, в режиме «сообща» — мастер группы. Объявляют только если сет B есть. Агенты B слушают эти кадры; чужие сообщения сети A им не нужны.</p>
+<h2 id="режимы-рассеяния-общий-параметр-рассеяние">Режимы рассеяния (общий параметр «Рассеяние»)<a class="anc" href="#режимы-рассеяния-общий-параметр-рассеяние">#</a></h2>
+<div class="tw"><table><thead><tr><th>режим</th><th>что делает каждый агент B</th><th>что выходит в эфир</th></tr></thead><tbody>
+<tr><td>каждый сам</td><td>смешивает <b>всё</b> число со своим шумом своей функцией</td><td>по кадру от каждого агента B на каждое простое</td></tr>
+<tr><td>россыпь</td><td>берёт <b>свой кусок</b> числа (число делится поровну на агентов B) и смешивает его</td><td>от каждого — свой кусок; ни один кадр не несёт числа целиком</td></tr>
+<tr><td>эстафета</td><td>первый смешивает и передаёт следующему адресно, тот добавляет свой шум, …</td><td>последний в цепочке выпускает один кадр</td></tr>
+<tr><td>тишина</td><td>только принимает и считает</td><td>ничего</td></tr>
+</tbody></table></div>
+<p><b>Окна агентов B.</b> В режимах «каждый сам» и «россыпь» все агенты B получают объявление одновременно; если бы и отвечали одновременно, широковещательные кадры сталкивались бы (повторов у них нет): при двух-трёх B другие слышали только 82–88 % кадров. Поэтому кадр агента на месте p в сете B уходит не раньше чем через p мс (место 0 — сразу). Задержка рассеяния считается до своего окна: у трёх B — 0,55 / 1,0 / 2,0 мс. Эстафета и фон не меняются.</p>
+<p><b>Пустышка</b> — галочка к любому режиму: тот же трафик (те же кадры, тех же размеров, в те же моменты, по той же цепочке), но вместо рассеянного числа в кадрах только шум. Пустышка и тишина — контроль: одинаковый трафик без числа и вовсе без трафика. Сравнение «режим» ↔ «тот же режим, пустышка» ↔ «тишина» отделяет действие самого рассеяния числа от действия радиотрафика.</p>
+<p><b>Фон сета B</b> (кадров в секунду) — агенты B сами выпускают свой шум с этой частотой, независимо от простых (простые — в первую очередь). Нужен для петли ниже: без фона в начале рассеивать нечего.</p>
+<h2 id="функции-рассеяния-свой-параметр-агента-b">Функции рассеяния (свой параметр агента B)<a class="anc" href="#функции-рассеяния-свой-параметр-агента-b">#</a></h2>
+<div class="tw"><table><thead><tr><th>функция</th><th>что делает</th><th>обратимо ли</th></tr></thead><tbody>
+<tr><td>хеш</td><td>SHA-256 от (шум, номер блока, число), блоками по 32 байта</td><td>нет</td></tr>
+<tr><td>XOR</td><td>число XOR шум</td><td>только зная шум, а он тут же забывается</td></tr>
+<tr><td>умножение</td><td>число × случайное нечётное из шума по модулю 2^длина</td><td>только зная множитель (он тоже забывается)</td></tr>
+<tr><td>перестановка</td><td>биты числа переставлены в порядке, заданном шумом</td><td>только зная порядок</td></tr>
+</tbody></table></div>
+<p>Шум — из <b>своих</b> источников агента B (галочки источников — тоже свой параметр). Набирается заранее блоками: на каждое простое — один блок размером с число (не меньше 32 байт), до 8 блоков в запасе. С медленным источником (CSI, АЦП, дрожание) агент B может не успевать: простые ждут шум («ждали шум»), а если ждущих больше четырёх — пропускаются («пропущено»).</p>
+<h2 id="петля-попадает-ли-рассеянное-в-шум-сета-a">Петля: попадает ли рассеянное в шум сета A<a class="anc" href="#петля-попадает-ли-рассеянное-в-шум-сета-a">#</a></h2>
+<p>Два пути, оба переключаются.</p>
+<p><b>Содержимое кадров — источник «Эфир сета B».</b> Галочка среди источников шума (группа «Петля»). Агент берёт байты услышанных кадров рассеяния и фона сета B, засчитывая 4 бита на байт, и смешивает их через SHA-256, как любой источник. Только эта галочка — сет A строит числа только из того, что выпустил сет B: A → B → эфир → A. Без фона сета B такая петля не запустится (панель предупреждает): пока A не нашёл простое, рассеивать нечего.</p>
+<p><b>Радиоканал — переключатель «CSI у агентов»</b> (общий):</p>
+<ul><li>с любых кадров (по умолчанию) — замеры канала и по кадрам рассеяния: петля через физику канала замкнута;</li><li>только с ответов роутера — рассеянное через CSI в шум A не попадает;</li><li>только с кадров сета B — шум канала только от передач сета B (нужна связь группы 24 или 6 Мбит/с: на 1 Мбит/с замеров канала нет).</li></ul>
+<p>Энергию радио так не убрать: кадры B поднимают шум приёмника A (он подмешивается в ГСЧ чипа) и занимают эфир. Это убирает только частота (свой канал для сета B — нужна вторая точка доступа), расстояние и мощность передатчика B.</p>
+<h2 id="что-мерим">Что мерим<a class="anc" href="#что-мерим">#</a></h2>
+<ul><li>сет A: сколько простых объявлено, сколько не объявлено (очередь занята), сколько кадров рассеяния услышано; при источнике «Эфир сета B» — сколько бит в секунду из эфира ушло в шум и сколько байт не влезло в запас;</li><li>сет B: сколько простых получено, сколько своих кадров выпущено (и отдельно — кадров фона), сколько пропущено и сколько ждали шум; в эстафете — начато (первым, он же передаёт второму), передано дальше (средними звеньями: при двух B их нет), выпущено в эфир (последним); задержка от получения простого до своего кадра;</li><li>у всех: <code>rxdrop</code> — принятых кадров ESP-NOW не влезло в очередь событий; <code>etx</code> — свои кадры: в очередь, выброшено (очередь полна), не принято радио, без подтверждения;</li><li>темп всего этого в секунду; итоги — в итогах сессии («рассеяние»).</li></ul>
+<h2 id="проверка-на-четырёх-платах-04-10-2026">Проверка на четырёх платах (04.10.2026)<a class="anc" href="#проверка-на-четырёх-платах-04-10-2026">#</a></h2>
+<p><code>tools/multi_test.py</code>: составы 3 A + 1 B, 2 + 2, 1 + 3, каждый сам и сообща, все режимы и функции, тишина с фоном, петля, две пары A+B сразу.</p>
+<ul><li>Объявления доходят до каждого B на 98–100 %; каждый B выпускает ровно столько, сколько получил; эстафета через трёх B — 761 начато, 761 передано, 761 выпущено; тишина — ноль кадров; фон — ровно 20,0 и 50,0 кадров/с.</li><li>Петля (A берёт шум только из эфира B, фон 50/с) запускается сама: по 0,6 простых/с на агента A.</li><li>Найдено и исправлено:<ul><li>агент B отклонял настройку, если сет A работал сообща («not in group»): связка «сообща + сет B» до 04.10 не работала вовсе;</li><li>две пары A+B, работающие одновременно, слышали объявления и кадры друг друга (агент B получил 1299 объявлений при 724 от своего A): теперь принимаются только своей настройки;</li><li>«не объявлено» и «эфир B не влез» считались с включения платы, а не с начала настройки; запас эфира B прошлой настройки шёл в шум новой;</li><li>одновременные кадры агентов B сталкивались — окна (см. выше): слышно стало 97–98 % вместо 82–85 %.</li></ul></li></ul>
+<h2 id="сообщения-esp-now-метка-w3">Сообщения ESP-NOW (метка "W3")<a class="anc" href="#сообщения-esp-now-метка-w3">#</a></h2>
+<div class="tw"><table><thead><tr><th>тип</th><th>от кого</th><th>кому</th><th>содержимое</th></tr></thead><tbody>
+<tr><td>PRIME (7)</td><td>агент A</td><td>всем</td><td>длина в битах, простое; номер простого у автора</td></tr>
+<tr><td>SCAT (8)</td><td>агент B</td><td>всем</td><td>вид (1 — каждый сам, 2 — россыпь, 3 — эстафета, 4 — пустышка, 5 — фон), функция, номер куска и их число, автор простого, данные</td></tr>
+<tr><td>CHAIN (9)</td><td>агент B</td><td>следующему B</td><td>шаг эстафеты, автор простого, промежуточное значение</td></tr>
+</tbody></table></div>
+  </main>
+</div>
+<footer>Страница собрана из docs/scatter.md командой tools/build_docs.py — правьте markdown. Ссылки на живую схему и панель
+работают, когда документация открыта с сервера (http://&lt;сервер&gt;:8090/docs/).</footer>
+</body>
+</html>

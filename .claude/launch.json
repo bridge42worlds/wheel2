@@ -1,0 +1,32 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "monitor",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "server/monitor.py",
+        "--http",
+        "8090",
+        "--udp",
+        "5005"
+      ],
+      "port": 8090
+    },
+    {
+      "name": "sim",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "server/monitor.py",
+        "--http",
+        "8091",
+        "--udp",
+        "5015",
+        "--data",
+        "data/test/sim",
+        "--no-beacon"
+      ],
+      "port": 8091
+    }
+  ]
+}

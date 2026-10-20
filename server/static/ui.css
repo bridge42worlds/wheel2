@@ -1,0 +1,79 @@
+/* Общий вид двух экранов — пульт (/pult) и наблюдение (/watch), docs/ui_concept.md.
+   Палитра Okabe-Ito; состояние — всегда значок и слово, цвет только в помощь.
+   Компьютер: экран целиком, без прокрутки (1536×960 и больше). Телефон: одна колонка, прокрутка. */
+:root {
+  --bg:#f3f2ee; --card:#ffffff; --ink:#1d2228; --mut:#68707c; --line:#dcd8cf; --line2:#c9c4b8;
+  --on:#0072B2; --warn:#B26B00; --bad:#C24E00; --ok:#00805C; --off:#8a8f98;
+  --gen:#009E73; --abs:#CC79A7; --sta:#E69F00; --idle:#8a8f98;
+  --gen-bg:#e3f4ee; --abs-bg:#f8e9f1; --sta-bg:#fbf0db; --idle-bg:#eeeeec; --on-bg:#e2eef7;
+  --fs:clamp(12px, 0.62vw + 4.5px, 16px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#14171b; --card:#1d2127; --ink:#e8eaed; --mut:#9aa1ab; --line:#2d323a; --line2:#3b414b;
+          --on:#56B4E9; --warn:#E69F00; --bad:#ff8a4c; --ok:#3fc39a; --off:#7d838c;
+          --gen-bg:#173229; --abs-bg:#33212c; --sta-bg:#33291a; --idle-bg:#24282e; --on-bg:#1b2b38; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#14171b; --card:#1d2127; --ink:#e8eaed; --mut:#9aa1ab; --line:#2d323a; --line2:#3b414b;
+          --on:#56B4E9; --warn:#E69F00; --bad:#ff8a4c; --ok:#3fc39a; --off:#7d838c;
+          --gen-bg:#173229; --abs-bg:#33212c; --sta-bg:#33291a; --idle-bg:#24282e; --on-bg:#1b2b38; color-scheme:dark; }
+* { box-sizing:border-box; }
+html, body { margin:0; height:100%; }
+body { font:var(--fs)/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+.screen { height:100vh; display:grid; grid-template-rows:auto minmax(0, 1fr) auto; gap:8px; padding:8px; overflow:hidden; }
+.panel { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:8px 10px; min-height:0; min-width:0;
+         display:flex; flex-direction:column; overflow:hidden; }
+.panel > h2, .panel > .h { font-size:1em; font-weight:650; margin:0 0 6px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.fill { flex:1; min-height:0; overflow:hidden; }
+.mut { color:var(--mut); } .small { font-size:.86em; } .big { font-size:1.6em; font-weight:650; } .num { font-variant-numeric:tabular-nums; }
+.ok { color:var(--ok); } .warn { color:var(--warn); } .bad { color:var(--bad); font-weight:650; } .on { color:var(--on); }
+.row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.sp { flex:1; }
+.btn { border:1px solid var(--line2); background:var(--card); color:var(--ink); border-radius:8px; padding:.4em .9em; font:inherit;
+       cursor:pointer; white-space:nowrap; }
+.btn:hover { border-color:var(--on); }
+.btn.big { font-size:1.08em; padding:.45em 1.1em; font-weight:600; }
+.btn.go { border-color:var(--ok); color:var(--ok); } .btn.stop { border-color:var(--bad); color:var(--bad); }
+.btn.sel, .seg button.sel { background:var(--on); border-color:var(--on); color:#fff; }
+.btn:disabled { opacity:.5; cursor:default; }
+.seg { display:inline-flex; border:1px solid var(--line2); border-radius:8px; overflow:hidden; }
+.seg button { border:0; border-right:1px solid var(--line2); background:var(--card); color:var(--ink); font:inherit; padding:.35em .8em; cursor:pointer; }
+.seg button:last-child { border-right:0; }
+a { color:var(--on); }
+/* фишка агента */
+.chips { display:grid; grid-template-columns:repeat(8, minmax(0, 1fr)); gap:4px; }
+.chip { border:1px solid var(--line2); border-radius:7px; padding:2px 2px 3px; text-align:center; cursor:pointer; position:relative;
+        background:var(--idle-bg); line-height:1.15; user-select:none; min-width:0; }
+.chip.A { background:var(--gen-bg); border-color:var(--gen); } .chip.B { background:var(--abs-bg); border-color:var(--abs); }
+.chip.S { background:var(--sta-bg); border-color:var(--sta); }
+.chip.off { opacity:.45; } .chip.pick { outline:3px solid var(--on); outline-offset:1px; }
+.chip.quiet { border-style:dashed; }   /* молчит по команде: на связи, телеметрии нет (значок ◇ в углу) */
+.chip .n { font-weight:700; } .chip .r { font-size:.85em; } .chip .g { position:absolute; top:1px; right:3px; font-size:.75em; color:var(--mut); }
+.chip .t { height:3px; margin:2px 3px 0; background:var(--line); border-radius:2px; overflow:hidden; }
+.chip .t i { display:block; height:3px; background:var(--mut); }
+.chip .t i.hot { background:var(--warn); }
+.chip .q { position:absolute; top:1px; left:3px; font-size:.75em; }
+.chip.empty { visibility:hidden; }
+/* карточка группы */
+.card { border:1px solid var(--line); border-radius:9px; padding:7px 9px; min-height:0; min-width:0; display:flex; flex-direction:column; gap:5px; }
+.card.idle { border-style:dashed; }
+.pill { display:inline-block; border:1px solid var(--line2); border-radius:6px; padding:0 .45em; font-size:.88em; white-space:nowrap; }
+.tabs { display:flex; gap:2px; border-bottom:1px solid var(--line); margin-bottom:6px; }
+.tabs button { border:0; background:none; color:var(--mut); font:inherit; padding:.3em .8em; cursor:pointer; border-bottom:2px solid transparent; }
+.tabs button.sel { color:var(--ink); border-bottom-color:var(--on); font-weight:600; }
+table.t { border-collapse:collapse; width:100%; font-size:.9em; }
+table.t th, table.t td { text-align:left; padding:2px 5px; border-bottom:1px solid var(--line); vertical-align:top; }
+table.t th { color:var(--mut); font-weight:500; }
+.bar { height:6px; background:var(--line); border-radius:3px; overflow:hidden; } .bar i { display:block; height:6px; background:var(--on); }
+/* лист поверх страницы (параметры группы, карточка агента, запись журнала) */
+.sheet-bg { position:fixed; inset:0; background:rgba(0,0,0,.35); display:flex; align-items:center; justify-content:center; z-index:10; }
+.sheet { background:var(--card); border:1px solid var(--line2); border-radius:12px; padding:12px 14px; width:min(1100px, 94vw);
+         max-height:90vh; overflow:auto; }
+.legend { display:flex; gap:12px; flex-wrap:wrap; font-size:.86em; color:var(--mut); }
+/* телефон и узкое окно: одна колонка, прокрутка */
+@media (max-width: 900px) {
+  .screen { height:auto; overflow:visible; grid-template-rows:auto auto auto; }
+  .cols { display:flex !important; flex-direction:column; }
+  .chips { grid-template-columns:repeat(8, minmax(0, 1fr)); }
+  .panel { overflow:visible; }
+  .fill { overflow:visible; }
+}

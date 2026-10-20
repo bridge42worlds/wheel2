@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Колесо-2 · отчёт</title>
+<link rel="stylesheet" href="/ui.css">
+<style>
+/* Журнал-отчёт планшетки: все шаги программы с параметрами (слои) и итогами — по агентам простые и
+   температура, статика, аномалии, разведка (scan). Второе окно к /plan. */
+.wrap { padding:8px 10px; }
+.sel { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:8px; }
+table.t td, table.t th { padding:3px 6px; vertical-align:top; }
+.num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+tr.ctl td { background:repeating-linear-gradient(135deg, transparent 0 6px, rgba(128,128,128,.10) 6px 12px); }
+tr.spoiled td { opacity:.6; }
+.sum { margin:8px 0; }
+details { margin-top:8px; }
+.lay { color:var(--mut); font-size:.85em; }
+</style>
+</head>
+<body>
+<div class="top"><div class="row"><b>Колесо-2 · отчёт</b><span id="conn" class="small"></span><span class="sp"></span>
+  <a class="btn" href="/plan" target="plan">Планшетка ↗</a><a class="btn" href="/watch" target="watch">Наблюдение ↗</a><a class="btn" href="/pult" target="pult">Пульт ↗</a></div></div>
+<div class="wrap">
+  <div class="sel"><label>программа <select id="pSel"></select></label><button class="btn" id="bCsv">⇩ CSV</button><span class="small mut" id="pInfo"></span></div>
+  <div class="sum" id="sum"></div>
+  <div style="overflow:auto"><table class="t" id="tbl"></table></div>
+  <details><summary>Аномалии, проверки и разведка</summary><div id="anom"></div></details>
+</div>
+<div class="foot" id="foot"><span class="mut">…</span></div>
+<script src="/ui.js"></script>
+<script>
+"use strict";
+let list = [], cur = null, curId = null;
+const roleIcon = r => r === "gen" ? "▲" : r === "abs" ? "▼" : "○";
+const wayShort = w => ({ solo: "эго", cascade: "групп", same: "одинак.", all: "все", pair: "1:1" })[w] || w || "";
+function layText(L, coil) {
+  if (!L) return "";
+  return `К1 ${roleIcon(L.w1.role)}${L.w1.way ? " " + wayShort(L.w1.way) : ""}${L.w1.noise ? " · " + esc(L.w1.noise) : ""} | К2 ${roleIcon(L.w2.role)}${L.w2.way ? " " + wayShort(L.w2.way) : ""}${L.w2.noise ? " · " + esc(L.w2.noise) : ""}${coil ? ` | поле ${esc(coil["1"])} ${esc(coil["2"])}` : ""}`;
+}
+async function loadList() {
+  const r = await getJSON("/api/programs");
+  list = r.list || [];
+  const s = $("pSel"), prev = s.value;
+  s.innerHTML = list.map(p => `<option value="${p.id}">№${p.id} · ${esc(p.name || "")} · ${new Date((p.t_start || p.created) * 1000).toLocaleString("ru-RU")} · ${({ running: "идёт", done: "выполнена", stopped: "остановлена" })[p.state] || esc(p.state)} · шагов ${p.runs}</option>`).join("");
+  const active = r.active && r.active.id;
+  if (!curId) curId = active || (list[0] && list[0].id);
+  s.value = String(curId || prev);
+  $("conn").innerHTML = active ? `<span class="ok">▶ идёт программа №${active}</span>` : `<span class="mut">программа не идёт</span>`;
+}
+async function loadProg() {
+  if (!curId) return;
+  cur = await getJSON(`/api/program?id=${curId}`);
+  render();
+}
+function agentsOf(x) {
+  const ids = new Set();
+  for (const r of x.runs || []) for (const k of Object.keys(r.gen || {})) if (k !== "все") ids.add(k);
+  return [...ids].sort((a, b) => (parseInt(a.replace(/\D/g, "")) || 0) - (parseInt(b.replace(/\D/g, "")) || 0));
+}
+function render() {
+  const x = cur, prog = x.program || {}, steps = prog.steps || [], runs = x.runs || [], plan = x.plan || [];
+  const ags = agentsOf(x);
+  $("pInfo").textContent = `${runs.length} из ${plan.length} шагов · повторов ${prog.repeat}${prog.shuffle ? ", случайно" : ""} · отдых ${prog.rest === "stable" ? "до стабилизации" : prog.rest || "нет"} · зерно ${prog.seed ?? "—"}`;
+  const ok = runs.filter(r => !r.spoiled);
+  const ctl = ok.filter(r => r.control).length;
+  $("sum").innerHTML = `выполнено <b>${runs.length}</b> · испорчено <b>${runs.filter(r => r.spoiled).length}</b> · контрольных <b>${ctl}</b> · аномалий <b>${Object.keys(x.anomalies || {}).length}</b> · подтвердилось <b>${Object.values(x.verdicts || {}).filter(v => v.confirmed).length}</b> · простых всего <b>${fmt(Math.round(ok.reduce((s, r) => s + ((((r.gen || {})["все"] || {}).pr_s || 0) * (r.t1 - r.t0)), 0)))}</b> за <b>${fmt(runs.reduce((s, r) => s + (r.t1 - r.t0), 0) / 60, 0)}</b> мин счёта${x.state === "running" ? ` · <span class="ok">идёт</span>` : ""}`;
+  const head = `<tr><th>№</th><th>шаг</th><th>начало</th><th>мин</th><th>простых</th><th>всего пр/с</th>${ags.map(a => `<th>${esc(a)}<br><span class="small mut">пр/с · °C</span></th>`).join("")}<th>статика</th><th>разведка (max |t|)</th><th>итог</th></tr>`;
+  const rows = runs.map((r, i) => {
+    const st = steps[r.step] || {}, g = r.gen || {}, all = g["все"] || {}, sv = r.watch && STATIC_VERDICT[r.watch.verdict];
+    const sc = (r.scan || [])[0];
+    const an = (x.anomalies || {})[String(i)], vd = (x.verdicts || {})[String(i)];
+    return `<tr class="${r.control ? "ctl" : ""} ${r.spoiled ? "spoiled" : ""}"><td>${i + 1}</td>
+      <td>${esc(r.name)}${r.control ? " <span class='small mut'>(контроль)</span>" : ""}${r.confirm ? " <span class='small mut'>(проверка)</span>" : ""}<div class="lay">${layText(st.layers || r.layers, st.coil || r.coil)}</div>${(st.groups || []).length ? `<div class="lay">${st.groups.map(g => esc(g.label) + " (" + g.targets.length + ")").join("; ")}</div>` : ""}</td>
+      <td class="small">${new Date(r.t0 * 1000).toLocaleTimeString("ru-RU")}</td><td class="num">${fmt((r.t1 - r.t0) / 60, 1)}</td><td class="num">${all.pr_s != null ? fmt(Math.round(all.pr_s * (r.t1 - r.t0))) : "—"}</td><td class="num">${fmt(all.pr_s, 1)}</td>
+      ${ags.map(a => { const m = g[a] || {}; return `<td class="num">${m.pr_s != null ? fmt(m.pr_s, 1) : "—"}${m.temp != null ? ` · ${fmt(m.temp, 0)}°` : ""}</td>`; }).join("")}
+      <td>${sv ? `<span class="${sv.cls}">${sv.icon} ${sv.word}</span>` : "<span class='mut'>—</span>"}</td>
+      <td class="small">${sc ? `${esc(sc.mac)}/${esc(sc.metric)} t ${fmtZ(sc.z)} (p ${esc(sc.p)}, из ${sc.tests})` : "—"}</td>
+      <td>${r.spoiled ? `<span class="bad">✗ испорчен: ${esc(r.spoiled_why || "")}</span>` : an ? `<span class="warn">◐ аномалия${vd ? (vd.confirmed ? " · <b>подтвердилась</b>" : " · не подтвердилась") : ""}</span>` : `<span class="ok">✓</span>`}</td></tr>`;
+  }).join("");
+  $("tbl").innerHTML = head + rows;
+  const an = Object.entries(x.anomalies || {});
+  $("anom").innerHTML = an.length ? an.map(([i, hits]) => `<div><b>шаг ${+i + 1}</b>: ${hits.map(h => `${esc(h.mac)}/${esc(h.metric)} t ${fmtZ(h.z)} (p_adj ${esc(h.p_adj)}, n ${h.n})`).join("; ")}${(x.verdicts || {})[i] ? ` → ${(x.verdicts || {})[i].confirmed ? "<b>подтвердилась</b>" : "не подтвердилась"} (${(x.verdicts || {})[i].same} из ${(x.verdicts || {})[i].of})` : ""}</div>`).join("")
+    : `<div class="mut small">аномалий по критерию не найдено; в колонке «разведка» — самый большой t каждого опытного шага</div>`;
+}
+$("pSel").onchange = () => { curId = +$("pSel").value; loadProg(); };
+$("bCsv").onclick = () => {
+  if (!cur) return;
+  const x = cur, steps = (x.program || {}).steps || [], ags = agentsOf(x);
+  const esc2 = s => `"${String(s ?? "").replace(/"/g, '""')}"`;
+  const lines = [["№", "шаг", "контроль", "начало", "мин", "простых", "всего пр/с", ...ags.flatMap(a => [a + " пр/с", a + " °C"]), "статика", "испорчен", "слои"].map(esc2).join(";")];
+  (x.runs || []).forEach((r, i) => {
+    const st = steps[r.step] || {}, g = r.gen || {};
+    lines.push([i + 1, r.name, r.control ? 1 : 0, new Date(r.t0 * 1000).toISOString(), ((r.t1 - r.t0) / 60).toFixed(2), (g["все"] || {}).pr_s != null ? Math.round(g["все"].pr_s * (r.t1 - r.t0)) : "", ((g["все"] || {}).pr_s ?? "").toString().replace(".", ","),
+      ...ags.flatMap(a => [((g[a] || {}).pr_s ?? "").toString().replace(".", ","), ((g[a] || {}).temp ?? "").toString().replace(".", ",")]),
+      r.watch ? r.watch.verdict : "", r.spoiled ? r.spoiled_why : "", layText(st.layers || r.layers, st.coil || r.coil).replace(/<[^>]+>/g, "")].map(esc2).join(";"));
+  });
+  const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `program_${x.id}.csv`; a.click();
+};
+poll(async () => { await loadList(); await loadProg(); }, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Режимы: что делает установка в каждом · Колесо-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Колесо-2 · документация</a>
+  <nav><a href="../flow">живая схема</a><a href="../">главная панель</a><a href="../acc">второй экран</a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Документы</h4>
+    <ul><li><a href="index.html">Обзор</a></li><li><a href="modes.html" class=cur>Режимы</a></li><li><a href="ui_concept.html">Концепт: пульт и наблюдение</a></li><li><a href="how_it_works.html">Как всё работает</a></li><li><a href="group_protocol.html">Сообща: протокол группы</a></li><li><a href="scatter.html">Рассеяние: сет B</a></li><li><a href="randomness.html">Откуда берётся случайность</a></li><li><a href="thermal.html">Температура агентов</a></li><li><a href="program.html">Программа эксперимента</a></li><li><a href="static_watch.html">Статические акселерометры</a></li><li><a href="sensors.html">Датчики</a></li></ul>
+    <h4>На этой странице</h4><ul class="toc"><li class="l2"><a href="#1-состояния-установки-одна-кнопка">1. Состояния установки (одна кнопка)</a></li><li class="l2"><a href="#2-генерация-сет-a-как-ищутся-простые">2. Генерация (сет A): как ищутся простые</a></li><li class="l2"><a href="#3-шум-откуда-берётся-число">3. Шум: откуда берётся число</a></li><li class="l2"><a href="#4-поглощение-сет-b-что-делается-с-простым">4. Поглощение (сет B): что делается с простым</a></li><li class="l2"><a href="#5-статические-акселерометры-роль-s">5. Статические акселерометры (роль S)</a></li><li class="l2"><a href="#6-телеметрия-сколько-агенты-говорят">6. Телеметрия: сколько агенты говорят</a></li><li class="l2"><a href="#7-автоматический-эксперимент-программа">7. Автоматический эксперимент (программа)</a></li><li class="l2"><a href="#8-тепло-отдых-спринт">8. Тепло, отдых, спринт</a></li><li class="l2"><a href="#9-надёжность-агентов">9. Надёжность агентов</a></li></ul>
+  </aside>
+  <main class="doc">
+
+<h1>Режимы: что делает установка в каждом</h1>
+<p>Справочник всех режимов «Колеса-2» в одном месте: что происходит, на что смотреть, типичные цифры (четыре платы XIAO ESP32-S3, 256 бит, 240 МГц, предел 70 °C, замеры 04–06.10.2026) и когда применять. Подробности — по ссылкам в конце разделов.</p>
+<p>Установка — до 36 агентов: <b>колесо 1</b> и <b>колесо 2</b> (физические группы, до 16 агентов каждое) и <b>статические</b> акселерометры (до 4). На колесе агенты делятся на <b>логические группы</b> 1–4; в группе два сета: <b>A — генерация</b> (ищут простые) и <b>B — поглощение</b> (рассеивают простые своей группы в эфир, смешав со своим шумом).</p>
+<h2 id="1-состояния-установки-одна-кнопка">1. Состояния установки (одна кнопка)<a class="anc" href="#1-состояния-установки-одна-кнопка">#</a></h2>
+<div class="tw"><table><thead><tr><th>состояние</th><th>что делают генераторы</th><th>статические</th><th>когда</th></tr></thead><tbody>
+<tr><td><b>Стоп</b></td><td>стоят и остывают: 80 МГц, светодиод выключен, счёта нет</td><td>меряют</td><td>между опытами, ночью</td></tr>
+<tr><td><b>Пуск</b></td><td>каждая группа — по своему набору (режим ниже)</td><td>меряют</td><td>опыт</td></tr>
+<tr><td><b>Тушение</b></td><td>только рассеивают свой шум в эфир (пустышка, фон 50 кадров/с): шум в шум, ни одного простого</td><td>меряют</td><td>контроль «радио без чисел»</td></tr>
+<tr><td><b>Отдых</b></td><td>генераторы стоят на 80 МГц, пока температура не установится</td><td>меряют</td><td>перед каждым шагом программы (<code>rest</code>), спринт</td></tr>
+</tbody></table></div>
+<h2 id="2-генерация-сет-a-как-ищутся-простые">2. Генерация (сет A): как ищутся простые<a class="anc" href="#2-генерация-сет-a-как-ищутся-простые">#</a></h2>
+<div class="tw"><table><thead><tr><th>режим</th><th>как работает</th><th>простых/с на четверых</th><th>на что смотреть</th></tr></thead><tbody>
+<tr><td><b>каждый сам</b></td><td>агент сам набирает шум, складывает число, отсеивает делителями, проверяет Миллером — Рабином</td><td>104 (по 26)</td><td>эталон: выход простых против теории, отсев</td></tr>
+<tr><td><b>каждый сам, два ядра</b></td><td>ядро связи набирает шум и отсеивает, ядро счёта только проверяет</td><td>184 из отдыха, ~140–170 долго</td><td>тепло: регулятор режет до 50–60 %</td></tr>
+<tr><td><b>все на одном числе</b> (сообща)</td><td>одно число на всех, базы проверки поделены по кругу; нашедший свидетеля — следующий мастер</td><td>11</td><td>когерентность: цикл без сбоев, согласие ответов</td></tr>
+<tr><td><b>эстафета</b></td><td>число из кусочков шума всех; проверяет один, ход по кругу; простое сверяет следующий</td><td>37</td><td>ходы поровну, «молчащие», сверка соседа</td></tr>
+<tr><td><b>каскад</b></td><td>числа из кусочков шума всех; проверяют все сразу, каждый свои; чужие кусочки ждёт не дольше <code>pw</code></td><td>124 из отдыха, ~85 долго</td><td>доля кругов из кусочков всех (когерентность), тепло</td></tr>
+</tbody></table></div>
+<p>Общее для всех: длина числа (32–2048 бит), сколько баз проверки (по умолчанию 8), отсев делителями до 1000. Подробно — docs/how_it_works.md, docs/group_protocol.md.</p>
+<h2 id="3-шум-откуда-берётся-число">3. Шум: откуда берётся число<a class="anc" href="#3-шум-откуда-берётся-число">#</a></h2>
+<div class="tw"><table><thead><tr><th>источник</th><th>что это</th><th>быстрота</th></tr></thead><tbody>
+<tr><td>ГСЧ чипа</td><td>аппаратный генератор ESP32-S3 с шумом радио</td><td>~45 тыс. слов/с — основной</td></tr>
+<tr><td>CSI Wi-Fi</td><td>состояние канала по ответам роутера (пинг 100 раз в секунду)</td><td>медленно</td></tr>
+<tr><td>АЦП</td><td>шум свободного входа D0</td><td>медленно</td></tr>
+<tr><td>дрожание RC</td><td>дрожание внутреннего генератора против кварца</td><td>медленно</td></tr>
+<tr><td>эфир сета B</td><td>содержимое услышанных кадров рассеяния — петля «рассеянное → в шум A»</td><td>сколько рассеют</td></tr>
+</tbody></table></div>
+<p>Как брать (<code>raw</code>): <b>с хешем</b> SHA-256 — числа равномерны, структура источника размешана; <b>без хеша</b> — младшие биты сырья прямо в число (видна физика источника: у АЦП 54–59 % единиц); <b>без хеша, фон Нейман</b> — снят перекос 0 и 1. Несколько источников складываются. Подробно — docs/randomness.md.</p>
+<h2 id="4-поглощение-сет-b-что-делается-с-простым">4. Поглощение (сет B): что делается с простым<a class="anc" href="#4-поглощение-сет-b-что-делается-с-простым">#</a></h2>
+<p>Агент A, найдя простое, объявляет его в эфир одним кадром; агенты B его слышат и рассеивают — смешивают со своим шумом и выпускают обратно в эфир.</p>
+<div class="tw"><table><thead><tr><th>режим</th><th>что делает каждый агент B</th><th>в эфире</th></tr></thead><tbody>
+<tr><td><b>каждый сам</b></td><td>смешивает всё число со своим шумом своей функцией</td><td>по кадру от каждого B на каждое простое</td></tr>
+<tr><td><b>россыпь</b></td><td>берёт свой кусок числа</td><td>ни один кадр не несёт число целиком</td></tr>
+<tr><td><b>эстафета</b></td><td>смешивает и передаёт следующему, последний выпускает</td><td>один кадр</td></tr>
+<tr><td><b>тишина</b></td><td>только слушает и считает</td><td>ничего</td></tr>
+<tr><td><b>пустышка</b> (к любому)</td><td>тот же трафик, но вместо числа — шум</td><td>отделяет действие числа от действия радио</td></tr>
+<tr><td><b>фон</b></td><td>свой шум в эфир с заданной частотой (кадров/с)</td><td>постоянный эфир</td></tr>
+<tr><td><b>петля через эфир</b></td><td>генерация берёт шум только из эфира рассеяния своей группы</td><td>проверка: возвращается ли рассеянное в числа</td></tr>
+</tbody></table></div>
+<p>Функция смешивания у агента B: хеш, XOR с шумом, умножение на случайное, перестановка бит. Подробно — docs/scatter.md.</p>
+<h2 id="5-статические-акселерометры-роль-s">5. Статические акселерометры (роль S)<a class="anc" href="#5-статические-акселерометры-роль-s">#</a></h2>
+<p>Агент с акселерометром только меряет: 500 отсчётов в секунду по трём осям, сервер считает спектр окнами по 10 с и сравнивает с <b>эталоном шума</b> (записывается, пока генераторы стоят). Вывод каждое окно: спокойно / отклонение (линия, полоса, форма шума, толчок, сдвиг) / тревога. Это главный измеритель опыта: ищем отклонения при разных режимах генерации и поглощения против контроля. Подробно — docs/static_watch.md.</p>
+<h2 id="6-телеметрия-сколько-агенты-говорят">6. Телеметрия: сколько агенты говорят<a class="anc" href="#6-телеметрия-сколько-агенты-говорят">#</a></h2>
+<div class="tw"><table><thead><tr><th>режим</th><th>генераторы</th><th>статические</th><th>что видно</th></tr></thead><tbody>
+<tr><td><b>обычная</b></td><td>пакет раз в период (1 с)</td><td>шлют отсчёты</td><td>всё в реальном времени</td></tr>
+<tr><td><b>редкая</b></td><td>в 10 раз реже</td><td>шлют отсчёты</td><td>итоги, без подробностей во времени</td></tr>
+<tr><td><b>молчание</b></td><td>ничего, кроме подтверждений команд; команды слышат</td><td>шлют отсчёты</td><td>только статика; итоги генераторов — после шага (счётчики накопительные)</td></tr>
+</tbody></table></div>
+<p>Молчание нужно, чтобы эфир Wi-Fi не влиял на акселерометры: смотрим только статику, а режимы переключаются командами сервера.</p>
+<h2 id="7-автоматический-эксперимент-программа">7. Автоматический эксперимент (программа)<a class="anc" href="#7-автоматический-эксперимент-программа">#</a></h2>
+<p>Шаги с параметрами, длительностью и отметкой «контроль»; повторы в случайном порядке; перед шагом — отдых до стабилизации температуры (<code>rest</code>); во время шага — молчание (<code>quiet</code>); эталон шума статических перед началом; аномалия (z по статическим и по простым) — добавляются пары «опыт — контроль» для проверки; испорченный шаг (толчок, не подтвердили настройку) повторяется. Подробно — docs/program.md.</p>
+<h2 id="8-тепло-отдых-спринт">8. Тепло, отдых, спринт<a class="anc" href="#8-тепло-отдых-спринт">#</a></h2>
+<p>Регулятор держит кристалл на градус ниже предела (70 °C), урезая долю работы. <b>Спринт</b> — режим из отдыха на полной мощности 60–90 с: полная производительность. <b>Отдых в группах</b> (по очереди или всей группой) — для опытов, по умолчанию выключен: прироста в долгой работе не дал. Подробно — docs/thermal.md.</p>
+<h2 id="9-надёжность-агентов">9. Надёжность агентов<a class="anc" href="#9-надёжность-агентов">#</a></h2>
+<p>История ошибок каждого агента и рейтинг за сутки: простое не прошло проверку, сосед нашёл ошибку, сбой прошивки, замерло радио, «зомби» Wi-Fi, группа его не слышала, потери кадров. Штатные перезапуски — без веса. Подробно — docs/thermal.md, § 5.</p>
+  </main>
+</div>
+<footer>Страница собрана из docs/modes.md командой tools/build_docs.py — правьте markdown. Ссылки на живую схему и панель
+работают, когда документация открыта с сервера (http://&lt;сервер&gt;:8090/docs/).</footer>
+</body>
+</html>

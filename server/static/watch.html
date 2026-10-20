@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Колесо-2 · наблюдение</title>
+<link rel="stylesheet" href="/ui.css">
+<style>
+.top { display:flex; flex-direction:row; gap:12px; align-items:baseline; flex-wrap:wrap; }
+.top h1 { font-size:1.2em; margin:0; }
+.cols { display:grid; grid-template-columns:minmax(0, 1.55fr) minmax(0, 1fr); gap:8px; min-height:0; }
+.sens { display:grid; gap:6px; min-height:0; }
+.sens.n1 { grid-template-columns:1fr; } .sens.n2 { grid-template-rows:1fr 1fr; }
+.sens.n3, .sens.n4 { grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; }
+.sen { border:1px solid var(--line); border-radius:9px; padding:5px 7px; display:flex; flex-direction:column; min-height:0; min-width:0; }
+.sen .h { display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+.sen canvas { flex:1; min-height:0; width:100%; }
+.why { font-size:.86em; min-height:1.2em; }
+.grd { border:1px solid var(--line); border-radius:9px; padding:6px 9px; display:flex; flex-direction:column; gap:4px; }
+.grd .rate { font-size:2.1em; font-weight:700; line-height:1; }
+.checks { display:grid; grid-template-columns:1fr 1fr; gap:2px 10px; font-size:.95em; }
+:root { --axx:#0072B2; --axy:#D55E00; --axz:#1d2228; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --axx:#56B4E9; --axy:#ff8a4c; --axz:#e8eaed; } }
+:root[data-theme="dark"] { --axx:#56B4E9; --axy:#ff8a4c; --axz:#e8eaed; }
+.tl { position:relative; height:46px; }
+.tl .seg { position:absolute; top:4px; height:22px; border:1px solid var(--line2); border-radius:4px; font-size:.75em; overflow:hidden;
+           white-space:nowrap; padding:2px 4px; background:var(--on-bg); }
+.tl .seg.ctl { background:repeating-linear-gradient(45deg, var(--card), var(--card) 4px, var(--line) 4px, var(--line) 8px); }
+.tl .seg.now { border:2px solid var(--on); }
+.tl .mk { position:absolute; top:28px; font-size:.85em; }
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="panel top">
+    <h1 id="title">Колесо-2 · наблюдение</h1>
+    <span id="step" class="big"></span>
+    <span class="sp"></span>
+    <span id="tele"></span>
+    <span id="conn" class="small"></span>
+    <span id="clock" class="num"></span>
+  </div>
+
+  <div class="cols">
+    <div class="panel">
+      <h2>Статика — главный измеритель <span class="small mut">спектр по осям против коридора эталона (±3σ) · окна по 10 с</span></h2>
+      <div class="sens fill" id="sens"></div>
+      <div class="legend"><span style="color:var(--axx)">— ось X</span><span style="color:var(--axy)">- - ось Y</span><span style="color:var(--axz)">··· ось Z</span><span>▒ коридор эталона</span><span>▼ найденная линия</span></div>
+    </div>
+    <div class="panel">
+      <h2>Простые — в пределах статистики? <span class="small mut">✓ |z| &lt; 3 · ◐ &lt; 5 · ✗ дальше</span></h2>
+      <div class="fill" id="guard" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row small"><b>Лента опыта</b><span class="mut" id="tlNote"></span><span class="sp"></span>
+      <span class="legend"><span>опыт — заливка</span><span>контроль — штриховка</span><span>✓ ◐ ✗ — статика шага</span></span></div>
+    <div class="tl" id="tl"></div>
+  </div>
+</div>
+<script src="/ui.js"></script>
+<script>
+"use strict";
+let D = null;
+const spec = {}, hist = {};          // спектры по датчикам; история темпа по настройке (для полоски)
+const AXES = [{ n: "X", dash: [], col: "--axx" }, { n: "Y", dash: [6, 3], col: "--axy" }, { n: "Z", dash: [2, 2], col: "--axz" }];
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+// ---------- верх ----------
+function renderTop(d) {
+  const p = d.program, c = d.compose || {};
+  let s = "";
+  if (p && p.state === "running" && p.now) {
+    s = `Программа «${esc(p.name)}» · шаг ${p.now.n}/${p.now.of}: ${esc(p.now.name)}${p.now.control ? " (контроль)" : ""}` +
+        (p.now.rest ? " · отдых" : ` · ${fmtDur(Date.now() / 1000 - (p.now.t_meas || p.now.t0))} / ${fmtDur((p.now.minutes || 0) * 60)}`);
+  } else if (c.state === "run") s = `Опыт вручную · ${fmtDur(Date.now() / 1000 - c.t)}`;
+  else if (c.state === "quench") s = `Тушение · ${fmtDur(Date.now() / 1000 - c.t)}`;
+  else s = "Генераторы стоят";
+  $("step").textContent = s;
+  const tl = d.tele || 0;
+  $("tele").innerHTML = tl === 2 ? `<span class="warn">◐ генераторы молчат — итоги простых после шага</span>`
+    : tl === 1 ? `<span class="mut">телеметрия редкая</span>` : "";
+  const on = d.agents.filter(a => alive(a.status)).length, quiet = d.agents.filter(a => a.status === "quiet").length;
+  $("conn").innerHTML = `<span class="${on ? "ok" : "bad"}">● ${on} на связи</span>` + (quiet ? `<span class="mut"> · ◇ молчат ${quiet}</span>` : "");
+}
+setInterval(() => { $("clock").textContent = new Date().toLocaleTimeString("ru-RU"); }, 1000);
+
+// ---------- статика ----------
+function renderSens(d) {
+  const list = (d.static || []).slice(0, 4), el = $("sens");
+  el.className = `sens fill n${Math.max(1, list.length)}`;
+  const ids = list.map(s => s.mac).join();
+  if (el.dataset.ids !== ids) {
+    el.dataset.ids = ids;
+    el.innerHTML = list.length ? list.map(s => `<div class="sen" id="s-${s.mac.replace(/:/g, "")}"><div class="h"><b>№${s.id} ◆</b><span class="v"></span><span class="sp"></span><span class="small mut z"></span></div>
+      <div class="why"></div><canvas></canvas></div>`).join("")
+      : `<div class="mut">Статических датчиков нет: на пульте назначьте агенту место «◆ статический».</div>`;
+  }
+  const sv = d.static_verdict || {};
+  for (const s of list) {
+    const box = $("s-" + s.mac.replace(/:/g, ""));
+    if (!box) continue;
+    const x = (sv.sensors || {})[s.mac], v = STATIC_VERDICT[x ? x.verdict : (s.status === "none" ? "nodata" : "ok")] || STATIC_VERDICT.nodata;
+    box.querySelector(".v").innerHTML = `<span class="${v.cls}">${v.icon} ${v.word}</span>`;
+    box.querySelector(".why").innerHTML = x && (x.reasons || []).length ? esc(x.reasons[0]) : `<span class="mut">${esc(s.text || "")}</span>`;
+    drawSpec(box.querySelector("canvas"), spec[s.mac]);
+  }
+}
+function drawSpec(cv, sp) {
+  const r = cv.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  cv.width = Math.max(10, r.width * dpr); cv.height = Math.max(10, r.height * dpr);
+  const c = cv.getContext("2d");
+  c.scale(dpr, dpr);
+  const W = r.width, H = r.height, L = 34, B = 16;
+  c.clearRect(0, 0, W, H);
+  c.font = "11px system-ui"; c.fillStyle = css("--mut");
+  if (!sp || !sp.f || !sp.f.length) { c.fillText("спектр ещё не набрался", L, H / 2); return; }
+  const f = sp.f, fmax = f[f.length - 1];
+  let lo = Infinity, hi = -Infinity;
+  for (const a of sp.axes) for (const arr of [a.cur, a.lo, a.hi]) if (arr) for (const y of arr) { if (y < lo) lo = y; if (y > hi) hi = y; }
+  lo = Math.floor(lo / 10) * 10; hi = Math.ceil(hi / 10) * 10;
+  const X = fq => L + (W - L - 4) * Math.log(fq / f[0]) / Math.log(fmax / f[0]);
+  const Y = db => 4 + (H - B - 8) * (1 - (db - lo) / Math.max(hi - lo, 1));
+  c.strokeStyle = css("--line"); c.lineWidth = 1;
+  for (const fq of [1, 2, 5, 10, 20, 50, 100, 200]) if (fq >= f[0] && fq <= fmax) {
+    c.beginPath(); c.moveTo(X(fq), 4); c.lineTo(X(fq), H - B); c.stroke(); c.fillText(fq + " Гц", X(fq) - 8, H - 3);
+  }
+  for (let db = lo; db <= hi; db += 10) { c.fillText(db, 2, Y(db) + 4); }
+  sp.axes.forEach((a, i) => {                        // коридор эталона
+    if (!a.lo) return;
+    c.fillStyle = css("--ok") + "22";
+    c.beginPath();
+    a.hi.forEach((y, k) => k ? c.lineTo(X(f[k]), Y(y)) : c.moveTo(X(f[k]), Y(y)));
+    for (let k = a.lo.length - 1; k >= 0; k--) c.lineTo(X(f[k]), Y(a.lo[k]));
+    c.closePath(); c.fill();
+  });
+  sp.axes.forEach((a, i) => {                        // сейчас: оси различаются штрихом
+    c.strokeStyle = css(AXES[i].col); c.lineWidth = 1; c.setLineDash(AXES[i].dash);
+    c.beginPath();
+    a.cur.forEach((y, k) => k ? c.lineTo(X(f[k]), Y(y)) : c.moveTo(X(f[k]), Y(y)));
+    c.stroke();
+  });
+  c.setLineDash([]);
+  c.fillStyle = css("--warn");
+  for (const x of sp.finds || []) if (x.f) c.fillText("▼", X(x.f) - 4, 14);
+}
+async function loadSpectra(d) {
+  for (const s of (d.static || []).slice(0, 4)) {
+    try { spec[s.mac] = await getJSON(`/api/static/spectrum?mac=${encodeURIComponent(s.mac)}&n=6`); } catch (e) { /* дальше */ }
+  }
+}
+
+// ---------- простые ----------
+function renderGuard(d) {
+  const gs = Object.values(d.guard || {}), tl = d.tele || 0;
+  if (!gs.length) { $("guard").innerHTML = `<div class="mut">Генераторы стоят${tl === 2 ? " или молчат" : ""}: простых сейчас нет.</div>`; return; }
+  $("guard").innerHTML = gs.map(g => {
+    const s = Object.values(d.groups || {}).find(x => x.cid === g.cid);
+    const rate = s ? s.pr_s : g.pr_s;                 // сообща — по сводке группы, иначе — по агентам
+    const full = s && s.gath ? 1 - s.truncs / s.gath : null;
+    const h = hist[g.cid] = (hist[g.cid] || []).concat([rate || 0]).slice(-60);
+    const mx = Math.max(...h, 1);
+    const spark = `<svg viewBox="0 0 60 14" preserveAspectRatio="none" style="width:100%;height:16px" aria-hidden="true"><polyline fill="none" stroke="currentColor" stroke-width="1"
+      points="${h.map((v, i) => `${i},${(14 - 13 * v / mx).toFixed(1)}`).join(" ")}"/></svg>`;
+    const modV = Object.values(g.mod_p || {}), modP = modV.length ? Math.min(...modV) : null;   // {} — мало простых
+    const ck = (name, m, val) => `<span class="${m.cls}">${m.icon} ${name} ${val}</span>`;
+    return `<div class="grd"><div class="row"><b>Агенты ${g.ids.map(i => "№" + i).join(" ")}</b><span class="small mut">настройка №${g.cid}</span><span class="sp"></span>
+        <span class="rate num">${fmt(rate, 1)}</span><span class="small mut">простых/с</span></div>
+      <div class="mut">${spark}</div>
+      <div class="checks">
+        ${ck("выход против теории", mark(g.z_yield), "z " + fmtZ(g.z_yield))}
+        ${ck("отсев делителями", mark(g.z_sieve), "z " + fmtZ(g.z_sieve))}
+        ${g.logged ? ck("баланс бит", mark(g.z_bits), "z " + fmtZ(g.z_bits)) : `<span class="mut">· баланс бит — нужен журнал простых</span>`}
+        ${g.logged ? ck("остатки 3·5·7·11", markP(modP), modP != null ? "p " + fmt(modP, 3) : "") : `<span class="mut">· остатки — нужен журнал</span>`}
+        ${g.logged != null ? ck("повторов", g.dups ? { cls: "bad", icon: "✗" } : { cls: "ok", icon: "✓" }, fmt(g.dups)) : ""}
+        ${g.logged != null ? ck("ошибок счёта", (g.fails || g.div) ? { cls: "bad", icon: "✗" } : { cls: "ok", icon: "✓" }, fmt((g.fails || 0) + (g.div || 0))) : ""}
+      </div>
+      <div class="small mut">простых ${fmt(g.pr)}${g.logged ? ` · в журнале ${fmt(g.logged)}` : ""}${full != null && s.gv ? ` · кругов из кусочков всех ${fmt(100 * full, 0)} %` : ""}${g.sens_pct != null ? ` · заметили бы сдвиг выхода от ±${fmt(g.sens_pct, g.sens_pct < 1 ? 2 : 1)} % (3σ)` : ""}</div></div>`;
+  }).join("");
+}
+
+// ---------- лента опыта ----------
+let tlData = null, tlT = 0;
+async function loadTimeline(d) {
+  if (Date.now() - tlT < 10000) return;
+  tlT = Date.now();
+  const p = d.program;
+  if (p && p.id) {
+    try { const x = await getJSON(`/api/program?id=${p.id}`); tlData = { kind: "prog", x }; return; } catch (e) { /* дальше */ }
+  }
+  try { tlData = { kind: "runs", list: ((await getJSON("/api/runs?n=40")).list || []).filter(r => r.t0 > Date.now() / 1000 - 3 * 3600) }; } catch (e) { /* дальше */ }
+}
+function renderTimeline() {
+  const el = $("tl");
+  if (!tlData) { el.innerHTML = ""; return; }
+  if (tlData.kind === "prog") {
+    const x = tlData.x, steps = (x.program || {}).steps || [], plan = x.plan || [], runs = x.runs || [];
+    const tot = plan.reduce((s, it) => s + ((steps[it.step] || {}).minutes || 1), 0) || 1;
+    let acc = 0;
+    $("tlNote").textContent = `программа «${(x.program || {}).name}» — ${plan.length} шагов`;
+    el.innerHTML = plan.map((it, i) => {
+      const st = steps[it.step] || {}, w = (st.minutes || 1) / tot * 100, left = acc / tot * 100, rr = runs[i];
+      acc += st.minutes || 1;
+      const sv = rr && rr.watch ? STATIC_VERDICT[rr.watch.verdict] : null;
+      return `<div class="seg ${st.control ? "ctl" : ""} ${i === runs.length && x.state === "running" ? "now" : ""}" style="left:${left}%;width:calc(${w}% - 2px)" title="${esc(st.name)}">${esc(st.name)}</div>` +
+        (sv ? `<span class="mk ${sv.cls}" style="left:${left + w / 2}%">${sv.icon}</span>` : "");
+    }).join("");
+    return;
+  }
+  const list = (tlData.list || []).slice().reverse();
+  if (!list.length) { $("tlNote").textContent = "за 3 часа опытов не было"; el.innerHTML = ""; return; }
+  const t0 = list[0].t0, t1 = Date.now() / 1000, span = Math.max(t1 - t0, 60);
+  $("tlNote").textContent = `опыты за последние ${fmtDur(span)} (журнал)`;
+  el.innerHTML = list.map(r => {
+    const left = (r.t0 - t0) / span * 100, w = Math.max(0.6, (r.dur_s || 1) / span * 100);
+    const st = r.static || {}, v = st.verdict ? STATIC_VERDICT[st.verdict] : null;
+    return `<div class="seg" style="left:${left}%;width:${w}%" title="№${r.id}: ${esc(r.text || "")}">№${r.id}</div>` +
+      (v ? `<span class="mk ${v.cls}" style="left:${left + w / 2}%">${v.icon}</span>` : "");
+  }).join("");
+}
+
+// ---------- опрос ----------
+async function refresh() {
+  D = await getJSON("/api/dash?window=10");
+  renderTop(D);
+  renderGuard(D);
+  renderSens(D);
+  loadTimeline(D).then(renderTimeline);
+}
+poll(refresh, 2000);
+setInterval(() => { if (D) loadSpectra(D).then(() => renderSens(D)); }, 3000);
+window.addEventListener("resize", () => D && renderSens(D));
+</script>
+</body>
+</html>

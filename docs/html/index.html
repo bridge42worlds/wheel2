@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Обзор · Колесо-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Колесо-2 · документация</a>
+  <nav><a href="../flow">живая схема</a><a href="../">главная панель</a><a href="../acc">второй экран</a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Документы</h4>
+    <ul><li><a href="index.html" class=cur>Обзор</a></li><li><a href="modes.html">Режимы</a></li><li><a href="ui_concept.html">Концепт: пульт и наблюдение</a></li><li><a href="how_it_works.html">Как всё работает</a></li><li><a href="group_protocol.html">Сообща: протокол группы</a></li><li><a href="scatter.html">Рассеяние: сет B</a></li><li><a href="randomness.html">Откуда берётся случайность</a></li><li><a href="thermal.html">Температура агентов</a></li><li><a href="program.html">Программа эксперимента</a></li><li><a href="static_watch.html">Статические акселерометры</a></li><li><a href="sensors.html">Датчики</a></li></ul>
+    <h4>На этой странице</h4><ul class="toc"><li class="l2"><a href="#pages">Живые страницы</a></li><li class="l2"><a href="#docs">Документы</a></li><li class="l2"><a href="#readme">Папки проекта</a></li></ul>
+  </aside>
+  <main class="doc">
+
+<h1>Колесо-2 — документация</h1>
+<p>Агенты — платы XIAO ESP32-S3 с общей прошивкой <code>prime_lab</code>: генерируют простые числа (каждый сам или сообща),
+рассеивают их (сет B), меряют ускорение (роль S). Сервер на ПК собирает телеметрию, раздаёт настройки и прошивки,
+ведёт сессии, программы и журнал опытов.</p>
+
+<svg viewBox="0 0 860 330" role="img" aria-label="схема системы" style="width:100%;max-width:860px;display:block;margin:6px 0 4px">
+  <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+    <path d="M0 0 L10 5 L0 10 z" fill="#8a8f98"/></marker></defs>
+  <g font-size="13">
+    <rect x="20" y="20" width="230" height="64" rx="10" fill="none" stroke="#8a8f98"/>
+    <text x="34" y="44" font-weight="700">▣ сервер (ПК)</text>
+    <text x="34" y="64" font-size="12" class="m">телеметрия · команды · журнал · страницы</text>
+    <rect x="315" y="20" width="200" height="64" rx="10" fill="none" stroke="#8a8f98"/>
+    <text x="329" y="44" font-weight="700">⌂ роутер Wi-Fi</text>
+    <text x="329" y="64" font-size="12" class="m">свой канал</text>
+    <path d="M250 52 L315 52" stroke="#8a8f98" marker-end="url(#ar)"/>
+    <text x="560" y="40" font-size="12" class="m">UDP 5005 — телеметрия раз в 1 с</text>
+    <text x="560" y="58" font-size="12" class="m">UDP 5007 — команды CFG, OTA</text>
+    <text x="560" y="76" font-size="12" class="m">UDP 5006 — маяк сервера</text>
+    <rect x="20" y="130" width="470" height="120" rx="12" fill="none" class="sa" stroke-dasharray="5 4"/>
+    <text x="34" y="150" font-weight="700" class="ta">сет A — генерация</text>
+    <g>
+      <circle cx="80" cy="200" r="26" fill="none" class="sa" stroke-width="2"/><text x="80" y="205" text-anchor="middle" font-weight="700">№3</text>
+      <circle cx="190" cy="200" r="26" fill="none" stroke="#E69F00" stroke-width="3"/><text x="190" y="205" text-anchor="middle" font-weight="700">№4</text>
+      <text x="190" y="242" text-anchor="middle" font-size="12" fill="#E69F00">★ мастер</text>
+      <circle cx="300" cy="200" r="26" fill="none" class="sa" stroke-width="2"/><text x="300" y="205" text-anchor="middle" font-weight="700">№5</text>
+      <circle cx="410" cy="200" r="26" fill="none" class="sa" stroke-width="2"/><text x="410" y="205" text-anchor="middle" font-weight="700">№6</text>
+      <path d="M106 200 L162 200 M216 200 L272 200 M326 200 L382 200" stroke="#8a8f98" stroke-dasharray="3 3" marker-end="url(#ar)"/>
+    </g>
+    <rect x="560" y="130" width="280" height="120" rx="12" fill="none" class="sb" stroke-dasharray="5 4"/>
+    <text x="574" y="150" font-weight="700" class="tb">сет B — рассеяние</text>
+    <path d="M640 180 L660 200 L640 220 L620 200 Z" fill="none" class="sb" stroke-width="2"/>
+    <path d="M760 180 L780 200 L760 220 L740 200 Z" fill="none" class="sb" stroke-width="2"/>
+    <text x="700" y="238" text-anchor="middle" font-size="12" class="m">смешивают простое со своим шумом</text>
+    <path d="M436 190 C 500 150, 560 150, 616 190" stroke="#CC79A7" fill="none" marker-end="url(#ar)"/>
+    <text x="526" y="150" text-anchor="middle" font-size="12" fill="#CC79A7">PRIME</text>
+    <path d="M620 215 C 560 270, 480 270, 436 215" stroke="#CC79A7" fill="none" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+    <text x="526" y="282" text-anchor="middle" font-size="12" fill="#CC79A7">эфир B → шум A (петля)</text>
+    <text x="34" y="312" font-size="12" class="m">ESP-NOW между агентами на канале роутера: адресные кадры группы (итог, ответы, кусочки) и широковещательные — сету B</text>
+  </g>
+</svg>
+
+<h2 id="pages">Живые страницы</h2>
+<ul>
+<li><a href="../">Главная панель</a> — агенты, управление, сессии, итоги, графики, журнал опытов, прошивка по Wi-Fi; у каждого параметра значок ⓘ.</li>
+<li><a href="../flow">Живая схема</a> — протокол по шагам, замедленно: шум, кандидат, отсев, Миллер — Рабин, мастер и эстафета, кусочки, рассеяние, петля; характерные времена «модель / на платах».</li>
+<li><a href="../acc">Второй экран</a> — статические акселерометры: спектр, эталон шума, вывод.</li>
+</ul>
+<h3 id="modes">Режимы на живой схеме</h3>
+<ul><li><a href="../flow">все режимы: выбор вверху страницы</a></li><li><a href="../flow#solo">каждый сам</a></li><li><a href="../flow#dc">два ядра — конвейер</a></li><li><a href="../flow#group">сообща: мастер, эстафета, запас</a></li><li><a href="../flow#relay">эстафета сета A: проверяет один, ход по кругу</a></li><li><a href="../flow#cascade">каскад сета A: проверяют все, шум от всех ко всем</a></li><li><a href="../flow#scatter">сообща + рассеяние</a></li><li><a href="../flow#pieces">россыпь</a></li><li><a href="../flow#chain">эстафета сета B — цепочка рассеяния</a></li><li><a href="../flow#silence">тишина и фон</a></li><li><a href="../flow#sham">пустышка</a></li><li><a href="../flow#loop">петля через эфир</a></li><li><a href="../flow#csi">сообща на медленном шуме (CSI)</a></li></ul>
+<h2 id="docs">Документы</h2>
+<div class="cards"><a class="card" href="modes.html" style="text-decoration:none;color:inherit"><h3>Режимы</h3><p>Все режимы установки в одном месте: стоп, пуск, тушение, отдых; генерация (каждый сам, два ядра, все на одном числе, эстафета, каскад); шум; поглощение (сет B); статические; телеметрия; программа.</p></a><a class="card" href="ui_concept.html" style="text-decoration:none;color:inherit"><h3>Концепт: пульт и наблюдение</h3><p>Два экрана: пульт (36 агентов, группы и режимы, опыт, программа «план — факт», журнал) и наблюдение (статика и простые в реальном времени). Черновик для обсуждения.</p></a><a class="card" href="how_it_works.html" style="text-decoration:none;color:inherit"><h3>Как всё работает</h3><p>Система целиком: агент и его ядра, источники шума, поиск простого, сообща, предел температуры, параметры, сессии, страницы, телеметрия, прошивка по Wi-Fi, замеры, инструменты.</p></a><a class="card" href="group_protocol.html" style="text-decoration:none;color:inherit"><h3>Сообща: протокол группы</h3><p>Все на одном числе (третья версия): число с итогом, базы по кругу, запас и кусочки, сбои, когерентность, согласие, результаты на 1–4 платах. Эстафета и каскад: число из шума всех, проверяет один или все, оценка по модели.</p></a><a class="card" href="scatter.html" style="text-decoration:none;color:inherit"><h3>Рассеяние: сет B</h3><p>Как простое попадает к сету B, режимы (каждый, россыпь, эстафета, тишина), пустышка, фон, функции, окна по местам, петля через эфир, проверка на четырёх платах.</p></a><a class="card" href="randomness.html" style="text-decoration:none;color:inherit"><h3>Откуда берётся случайность</h3><p>ГСЧ чипа и шум радио, CSI, АЦП, дрожание RC: как берём, сколько засчитываем, как смешиваем, скорость по источникам и длинам.</p></a><a class="card" href="thermal.html" style="text-decoration:none;color:inherit"><h3>Температура агентов</h3><p>Предел 70 °C: регулятор доли работы, замеры нагрева и остывания, откуда тепло, частота, отдых по очереди, спринт после отдыха, отдых между режимами, рейтинг агентов по истории ошибок.</p></a><a class="card" href="program.html" style="text-decoration:none;color:inherit"><h3>Программа эксперимента</h3><p>Шаги, контроль, случайный порядок, эталон шума, аномалии и их проверка парами, испорченные шаги.</p></a><a class="card" href="static_watch.html" style="text-decoration:none;color:inherit"><h3>Статические акселерометры</h3><p>Роль S: что меряет агент, что считает сервер, эталон шума, линии, полосы, толчки, вывод «продолжать / повторить / проверить».</p></a><a class="card" href="sensors.html" style="text-decoration:none;color:inherit"><h3>Датчики</h3><p>Колесо (обороты и невесомость), магнитное поле, статический акселерометр; подключение и пакеты.</p></a></div>
+<h2 id="readme">Папки проекта</h2>
+
+<div class="tw"><table><thead><tr><th>папка</th><th>что внутри</th></tr></thead><tbody>
+<tr><td><code>firmware/</code></td><td>исходники прошивок агентов, по скетчу на папку</td></tr>
+<tr><td><code>tools/</code></td><td>сборка, заливка, захват лога, проверки</td></tr>
+<tr><td><code>build/</code></td><td>собранные прошивки (не в git)</td></tr>
+<tr><td><code>logs/</code></td><td>логи с агентов и история прошивок (не в git)</td></tr>
+</tbody></table></div>
+<p>Плата: Seeed XIAO ESP32-S3 (<code>esp32:esp32:XIAO_ESP32S3</code>), ядро ESP32 3.3.7. Каждая прошивка несёт номер коммита git и сообщает его при старте.</p>
+<p>Страницы сервера (<code>tools/monitor.cmd</code>, затем <code>http://&lt;сервер&gt;:8090/</code>): главная панель <code>/</code> (агенты по колёсам и группам, наборы, «Пуск», «Стоп», «Тушение»), <b>живая схема</b> <code>/flow</code> (весь протокол по шагам, замедленно, по режимам), второй экран <code>/acc</code>, <b>документация в HTML</b> <code>/docs/</code>.</p>
+<p>Как всё устроено и работает — <a href="how_it_works.html">docs/how_it_works.md</a>. Источники случайности и замеры — <a href="randomness.html">docs/randomness.md</a>. Совместный режим агентов — <a href="group_protocol.html">docs/group_protocol.md</a>. Рассеяние простых сетом B — <a href="scatter.html">docs/scatter.md</a>. Датчики: колесо, магнитное поле — <a href="sensors.html">docs/sensors.md</a>. Статические акселерометры: эталон шума, спектр, тревоги, «продолжать или повторить», второй экран <code>/acc</code> — <a href="static_watch.html">docs/static_watch.md</a>. Программа автоматического эксперимента — <a href="program.html">docs/program.md</a>. Прошивка по Wi-Fi с откатом, журнал простых, согласие агентов — <a href="how_it_works.html">docs/how_it_works.md</a>, §§ 2, 7а, 11; агенты, группы и наборы — § 7. Все режимы установки — <a href="modes.html">docs/modes.md</a>; концепт двух экранов (пульт и наблюдение) — <a href="ui_concept.html">docs/ui_concept.md</a>. Температура агентов: как работаем, замеры, отдых по очереди, спринт, рейтинг агентов — <a href="thermal.html">docs/thermal.md</a>. Новая плата: подключить по USB — на панели «Новые платы по USB» → «Прошить по USB» (или двойной щелчок по <code>tools/new_board.cmd</code>); прошивается по USB один раз, дальше — по Wi-Fi (§ 11).</p>
+<p>Секреты (<code>secrets/wifi.ini</code> — сеть, <code>secrets/ota.key</code> — ключ подписи прошивок) в git не попадают; ключ создаётся сам при первой сборке (<code>tools/gen_secrets.py</code>).</p>
+  </main>
+</div>
+<footer>Страница собрана из README.md командой tools/build_docs.py — правьте markdown. Ссылки на живую схему и панель
+работают, когда документация открыта с сервера (http://&lt;сервер&gt;:8090/docs/).</footer>
+</body>
+</html>

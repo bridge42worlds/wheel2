@@ -1,0 +1,1938 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Колесо-2 · генератор</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.min.css">
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.31/dist/uPlot.iife.min.js"></script>
+<style>
+/* Палитра Okabe-Ito: различима при нарушениях цветового зрения. Состояния
+   всегда дублируются значком и словом, линии графиков — штрихом. */
+:root {
+  --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0;
+  --on:#0072B2; --warn:#E69F00; --bad:#D55E00; --ok:#009E73; --off:#8a8f98; --bar:#0072B2; --bar2:#D55E00;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#2e333b;
+          --on:#56B4E9; --warn:#E69F00; --bad:#ff8a4c; --ok:#3fc39a; --off:#7d838c; --bar:#56B4E9; --bar2:#ff8a4c; }
+}
+* { box-sizing:border-box; }
+body { margin:0; font:14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+header { padding:10px 16px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line); }
+h1 { font-size:18px; margin:0; }
+h2 { font-size:14px; margin:0 0 8px; font-weight:650; }
+.mut { color:var(--mut); }
+.small { font-size:12px; }
+main { padding:12px 16px 24px; display:grid; gap:12px; }
+.panel { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:10px 12px; min-width:0; }
+.row { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(min(340px, 100%), 1fr)); }
+.layout { display:grid; gap:12px; grid-template-columns:minmax(330px, 400px) 1fr; align-items:start; }
+.side { display:grid; gap:12px; min-width:0; }
+@media (max-width:1000px) { .layout { grid-template-columns:1fr; } }
+.num { font-variant-numeric:tabular-nums; }
+
+/* плитки агентов */
+.tiles { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(230px, 100%), 1fr)); gap:10px; }
+.tile { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:8px 10px; cursor:pointer; }
+.tile.sel { outline:2px solid var(--on); outline-offset:-1px; }
+.tile .top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+.tile .big { font-size:24px; font-weight:700; line-height:1; }
+.st { font-weight:600; white-space:nowrap; }
+.st.online, .ok { color:var(--ok); } .st.late, .warn { color:var(--warn); }
+.st.offline, .st.never { color:var(--off); } .bad { color:var(--bad); font-weight:600; }
+.kv { display:grid; grid-template-columns:auto 1fr; gap:1px 10px; margin-top:6px; font-variant-numeric:tabular-nums; }
+.kv > span:nth-child(odd) { color:var(--mut); }
+
+/* управление */
+.ctl { display:grid; gap:8px; }
+.ctl label { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.src { display:grid; grid-template-columns:auto 1fr; gap:2px 8px; align-items:start; }
+.src input { margin-top:3px; }
+.src .note { grid-column:2; color:var(--mut); font-size:12px; margin-top:-2px; }
+.src .sgrp { grid-column:1 / -1; margin-top:6px; border-top:1px solid var(--line); padding-top:4px; }
+.src .sgrp:first-child { border-top:0; margin-top:0; padding-top:0; }
+.ctl .sub { font-size:13px; margin:6px 0 0; padding-top:6px; border-top:1px solid var(--line); }
+.own { display:grid; gap:8px; grid-template-columns:repeat(auto-fill, minmax(min(330px, 100%), 1fr)); }
+.kindh { grid-column:1 / -1; font-weight:600; margin-top:6px; padding-top:4px; border-top:1px solid var(--line); }
+.kindh:first-child { border-top:0; margin-top:0; }
+.st.quiet { color:var(--mut); }
+.pick { font-weight:normal; font-size:13px; }
+
+/* агенты и группы (составы) */
+.cmp-bar button { font-size:14px; padding:5px 12px; }
+.cmp-groups { display:grid; gap:8px; grid-template-columns:repeat(auto-fill, minmax(min(280px, 100%), 1fr)); margin:8px 0; }
+.cmp-g { border:1px solid var(--line); border-radius:8px; padding:8px 10px; display:grid; gap:3px; }
+.cmp-g h3 { font-size:13px; margin:0; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.gnum { display:inline-block; min-width:22px; padding:0 5px; text-align:center; border-radius:6px; font-weight:700;
+        color:#fff; font-size:12px; line-height:18px; }
+.gnum.g2 { color:#1d2228; }
+table.cmp { border-collapse:collapse; width:100%; font-size:13px; }
+table.cmp th, table.cmp td { text-align:left; padding:3px 6px; border-bottom:1px solid var(--line); vertical-align:middle; }
+table.cmp th { color:var(--mut); font-weight:600; }
+table.cmp tr.wh td { font-weight:650; padding-top:8px; }
+.badge { display:inline-block; padding:0 6px; border-radius:8px; font-size:11px; font-weight:600; border:1px solid currentColor; }
+.ownc { border:1px solid var(--line); border-radius:8px; padding:6px 8px; display:grid; gap:4px; }
+.ownc .hd { display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; }
+.ownc .row2 { display:flex; flex-wrap:wrap; gap:4px 10px; align-items:center; }
+.ownc label { gap:4px; }
+.row3 { display:grid; gap:12px; grid-template-columns:repeat(auto-fit, minmax(min(300px, 100%), 1fr)); margin-bottom:12px; }
+tr.gh td { padding-top:8px; color:var(--mut); font-weight:600; }
+#sessView { border:1px solid var(--line); border-radius:8px; padding:10px; margin-bottom:12px; }
+input[type=text], input[type=number] { font:inherit; padding:4px 8px; border:1px solid var(--line); border-radius:6px;
+  background:var(--card); color:var(--ink); }
+button:disabled { opacity:.5; cursor:default; }
+select, button, input[type=number] { font:inherit; padding:4px 8px; border:1px solid var(--line); border-radius:6px;
+  background:var(--card); color:var(--ink); }
+button { cursor:pointer; }
+button.main { background:var(--on); color:#fff; border-color:var(--on); font-weight:600; }
+.btns { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+#ctlStatus { min-height:1.4em; }
+
+/* итоги */
+.tot { display:grid; grid-template-columns:auto 1fr; gap:3px 12px; font-variant-numeric:tabular-nums; }
+.tot > span:nth-child(odd) { color:var(--mut); }
+
+/* графики: все сразу */
+.charts { display:grid; gap:12px; grid-template-columns:repeat(auto-fill, minmax(min(320px, 100%), 1fr)); min-width:0; }
+.chart h2 { display:flex; justify-content:space-between; gap:8px; }
+.chart .box { width:100%; min-height:170px; }
+.empty { color:var(--mut); padding:60px 0; text-align:center; }
+
+/* таблицы с полосами */
+.tw { overflow-x:auto; }
+table { border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums; }
+th, td { text-align:left; padding:3px 8px 3px 0; vertical-align:middle; }
+th { color:var(--mut); font-weight:500; font-size:12px; }
+td.r, th.r { text-align:right; }
+.bar { position:relative; min-width:120px; }
+.bar > i { position:absolute; left:0; top:3px; bottom:3px; background:var(--bar); opacity:.25; border-radius:3px; }
+.bar.rej > i { background:repeating-linear-gradient(45deg, var(--bar2) 0 4px, transparent 4px 7px); opacity:.55; }
+.bar > b { position:relative; font-weight:500; }
+
+/* распределение времени поиска простого */
+.hist { display:flex; align-items:flex-end; gap:3px; height:150px; border-bottom:1px solid var(--line); }
+.hist > div { flex:1; min-width:10px; background:var(--bar); opacity:.75; border-radius:3px 3px 0 0; position:relative; }
+.hist > div > span { position:absolute; bottom:100%; left:50%; transform:translateX(-50%); font-size:11px; color:var(--ink); white-space:nowrap; }
+.hlab { display:flex; gap:3px; }
+.hlab > span { flex:1; min-width:10px; font-size:10px; color:var(--mut); text-align:center; overflow:hidden; white-space:nowrap; }
+
+/* экран: один или два */
+.seg button { padding:2px 10px; } .seg button:first-of-type { border-radius:6px 0 0 6px; }
+.seg button:last-of-type { border-radius:0 6px 6px 0; margin-left:-1px; }
+.seg button.on { background:var(--on); color:#fff; border-color:var(--on); }
+#restRot.on { background:var(--on); color:#fff; border-color:var(--on); }
+.sbh { display:flex; justify-content:space-between; gap:8px; align-items:center; flex-wrap:wrap; }
+body.two #statRows, body.two #scharts { display:none; }
+.sverdict { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; padding:4px 0 6px; }
+.sverdict .big { font-size:20px; font-weight:750; white-space:nowrap; }
+.sverdict.ok .big { color:var(--ok); } .sverdict.repeat .big { color:var(--warn); } .sverdict.check .big { color:var(--bad); }
+.sverdict.nobase .big, .sverdict.nodata .big { color:var(--mut); }
+.srows { display:grid; gap:6px; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); margin-bottom:10px; }
+.srow { border:1px solid var(--line); border-radius:8px; padding:6px 8px; }
+.s1 { font-weight:600; } .s1.ok { color:var(--ok); } .s1.dev, .s1.inst { color:var(--bad); }
+.s1.dist, .s1.known, .s1.maybe { color:var(--warn); } .s1.nobase, .s1.none { color:var(--mut); }
+
+details > summary { cursor:pointer; font-weight:600; }
+pre { max-height:300px; overflow:auto; font-size:12px; margin:8px 0 0; white-space:pre-wrap; word-break:break-all; }
+a { color:var(--on); }
+.uplot, .u-legend { color:var(--ink); }
+.u-legend { font-size:12px; }
+@media (max-width:600px) {
+  main { padding:10px; }
+  .bar { min-width:70px; }
+  .charts, .row { grid-template-columns:1fr; }
+}
+.help { display:inline-flex; align-items:center; justify-content:center; width:18px; height:18px; padding:0; margin-left:2px;
+  border-radius:50%; border:1px solid var(--line); background:transparent; color:var(--mut); font:600 11px/1 ui-serif, Georgia, serif;
+  cursor:pointer; vertical-align:middle; }
+.help:hover { color:var(--on); border-color:var(--on); }
+dialog#helpDlg { max-width:min(560px, 92vw); border:1px solid var(--line); border-radius:10px; background:var(--card); color:inherit; padding:14px 16px; }
+dialog#helpDlg::backdrop { background:rgba(0,0,0,.35); }
+dialog#helpDlg h3 { margin:0 0 8px; font-size:16px; }
+dialog#helpDlg .kv2 { display:grid; grid-template-columns:auto 1fr; gap:4px 10px; font-size:13px; margin-top:8px; }
+.runs table td { vertical-align:top; }
+.runs .txt { max-width:360px; white-space:normal; }
+.mini { display:grid; grid-template-columns:repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap:10px; margin-top:8px; }
+.mini .box { min-height:170px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Колесо-2 · генератор простых</h1>
+  <span class="small"><a href="/flow">живая схема</a> · <a href="/docs/">документация</a> · <a href="/acc">второй экран</a></span>
+  <span id="srv" class="mut">подключение…</span>
+  <label class="small">окно графиков
+    <select id="window">
+      <option value="60">1 мин</option>
+      <option value="300" selected>5 мин</option>
+      <option value="900">15 мин</option>
+      <option value="3600">1 час</option>
+      <option value="7200">2 часа</option>
+    </select></label>
+  <span class="small seg" title="Один экран — статические здесь же, подробно; два — их подробности на втором мониторе (/acc)">экран
+    <button id="lay1">один</button><button id="lay2">два</button></span>
+  <a href="/acc" target="acc" class="small">статические ↗</a>
+  <span id="viewBanner" hidden class="warn"></span>
+  <span id="err" class="bad"></span>
+</header>
+<main>
+  <dialog id="helpDlg"><h3 id="helpTitle"></h3><div id="helpBody" class="small"></div>
+    <div class="btns" style="margin-top:10px"><button id="helpClose">закрыть</button></div></dialog>
+  <section class="tiles" id="tiles"></section>
+
+  <section class="panel" id="cmpBox">
+    <h2 data-help="compose">Агенты и группы</h2>
+    <div class="btns cmp-bar">
+      <button class="main" id="cmpRun" title="Применить все группы: у каждой свой набор и свой номер настройки, группы друг другу не мешают; кто не в группе — стоит и остывает">▶ Пуск</button>
+      <button id="cmpStop" title="Все генераторы стоят и остывают (80 МГц, светодиод выключен); статические меряют дальше">⏹ Стоп</button>
+      <button id="cmpQuench" title="Все генераторы только рассеивают свой шум: шум в шум, ни одного простого">≋ Тушение</button>
+      <button id="restRot" data-help="restrot" title="Эстафета и каскад: самый горячий из урезанных регулятором уходит отдыхать, группа его не ждёт">⏸ Отдых по очереди</button>
+      <span id="cmpState" class="small"></span>
+    </div>
+    <div id="restNow" class="small"></div>
+    <div class="cmp-groups" id="cmpGroups"></div>
+    <div class="tw"><table class="cmp" id="cmpTable"></table></div>
+    <div class="mut small">Колесо — где агент стоит физически (задаётся раз). Группа — как он работает сейчас: генерация ищет
+      простые по набору группы, рассеяние выпускает в эфир простые своей группы. Новый агент появляется сам и стоит —
+      поставьте ему колесо и группу. Места и наборы сохраняются сразу, применяются кнопкой «Пуск».</div>
+  </section>
+
+  <section class="panel" id="ownPanel">
+    <h2 data-help="own">Свои параметры агентов</h2>
+    <div class="mut small" style="margin-bottom:6px">«общ.» — как в «Агентам по умолчанию»; ✎ — своё значение этого
+      агента. Применяется кнопкой «Применить» вместе с общими.</div>
+    <div class="own" id="ownBox"></div>
+  </section>
+
+  <div class="layout">
+  <aside class="side">
+    <section class="panel">
+      <h2 data-help="ctl">Управление генератором</h2>
+      <div class="ctl" id="ctl">
+        <label>Набор <select id="preset"></select></label>
+        <div class="mut small" id="presetNote">Готовые сочетания параметров: выбор заполняет форму, применяет — «Применить».</div>
+        <label>Кому <select id="target"></select></label>
+        <h3 class="sub">Как работают агенты</h3>
+        <label>Режим <select id="mode"></select></label>
+        <label id="gvRow">Вариант группы <select id="gv"></select></label>
+        <label id="rkRow">Простых за ход <select id="rk"></select> · ждать кусочки <select id="pw"></select></label>
+        <label id="dcRow"><input type="checkbox" id="dc"> два ядра: ядро связи набирает шум и отсеивает, ядро счёта проверяет
+          <span class="mut small">каждый сам, эстафета, каскад; греет сильнее — следите за температурой</span></label>
+        <label id="kRow">Кандидатов за один сбор <select id="k"></select></label>
+        <label id="preRow"><input type="checkbox" id="pre"> кусочки шума набирать заранее
+          <span class="mut small">только когда источник — один ГСЧ</span></label>
+        <label id="nrRow">Связь между агентами <select id="nr"></select></label>
+        <div class="mut small" id="modeNote"></div>
+        <h3 class="sub">Что считать</h3>
+        <label>Длина простого <select id="bits"></select> бит</label>
+        <label>Баз Миллера — Рабина <select id="nb"></select> <span class="mut small" id="nbList"></span></label>
+        <label><input type="checkbox" id="all"> каждого кандидата проверяют все базы
+          <span class="mut small">иначе проверка обрывается на первой «составное»</span></label>
+        <label>Отсев делителями меньше <select id="td"></select></label>
+        <h3 class="sub">Рассеяние — у агентов с ролью «рассеяние»</h3>
+        <label>Как рассеивают <select id="sm"></select></label>
+        <label><input type="checkbox" id="sh"> пустышка: тот же трафик, но вместо числа — только шум
+          <span class="mut small">контроль: отделяет действие числа от действия радио</span></label>
+        <label>Фон <select id="bgr"></select> кадров в секунду
+          <span class="mut small">свой шум в эфир независимо от простых; нужен петле</span></label>
+        <label>CSI у агентов <select id="cf"></select></label>
+        <h3 class="sub">Шум и плата — у кого не задано своё</h3>
+        <div>
+          <div class="mut small" style="margin-bottom:4px">Из чего генерим (несколько — смешиваются через SHA-256,
+            каждый кладёт в число свои 256 бит шума; времена набора складываются — тянет самый медленный)</div>
+          <div class="src" id="srcBoxes"></div>
+          <div class="small" id="srcNote"></div>
+        </div>
+        <label>Как брать шум <select id="raw"></select></label>
+        <label>Роль <select id="role"></select>
+          <span class="mut small">обычно задаётся составом («Агенты и группы»)</span></label>
+        <label>Функция рассеяния <select id="sf"></select></label>
+        <label>Предел температуры кристалла <select id="tmax"></select> °C
+          <span class="mut small">выше — регулятор сбавляет работу</span></label>
+        <label>Мощность передатчика <select id="txp"></select> дБм
+          <span class="mut small">Wi-Fi и ESP-NOW — одно радио; меньше — меньше нагрев</span></label>
+        <label>Частота процессора <select id="cpu"></select> МГц
+          <span class="mut small">80 — дежурный режим, плата остывает</span></label>
+        <label>Пинг роутера для CSI <select id="ping"></select> в секунду</label>
+        <label><input type="checkbox" id="led"> вспышка светодиода раз в секунду, пока считает</label>
+        <h3 class="sub">Телеметрия и журнал</h3>
+        <label>Телеметрия раз в <select id="tp"></select></label>
+        <label>Телеметрия <select id="tl"></select>
+          <span class="small">молчать <input type="number" id="tq" min="0" max="65535" step="10" value="0" style="width:70px"> с</span>
+          <span class="mut small">0 — пока не отменят; агент слышит команды и молча</span></label>
+        <label><input type="checkbox" id="pl"> журнал простых: каждое найденное простое с меткой времени — на сервер
+          <span class="mut small">сервер перепроверяет каждое; меняется на ходу</span></label>
+        <label>Радиус датчика вращения <input type="number" id="rmm" min="50" max="2000" step="5" value="450" style="width:80px"> мм
+          <span class="mut small">только для сверки: радиус прибор измеряет сам</span></label>
+        <label>Статическим: предел <select id="afs"></select> g</label>
+        <div class="mut small">Свои значения у каждого агента — в блоке «Свои параметры агентов» ниже плиток.</div>
+        <div class="btns">
+          <button class="main" id="apply">Применить</button>
+          <button id="reset" title="Те же настройки с новым номером: счётчики начнутся с нуля">Сбросить счётчики</button>
+          <span id="ctlStatus" class="small"></span>
+        </div>
+        <div class="mut small">Предел температуры, мощность, пинг, светодиод и период телеметрии меняются на ходу —
+          счёт не обнуляется. Остальное начинает счёт заново (в группе — у всех участников).</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 data-help="sessions">Сессии</h2>
+      <div class="ctl">
+        <label>Название <input type="text" id="sName" placeholder="например: сообща, 2 агента" style="flex:1;min-width:150px"></label>
+        <label>Длительность <input type="number" id="sMin" min="0" max="1440" step="0.5" value="5" style="width:80px"> мин
+          <span class="mut small">0 — до остановки</span></label>
+        <label><input type="checkbox" id="sQuiet"> молчать во время работы
+          <span class="mut small">телеметрия только до старта и после стопа — эфир чище; итоги не теряются</span></label>
+        <div class="mut small">Участники и параметры — из «Управления генератором» выше. Шаги: все собрались →
+          параметры выставились → поехали → работа → стоп и итоги.</div>
+        <div class="btns">
+          <button class="main" id="sStart">Начать сессию</button>
+          <button id="sStop">Остановить</button>
+          <button id="stopAll" title="Остановить счёт выбранным агентам без сессии">Стоп всем</button>
+        </div>
+        <div id="sActive" class="small"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 data-help="usb">Новые платы по USB</h2>
+      <div class="small" id="usbBox"><span class="mut">…</span></div>
+      <div class="btns">
+        <button id="usbFlash" title="Новые платы: записать в реестр, собрать прошивку и залить по USB">Прошить новые по USB</button>
+        <span id="usbStatus" class="small"></span>
+      </div>
+      <details id="usbLogBox" hidden><summary class="small">ход прошивки</summary><pre id="usbLog"></pre></details>
+      <div class="mut small">Новая плата прошивается по USB один раз — так в неё попадает прошивка с обновлением по Wi-Fi.
+        Подключите её кабелем с передачей данных: она появится здесь как «новая». Через пару минут после прошивки она
+        выйдет на связь и встанет в «Агентах и группах» с отметкой «новый». То же без панели — tools/new_board.cmd.</div>
+    </section>
+
+    <section class="panel">
+      <h2 data-help="ota">Прошивка агентов по Wi-Fi</h2>
+      <div class="small" id="fwBox"><span class="mut">…</span></div>
+      <div class="btns">
+        <button id="otaAll" title="Всем агентам на связи: скачать собранный образ и перезапуститься с ним">Прошить всех по Wi-Fi</button>
+        <span id="otaStatus" class="small"></span>
+      </div>
+      <div class="mut small">Образ — последняя сборка tools/build.sh. Команда подписана ключом secrets/ota.key. Новая прошивка
+        подтверждается через минуту на связи; не вышла на связь за 10 минут или вылетела — плата сама вернёт прежнюю.</div>
+    </section>
+
+    <section class="panel">
+      <h2 id="totTitle" data-help="totals">Итоги с момента применения настроек</h2>
+      <div class="tot" id="totals"><span class="mut">ждём агента с прошивкой prime_lab…</span><span></span></div>
+    </section>
+
+    <section class="panel">
+      <h2 id="relTitle" data-help="rating">Надёжность агента</h2>
+      <div class="small" id="relBox"><span class="mut">…</span></div>
+      <div class="small" id="relHist"></div>
+    </section>
+  </aside>
+  <section class="charts" id="charts"></section>
+  </div>
+
+  <section class="panel" id="wheelBox" hidden>
+    <h2><span>Колесо: обороты и невесомость</span> <select id="wheelSel" class="pick"></select></h2>
+    <div class="row3"><div class="tot" id="wheelTot"></div><div class="mut small" id="wheelNote"></div></div>
+    <section class="charts" id="wcharts"></section>
+  </section>
+
+  <section class="panel" id="fieldBox" hidden>
+    <h2><span>Магнитное поле</span> <select id="fieldSel" class="pick"></select></h2>
+    <div class="tot" id="fieldTot"></div>
+    <section class="charts" id="mcharts"></section>
+  </section>
+
+  <section class="panel" id="statBox" hidden>
+    <h2 class="sbh"><span>Статические акселерометры</span>
+      <button id="accOpen" title="Страница статических — для второго монитора">открыть на втором экране ↗</button></h2>
+    <div id="statVerdict"></div>
+    <div id="statRows" class="srows"></div>
+    <section class="charts" id="scharts"></section>
+  </section>
+
+  <section class="panel" id="scatBox" hidden>
+    <h2 id="scatTitle" data-help="scatter">Рассеяние</h2>
+    <div class="tw"><table id="scatTable"></table></div>
+    <div class="mut small" style="margin-top:6px">Сет A, найдя простое, объявляет его одним широковещательным
+      кадром; сет B смешивает его со своим шумом своей функцией и выпускает в эфир. «Услышано» — сколько
+      кадров рассеяния принял агент: по этому видно, доходит ли рассеянное до сета A.</div>
+  </section>
+
+  <section class="panel" id="groupBox" hidden>
+    <h2 id="groupTitle" data-help="group">Сообща</h2>
+    <div class="row3">
+      <div class="tot" id="groupTot"></div>
+      <div id="groupCycle"></div>
+    </div>
+    <section class="charts" id="gcharts"></section>
+  </section>
+
+  <div class="row">
+    <section class="panel">
+      <h2>Базы Миллера — Рабина: сколько проверила каждая и сколько отсеяла</h2>
+      <div id="bases" class="mut">—</div>
+    </section>
+    <section class="panel">
+      <h2>Время поиска одного простого — распределение</h2>
+      <div id="hist" class="mut">—</div>
+    </section>
+  </div>
+
+  <section class="panel runs" id="runsBox">
+    <h2 data-help="runs">Журнал опытов</h2>
+    <div class="mut small" style="margin-bottom:6px">Каждый запуск счёта записывается сам — откуда бы он ни пришёл (панель, сессия,
+      программа, прогон): параметры словами, сколько шёл, кандидатов и простых, выход против теории, температура кристаллов, потери
+      пакетов, сбои и согласие группы, рассеяние. Ряды температуры, темпа и сигнала хранятся в самой записи (data/runs/) — графики
+      открываются и потом.</div>
+    <div id="runView" hidden></div>
+    <div id="runList" class="mut">—</div>
+  </section>
+
+  <section class="panel" id="sessBox">
+    <h2 data-help="history">История сессий</h2>
+    <div id="sessView" hidden></div>
+    <div id="sessList" class="mut">—</div>
+  </section>
+
+  <section class="panel" id="progPanel">
+    <h2 data-help="program">Программа автоматического эксперимента</h2>
+    <div class="mut small" style="margin-bottom:6px">Шаги режимов по очереди (в повторе — в случайном порядке), у каждого
+      свой номер настройки, сначала время на установление. Шаги с <b>"control": true</b> — контроль (пустышка, тишина).
+      Аномалия — показатель статического акселерометра на опытном шаге отличается от контрольных больше чем на
+      <b>z</b> их стандартных отклонений; тогда программа сама добавляет <b>confirm</b> пар «опыт — контроль».
+      Основа шагов — общие и свои параметры с панели; в шаге — только то, что меняется.</div>
+    <div class="row3">
+      <div><textarea id="progJson" spellcheck="false" style="width:100%;min-height:260px;font:12px/1.4 ui-monospace,Consolas,monospace"></textarea>
+        <div class="btns"><button class="main" id="progStart">Запустить программу</button>
+          <button id="progStop">Остановить</button> <button id="progTpl">Образец</button>
+          <span id="progStatus" class="small"></span></div></div>
+      <div><div id="progActive" class="small">—</div><div id="progList" class="small" style="margin-top:8px">—</div></div>
+    </div>
+    <div id="progView" hidden></div>
+  </section>
+
+  <section class="panel">
+    <h2>Источники шума</h2>
+    <div id="sources" class="mut">—</div>
+  </section>
+
+  <section class="panel">
+    <details id="rawBox"><summary id="rawTitle">Последние пакеты выбранного агента</summary><pre id="raw"></pre></details>
+  </section>
+  <section class="panel">
+    <details id="filesBox"><summary>Сырые данные на диске</summary><table id="files"></table></details>
+  </section>
+</main>
+
+<script>
+const PALETTE = ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442", "#7f7f7f"];
+const DASHES = [[], [7, 4], [2, 3], [10, 3, 2, 3]];
+const STATUS = { online: "● на связи", late: "◐ запаздывает", offline: "○ нет связи", never: "◌ не появлялся",
+  quiet: "◇ молчит по команде" };
+const KINDS = { A: "Сет A — генерация", B: "Сет B — рассеяние", S: "Статические акселерометры", "": "Прочие" };
+const KIND_ORDER = ["A", "B", "S", ""];
+const SENS = s => [(s & 1) && "ICM-42688", (s & 2) && "MLX90393"].filter(Boolean).join(" · ");
+const SRC_NAMES = ["ГСЧ чипа + шум радио", "CSI Wi-Fi", "Шум АЦП (D0)", "Дрожание RC", "Эфир сета B"];
+const SRC_KEYS = ["rng", "csi", "adc", "jit", "bc"];   // порядок массива e в телеметрии (SRC_INDEX сервера)
+// Каждый график: ряды для всех агентов (scope all) или несколько рядов выбранного агента (sel).
+const CHARTS = [
+  { id: "pr", title: "Простых в секунду", metrics: ["g_pr_s"], scope: "all" },
+  { id: "cand", title: "Кандидатов в секунду", metrics: ["g_cand_s"], scope: "all" },
+  { id: "tp", title: "Время на одно простое, мс (среднее за 5 с)", metrics: ["g_ms_prime"], scope: "all", log: true },
+  { id: "stage", title: "Время на кандидата по этапам, мкс", metrics: ["g_us_ent", "g_us_td", "g_us_mr"],
+    names: ["сбор шума", "отсев делителями", "Миллер — Рабин"], scope: "sel", log: true },
+  { id: "sieve", title: "Отсеяно, % кандидатов", metrics: ["g_td_pct", "g_mr_pct"],
+    names: ["делителями", "Миллером — Рабином"], scope: "sel" },
+  { id: "srct", title: "Время на сбор шума, % времени", metrics: SRC_KEYS.map(k => "g_time_" + k),
+    names: SRC_NAMES, scope: "sel" },
+  { id: "cpu", title: "Загрузка ядер, %", metrics: ["cpu0", "cpu1"], names: ["ядро 0 — связь", "ядро 1 — счёт"], scope: "sel" },
+  { id: "temp", title: "Температура кристалла и предел", metrics: ["temp", "tmax", "work"],
+    names: ["кристалл, °C", "предел, °C", "работа ядра счёта, % (справа)"], scales: ["y", "y", "r"], scope: "sel" },
+  { id: "rssi", title: "Сигнал Wi-Fi, дБм", metrics: ["rssi"], scope: "all" },
+];
+const GCHARTS = [
+  { id: "gcyc", title: "Сообща: циклов в секунду (по мастерам)", metrics: ["g_cyc_s"], scope: "all" },
+  { id: "gstreak", title: "Серия циклов без сбоев", metrics: ["g_streak"], scope: "all" },
+  { id: "gtime", title: "Цикл: время и доля синхронизации", metrics: ["g_tcycle_ms", "g_tcomp_ms", "g_sync_pct"],
+    names: ["цикл, мс", "из них счёт, мс", "синхронизация, % (справа)"], scales: ["y", "y", "r"], scope: "sel" },
+];
+let wheelSel = null, fieldSel = null;
+const WCHARTS = [
+  { id: "w_rpm", title: "Обороты, об/мин (по каждому обороту)", metrics: ["w_rpm"], scope: "all" },
+  { id: "w_k", title: "k = ω²r/g: 1 — невесомость в верхней точке", metrics: ["w_k"], scope: "all" },
+  { id: "w_f", title: "|f| за оборот, g: вверху и внизу", metrics: ["w_fmin", "w_fmax"],
+    names: ["вверху (наименьшее)", "внизу (наибольшее)"], scope: "sel", pick: () => wheelSel },
+  { id: "w_axes", title: "Ускорение по осям колеса, g (20 Гц)", metrics: ["w_ar", "w_at", "w_aa", "w_am"],
+    names: ["к центру", "по ходу", "вдоль оси колеса", "|f|"], scope: "sel", pick: () => wheelSel },
+  { id: "w_r", title: "Радиус по измерению, мм", metrics: ["w_r"], scope: "all" },
+];
+const MCHARTS = [
+  { id: "m_abs", title: "|B|, мкТл (среднее за пакет)", metrics: ["m_babs"], scope: "all" },
+  { id: "m_xyz", title: "Поле по осям датчика, мкТл", metrics: ["m_bx", "m_by", "m_bz"], names: ["x", "y", "z"],
+    scope: "sel", pick: () => fieldSel },
+  { id: "m_s", title: "|B| по отдельным замерам (20 Гц), мкТл", metrics: ["m_sabs"], names: ["|B|"], scope: "sel",
+    pick: () => fieldSel },
+];
+const SCHARTS = [
+  { id: "s_zmax", title: "Наибольшее отклонение от эталона, z (окна по 10 с)", metrics: ["s_zmax"], scope: "all" },
+  { id: "s_sdz_all", title: "Разброс за секунду по z, мкg — толчок виден у всех сразу", metrics: ["s_sd_z"], scope: "all" },
+];
+const METRICS = [...new Set(CHARTS.concat(GCHARTS, WCHARTS, MCHARTS, SCHARTS).flatMap(c => c.metrics)
+  .concat(SRC_KEYS.map(k => "g_units_" + k)))];
+
+let selected = null, last = null, dirty = false, opts = null, charts = {}, tickN = 0;
+
+const $ = id => document.getElementById(id);
+function esc(s) { return String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]); }
+function fmtInt(x) { return x == null ? "—" : Math.round(x).toLocaleString("ru-RU"); }
+function fmtNum(x, d = 1) { return x == null || !isFinite(x) ? "—" : (+x).toLocaleString("ru-RU", { maximumFractionDigits: d, minimumFractionDigits: 0 }); }
+function fmtUp(s) {
+  if (s == null) return "—";
+  s = Math.round(s);
+  const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), x = s % 60;
+  return h ? `${h} ч ${m} мин` : m ? `${m} мин ${x} с` : `${x} с`;
+}
+function fmtUs(us) {
+  if (us == null || !isFinite(us)) return "—";
+  if (us < 1000) return fmtNum(us, us < 10 ? 2 : 0) + " мкс";
+  if (us < 1e6) return fmtNum(us / 1000, us < 1e4 ? 2 : 1) + " мс";
+  return fmtNum(us / 1e6, 2) + " с";
+}
+function pct(a, b, d = 1) { return b ? fmtNum(100 * a / b, d) + " %" : "—"; }
+function fmtBytes(b) { return b < 1024 ? b + " Б" : b < 1048576 ? (b / 1024).toFixed(1) + " КБ" : (b / 1048576).toFixed(2) + " МБ"; }
+function srcList(mask) { return SRC_NAMES.filter((_, i) => mask & (1 << i)).join(" + ") || "—"; }
+function agentName(mac) {
+  const a = (last?.agents || []).find(x => x.mac === mac);
+  return a ? (a.id ? `№${a.id} ${a.label}` : `…${mac.slice(-5)}`) : mac;
+}
+function tempMark(t, tmax) {
+  if (t == null) return "—";
+  tmax = tmax || 70;   // предел кристалла из прошивки: выше ядро счёта сбавляет работу
+  if (t > tmax) return `<span class="bad">⚠ ${fmtNum(t)} °C выше предела ${tmax}</span>`;
+  if (t >= tmax - 2) return `<span class="warn">◐ ${fmtNum(t)} °C у предела ${tmax}</span>`;
+  return `${fmtNum(t)} °C`;
+}
+
+async function getJSON(url, init) {
+  const r = await fetch(url, Object.assign({ cache: "no-store" }, init || {}));
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.status);
+  return j;
+}
+
+// ---------------- плитки ----------------
+function renderTiles(d) {
+  const by = {};
+  d.agents.forEach(a => (by[a.kind || ""] = by[a.kind || ""] || []).push(a));
+  $("tiles").innerHTML = KIND_ORDER.filter(k => by[k]).map(k =>
+    `<div class="kindh">${KINDS[k]} · ${by[k].length}</div>` + by[k].map(a => tileHtml(d, a)).join("")).join("");
+  document.querySelectorAll(".tile").forEach(t => t.onclick = () => {
+    selected = t.dataset.mac; dirty = false; render(); loadRaw();
+  });
+}
+
+const OTA_STATE = { 1: '<span class="warn">⏳ загрузка прошивки</span>', 2: '<span class="warn">⏳ записана, перезапуск</span>',
+  "-1": '<span class="bad">✗ прошивка не загрузилась</span>' };
+function otaText(d, a) {
+  const o = a.ota || [];
+  let s = "";
+  if (o[0]) s += " · " + (OTA_STATE[o[0]] || "");
+  if (o[1]) s += ' · <span class="warn">◐ новая прошивка, ждёт подтверждения</span>';
+  if (d.fw && d.fw.version !== "?" && a.fw && d.fw.version !== a.fw && !o[0]) s += ' · <span class="mut">есть сборка ' + esc(d.fw.version) + "</span>";
+  return s;
+}
+
+// Причина последнего перезапуска (esp_reset_reason) и перезапуски сторожем радио: "rbt":[причина, сторож, раз].
+const RST_NAMES = { 1: "включение питания", 2: "кнопка RESET", 3: "программно", 4: "сбой прошивки", 5: "сторож прерываний",
+  6: "сторож задач", 7: "сторож", 9: "просадка питания", 11: "по USB", 14: "сбой питания", 15: "зависание ядра" };
+const RST_BAD = new Set([4, 5, 6, 7, 9, 14, 15]);
+function rbtText(r) {
+  if (!r) return "—";
+  const [rst, why, n] = r;
+  if (why === 4) return `самоочистка памяти (между шагами)` + (n > 1 ? ` (всего ${n})` : "");
+  if (why) return `<span class="bad">⚠ сторожем: ${why === 1 ? "радио не передавало" : why === 3 ? "зомби Wi-Fi не вылечился переподключением" : "не было Wi-Fi 90 с"}</span>` +
+    (n > 1 ? ` (всего ${n})` : "");
+  const name = RST_NAMES[rst] || `код ${rst}`;
+  return (RST_BAD.has(rst) ? `<span class="bad">⚠ ${name}</span>` : name) + (n ? ` · сторож перезапускал ${n}` : "");
+}
+
+// Рейтинг агента (сервер: agent_rating.py): 100 минус события за сутки, вес тает вдвое за 6 ч.
+function ratingIcon(r) {
+  if (!r) return "—";
+  const [c, i] = r.cat === "ok" ? ["ok", "✓"] : r.cat === "warn" ? ["warn", "◐"] : ["bad", "✗"];
+  return `<span class="${c}">${i} ${r.score}</span>`;
+}
+function ago(t) { return fmtUp(Date.now() / 1000 - t) + " назад"; }
+function ratingText(r) {
+  if (!r) return "—";
+  let s = ratingIcon(r) + (r.cat === "ok" && !r.n ? " · за сутки без замечаний" : "");
+  if ((r.sys || []).length) s += ` · <span class="bad">систематически: ${r.sys.map(esc).join(", ")}</span>`;
+  const e = (r.recent || []).find(x => x.w > 0);
+  if (e) s += ` · ${esc(e.text)}, ${ago(e.t)}`;
+  return s;
+}
+let relMac = null, relT = 0;
+async function renderRel(d) {
+  const a = d.agents.find(x => x.mac === selected);
+  if (!a) { $("relBox").innerHTML = '<span class="mut">выберите агента</span>'; $("relHist").innerHTML = ""; return; }
+  $("relTitle").textContent = `Надёжность агента ${agentName(a.mac)}`;
+  $("relBox").innerHTML = ratingText(a.rating);
+  if (relMac === a.mac && Date.now() - relT < 20000) return;   // история — раз в 20 с или при смене агента
+  relMac = a.mac;
+  relT = Date.now();
+  try {
+    const r = await getJSON("/api/agent_events?n=40&mac=" + encodeURIComponent(a.mac));
+    const ev = r.events || [];
+    $("relHist").innerHTML = ev.length ? `<table class="small">${ev.map(e => `<tr><td class="mut">${
+      new Date(e.t * 1000).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
+      <td>${e.w >= 20 ? '<span class="bad">✗</span>' : e.w > 0 ? '<span class="warn">◐</span>' : '<span class="mut">·</span>'} ${esc(e.text)}</td></tr>`).join("")}</table>`
+      : '<span class="mut">история пуста</span>';
+  } catch (e) { $("relHist").innerHTML = `<span class="bad">✗ ${esc(e.message)}</span>`; }
+}
+
+function renderFw(d) {
+  const fw = d.fw;
+  const ags = d.agents.filter(a => a.fw);
+  const stale = a => fw && fw.version !== "?" && a.fw !== fw.version;   // версия сборки неизвестна — не сравниваем
+  const old = ags.filter(stale);
+  $("fwBox").innerHTML = (fw
+    ? `сборка: <b>${esc(fw.version)}</b> · ${fmtBytes(fw.size)} · ${new Date(fw.mtime * 1000).toLocaleString("ru-RU")} · md5 ${esc(fw.md5.slice(0, 8))}…`
+    : `<span class="warn">образа нет — соберите: tools/build.sh prime_lab</span>`) +
+    (d.ota_key ? "" : ` · <span class="bad">нет ключа secrets/ota.key — прошивка по Wi-Fi закрыта</span>`) +
+    `<div>на платах: ${ags.map(a => `${esc(agentName(a.mac))} <b>${esc(a.fw)}</b>${stale(a) ? ' <span class="warn">(старее сборки)</span>' : ""}` +
+      ((a.ota || [])[0] ? " " + (OTA_STATE[a.ota[0]] || "") : "")).join(" · ") || "—"}</div>`;
+  $("otaAll").disabled = !fw || !d.ota_key || !ags.length;
+  $("otaAll").textContent = old.length ? `Прошить по Wi-Fi: устарело ${old.length}` : "Прошить всех по Wi-Fi (та же версия)";
+}
+$("otaAll").onclick = async () => {
+  const fw = last && last.fw;
+  if (!fw) return;
+  const ags = last.agents.filter(a => a.fw && a.status === "online");
+  const force = ags.every(a => a.fw === fw.version);
+  if (!confirm(`Прошить ${ags.length} агентов по Wi-Fi версией ${fw.version}${force ? " (у всех уже она — перепрошить заново)" : ""}? Счёт остановится.`)) return;
+  try {
+    const r = await getJSON("/api/ota", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targets: "all", force }) });
+    $("otaStatus").innerHTML = `<span class="ok">команда ушла ${r.sent.length} агентам</span>` +
+      (Object.keys(r.skipped).length ? ` · пропущены: ${Object.entries(r.skipped).map(([m, w]) => `${esc(agentName(m))} — ${esc(w)}`).join("; ")}` : "");
+  } catch (e) { $("otaStatus").innerHTML = `<span class="bad">✗ ${esc(e.message)}</span>`; }
+};
+
+const USB_ST = {
+  new: '<span class="warn">★ новая — в реестре нет</span>',
+  unknown: '<span class="warn">★ MAC не виден (плата в своём режиме USB) — узнаем при прошивке</span>',
+  offline: '<span class="bad">✗ не на связи — прошить заново по USB</span>',
+  online: '<span class="ok">✓ на связи — обновляется по Wi-Fi</span>' };
+const usbTodo = u => (u.boards || []).filter(b => b.status !== "online");
+function renderUsb(d) {
+  const u = d.usb || {}, job = u.job, todo = usbTodo(u);
+  $("usbBox").innerHTML = u.err ? `<span class="bad">✗ ${esc(u.err)}</span>`
+    : (u.boards || []).length ? u.boards.map(b => `<div>${esc(b.port)} · ${b.id ? "№" + b.id : esc(b.mac || "?")}` +
+        `${b.fw ? " · " + esc(b.fw) : ""} · ${USB_ST[b.status] || esc(b.status)}</div>`).join("")
+    : `<span class="mut">на USB плат нет</span>`;
+  const btn = $("usbFlash");
+  btn.disabled = !!(job && job.busy) || !todo.length;
+  btn.textContent = todo.length ? `Прошить по USB: ${todo.map(b => b.port).join(", ")}` : "Прошить новые по USB";
+  if (!job || !job.t0) { $("usbLogBox").hidden = true; return; }
+  const min = Math.round(((job.t1 || Date.now() / 1000) - job.t0) / 6) / 10;
+  $("usbStatus").innerHTML = job.busy ? `<span class="warn">⏳ ${esc(job.step)} · ${fmtNum(min)} мин</span>`
+    : job.error ? `<span class="bad">✗ ${esc(job.error)}</span>`
+    : `<span class="ok">✓ прошиты: ${job.result.map(r => `№${r.id} (${esc(r.port)})`).join(", ")} — ` +
+      `ищите их в «Агентах и группах» с отметкой «новый»</span>`;
+  $("usbLogBox").hidden = false;
+  const pre = $("usbLog"), atEnd = pre.scrollTop + pre.clientHeight >= pre.scrollHeight - 4;
+  pre.textContent = (job.log || []).join("\n");
+  if (atEnd) pre.scrollTop = pre.scrollHeight;
+}
+$("usbFlash").onclick = async () => {
+  const todo = usbTodo((last && last.usb) || {});
+  if (!todo.length) return;
+  if (!confirm(`Прошить по USB: ${todo.map(b => `${b.port} (${b.id ? "№" + b.id : "новая"})`).join(", ")}? ` +
+    "Сначала сборка прошивки (1–3 мин), потом заливка в каждую; кабели не отключайте.")) return;
+  try {
+    await getJSON("/api/usb", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ports: todo.map(b => b.port) }) });
+    $("usbStatus").innerHTML = '<span class="warn">⏳ начали</span>';
+  } catch (e) { $("usbStatus").innerHTML = `<span class="bad">✗ ${esc(e.message)}</span>`; }
+};
+
+function tileHtml(d, a) {
+    const v = a.values || {}, g = d.gen[a.mac];
+    const st = (d.static || []).find(x => x.mac === a.mac);
+    const rs = ((g && g.gstat) || {}).rest || [];
+    const cfg = g ? `${g.mode === 1 ? (GV_SHORT[g.gv || 0] || "сообща") + " · " : ""}${g.bits} бит · баз ${g.nb}${g.all ? " (все)" : ""} · ${srcList(g.src)}` +
+      (g.role === 1 ? ` · <b>рассеяние</b>` : "") +
+      (rs[0] === 1 ? ` · <span class="warn">⏸ отдыхает, ещё ${rs[1]} с</span>` : rs[0] === 2 ? ` · <span class="warn">⏸ доводит ход и отдыхать</span>` : "")
+      : st ? `статический: только меряет · ±${((st.tel || {}).acc || {}).afs ?? "?"} g · ` +
+        `${fmtNum(st.fs || st.hz, 1)} Гц · <span class="s1 ${st.status}">${esc(st.text || "")}</span>` : esc(a.sk || "—");
+    return `<div class="tile ${a.mac === selected ? "sel" : ""}" data-mac="${a.mac}">
+      <div class="top"><span class="big">${a.id || "?"}</span><span class="st ${a.status}">${STATUS[a.status]}</span></div>
+      <div class="mut small">${esc(a.label)} · …${a.mac.slice(-5)} · ${esc(a.ip || "—")}</div>
+      <div class="kv small">
+        <span>прошивка</span><span>${esc(a.sk || "—")} ${esc(a.fw || "")}${otaText(d, a)}</span>
+        <span>${st ? "прибор" : "генератор"}</span><span>${cfg}</span>
+        <span>кристалл</span><span>${tempMark(v.temp, v.tmax)}${v.work != null && v.work < 99.9 ? ` · работа ${fmtNum(v.work, 0)} %` : ""}</span>
+        <span>сигнал</span><span>${v.rssi != null ? v.rssi + " дБм" : "—"}</span>
+        <span>работает</span><span>${fmtUp(v.up)}</span>
+        ${a.rbt ? `<span>перезапуск</span><span>${rbtText(a.rbt)}</span>` : ""}
+        ${a.rating && a.fw ? `<span>надёжность</span><span>${ratingText(a.rating)}</span>` : ""}
+        <span>пакеты</span><span>${fmtNum(a.rate, 2)}/с · потеряно ${a.lost} (${fmtNum(a.loss_pct, 2)} %)${v.udpf ? ` · <span class="warn">не ушло ${fmtInt(v.udpf)}</span>` : ""}${v.wrst ? ` · <span class="bad">⚠ Wi-Fi переподключался сторожем ${fmtInt(v.wrst)}</span>` : ""}</span>
+        ${a.sens ? `<span>датчики</span><span>${SENS(a.sens)}</span>` : ""}
+      </div></div>`;
+}
+
+// ---------------- пояснения: что значит параметр, чем управляет ----------------
+// [название, пояснение, значения, вид] — вид: общий / свой у агента / на ходу (без сброса счёта) / новый номер
+const HELP = {
+  ctl: ["Управление генератором", "Параметры уходят выбранным агентам одной строкой CFG по UDP; агент подтверждает их номером настройки в телеметрии, пока не совпало — сервер повторяет раз в 2 с. «Общие» одинаковы у всех выбранных (в группе иначе нельзя); «агентам по умолчанию» — значение для тех, у кого не задано своё в блоке «Свои параметры агентов». Параметры «на ходу» (предел, мощность, пинг, светодиод, телеметрия, радиус, журнал простых) применяются без сброса счёта; остальные дают новый номер настройки и счёт с нуля (в группе и при сете B — у всех)."],
+  target: ["Кому", "Каким агентам уйдут настройки. «Все» — всем с прошивкой prime_lab. В режиме «сообща» группа — все выбранные с ролью «генерация», эстафета по порядку номеров.", "все / один агент", "—"],
+  mode: ["Режим", "<b>Каждый сам за себя</b> — агент сам берёт шум, собирает кандидата, отсеивает и проверяет. <b>Сообща</b> — группа делает одно число на всех: кусочки шума от каждого, мастер складывает и отсеивает, каждый проверяет своими базами Миллера — Рабина (поделены по кругу), нашедший свидетеля становится мастером, простое — эстафета дальше. Сообща в 3–14 раз медленнее, чем поодиночке (все проверяют одно число, 70–80 % цикла — ожидание сообщений), зато число общее.", "каждый сам / сообща", "общий, новый номер"],
+  nr: ["Связь группы", "Скорость кадров ESP-NOW между агентами (одно радио с Wi-Fi). 24 Мбит/с — кадр висит в эфире ~0,1 мс; 6 Мбит/с берёт на ~12 дБ более слабый сигнал, но вдвое медленнее; 1 Мбит/с греет плату и роняет группу — только для опытов.", "24 / 6 / 1 Мбит/с", "общий, новый номер"],
+  bits: ["Длина простого", "Сколько бит в кандидате: старший бит и нечётность выставляются, остальное — шум. Одно простое приходится на ~ln(2ⁿ)/2 нечётных кандидатов: 256 бит — 1 на 89, 1024 — 1 на 355. Проверка базой: 256 бит ~1 мс, 1024 — 25 мс, 2048 — 180 мс. 32 бита — свой код, каждое простое проверяется точно (ложные простые считаются).", "32 … 2048", "общий, новый номер"],
+  nb: ["Баз Миллера — Рабина", "Сколько первых баз (2, 3, 5, 7, 11, …) проверяют кандидата. Каждая база либо доказывает, что число составное («свидетель»), либо говорит «вероятно простое»; для случайного составного почти любая база — свидетель. 8 баз — надёжно; сообща базы делятся между агентами по кругу.", "1 … 12", "общий, новый номер"],
+  all: ["Все базы на каждого", "Выключено — проверка обрывается на первой базе, сказавшей «составное» (быстро). Включено — каждого кандидата проверяют все базы (так устроен сет из 8 агентов); сообща — каждый агент проверяет все базы по одному порядку, и первая база-свидетель обязана совпасть у всех (режим согласия: расхождения — в строке «согласие»). В 2,5 раза медленнее.", "да / нет", "общий, новый номер"],
+  td: ["Отсев делителями", "Перед Миллером — Рабином кандидат делится на все простые меньше порога; делится — следующий. Отсев < 1000 убирает 84 % кандидатов за 43 мкс — проверка (~1 мс на базу) достаётся немногим. Без отсева проверяется всё подряд: простых в секунду в 6 раз меньше.", "без / 100 / 1000 / 10 000 / 20 000", "общий, новый номер"],
+  dc: ["Два ядра", "«Каждый сам», эстафета и каскад. Обычно связь на ядре 0, счёт на ядре 1. С этим параметром ядро связи в свободное от связи время набирает шум и отсеивает кандидатов, а ядро счёта только проверяет — конвейер через очередь. В эстафете и каскаде ядро связи набирает кусочки шума для всех и отсеивает свои числа, ядро счёта только проверяет. Темп ×1,8 (четыре платы: 101 → 180–188 простых/с), но кристалл греется на 4–5 °C сильнее, и регулятор предела режет работу обоим ядрам. Шум по-прежнему берёт одно ядро (пауза между словами ГСЧ считается по тактам своего ядра — два ядра её собьют). В итогах: кто кого ждал (узкое место — проверка).", "да / нет", "общий, новый номер"],
+  k: ["Кандидатов за один сбор (все на одном числе)", "Сколько кандидатов мастер складывает из кусочков шума за один сбор (каждый агент шлёт K кусочков). Уцелевшие после отсева идут в запас, числа следующих циклов берутся из него. Больше K — реже сборы (24 — лучше всего; при 4 группа медленнее на треть). Эстафета и каскад берут столько, сколько влезает в один кадр (меньше кадров в эфире).", "4 … 64", "общий, новый номер"],
+  gv: ["Вариант группы", "<b>Все на одном числе</b> — каждое число проверяют все, базы Миллера — Рабина поделены по кругу; темп не выше одной платы и падает с ростом группы (каждый агент добавляет к циклу 1,5–2 мс). <b>Эстафета</b> — число из кусочков шума всех, проверяет один всеми базами; нашёл простое — ход и запас чисел следующему по порядку, тот сверяет это простое другой базой. Один поток счёта на всю группу, темп как у одной платы при любом размере, платы холодные. <b>Каскад</b> — то же, но проверяют все сразу, каждый свои числа; простое уходит следующему на сверку; темп близок к «каждый сам», но кусочки идут от всех ко всем — на 8–16 агентах эфир становится узким местом.", "все на одном / эстафета / каскад", "общий, новый номер"],
+  rk: ["Простых за ход", "Эстафета и каскад: после скольких найденных простых проверяющий передаёт ход (каскад — отдаёт простое на сверку и начинает новый ход). 1 — ход на каждое простое; больше — реже передачи, меньше эфира, но реже и сверка.", "1 … 16", "общий, новый номер"],
+  pw: ["Ждать кусочки", "Эстафета и каскад: сколько проверяющий ждёт кусочки шума от всех. «Всех» — ждать, переспрашивая молчащих (как в «все на одном числе»; один молчащий агент тормозит круг). Срок в мс — потом недостающие кусочки заменяются своим шумом: число всё равно случайное, просто в нём меньше чужого шума; таких кругов и замен — в итогах группы. С ГСЧ кусочки приходят за 2–5 мс; медленным источникам (CSI, АЦП) нужен срок в секунды.", "всех / 5 мс … 2 с", "общий, новый номер"],
+  pre: ["Кусочки шума заранее (группа)", "Агент набирает следующие кусочки, пока ядро счёта свободно, и отдаёт мгновенно по просьбе мастера. Только при одном источнике ГСЧ (медленные источники набирают по просьбе). Даёт +25 % темпа группе.", "да / нет", "общий, новый номер"],
+  tp: ["Период телеметрии", "Как часто агент шлёт пакет телеметрии (температура, сигнал, все счётчики). Счётчики накопительные — потеря пакета ничего не теряет, темп сервер считает по разности. Чаще — больше эфира; реже — графики грубее.", "0,5 … 5 с", "общий, на ходу"],
+  pl: ["Журнал простых", "Каждое найденное простое с меткой времени агента уходит на сервер пакетами prm (25 простых/с — ~1,5 КБ/с). Сервер перепроверяет каждое своим Миллером — Рабином и пишет в data/primes/&lt;дата&gt;/&lt;mac&gt;.txt (время сервера, часы агента, настройка, бит, откуда, число, проверка). Без него проверяется одно простое в секунду. Статистика потока — tools/prime_stats.py (остатки, биты, промежутки). В молчании телеметрии кольцо (16 КБ) переполняется за ~15 с — потери считаются.", "да / нет", "общий, на ходу"],
+  sm: ["Рассеяние (сет B)", "Что делают агенты с ролью «рассеяние» с простыми, найденными сетом A (объявляются одним широковещательным кадром). <b>Каждый сам</b> — каждый B смешивает всё число со своим шумом своей функцией и выпускает кадр. <b>Россыпь</b> — каждый берёт свой кусок числа; ни один кадр не несёт числа целиком. <b>Эстафета</b> — B1 смешивает и передаёт B2 адресно, тот добавляет свой шум, …, последний выпускает один кадр. <b>Тишина</b> — только слушают и считают (контроль: нет трафика). Кадры «каждый сам» и «россыпь» уходят каждый в своё окно (место × 1 мс) — иначе сталкивались.", "тишина / каждый сам / россыпь / эстафета", "общий, новый номер"],
+  sh: ["Пустышка", "К любому режиму рассеяния: тот же трафик (те же кадры, тех же размеров, в те же моменты, по той же цепочке), но вместо рассеянного числа — только шум. Контроль: сравнение «режим ↔ пустышка ↔ тишина» отделяет действие самого числа от действия радиотрафика.", "да / нет", "общий, новый номер"],
+  bgr: ["Фон сета B", "Агенты B сами выпускают кадры своего шума с этой частотой независимо от простых (простые — в первую очередь). Нужен для петли: если сет A берёт шум только из эфира B, без фона в начале рассеивать нечего.", "0 … 100 кадров/с", "общий, новый номер"],
+  cf: ["CSI у агентов", "Откуда агенты берут замеры радиоканала (источник CSI). <b>С любых кадров</b> — и с кадров рассеяния сета B: петля через физику канала замкнута. <b>Только с ответов роутера</b> — рассеянное через CSI в шум A не попадает. <b>Только с кадров сета B</b> — шум канала только от передач B (связь группы 24 или 6 Мбит/с).", "любые / роутер / сет B", "общий, новый номер"],
+  src: ["Источники шума", "Из чего строится кандидат. <b>Внутренние</b>: ГСЧ чипа (аппаратный генератор, в него подмешивается шум приёмника Wi-Fi; 44 800 слов/с — потолок 5600 кандидатов по 256 бит в секунду) и дрожание RC-генератора (¼ бита на отсчёт). <b>Внешние</b>: CSI Wi-Fi (замеры канала по ответам роутера на пинг; 32 бита на пакет) и шум АЦП на ножке D0 (¼ бита на отсчёт). <b>Петля</b>: эфир сета B — байты услышанных кадров рассеяния (4 бита на байт). Один ГСЧ — слова идут в число как есть; любой другой набор — блоки SHA-256, куда каждый источник кладёт не меньше 256 своих бит; времена набора складываются (CSI/АЦП/дрожание поодиночке — 12–18 кандидатов/с, все четыре вместе — ~5, ГСЧ — 2300).", "маска", "свой у агента, новый номер"],
+  tmax: ["Предел температуры кристалла", "Регулятор раз в секунду подбирает долю работы ядра счёта (5–100 %), чтобы кристалл держался на градус ниже предела (4 % на градус). Выше предела на 3 °C при минимальной работе 20 с — радио засыпает между маяками; выше на 8 °C — счёт стоит. На простое датчик показывает ~55–60 °C, предел ниже ~62 недостижим. Датчики плат расходятся на 1–3 °C. На двух ядрах регулятор держит оба ядра.", "50 … 70 °C", "свой у агента, на ходу"],
+  txp: ["Мощность передатчика", "Wi-Fi и ESP-NOW — одно радио. Платы рядом работают и на 2 дБм без потерь; меньше мощность — меньше нагрев и меньше наводок на соседей.", "2 … 20 дБм", "свой у агента, на ходу"],
+  cpu: ["Частота процессора", "Скорость счёта (и нагрев). 80 МГц — дежурный режим: платы стоят холоднее.", "80 / 160 / 240 МГц", "свой у агента, новый номер"],
+  ping: ["Пинг роутера для CSI", "Сколько раз в секунду агент пингует роутер, чтобы на каждый ответ получать замер канала (CSI). Работает, только когда среди источников есть CSI.", "10 … 200 в секунду", "свой у агента, на ходу"],
+  led: ["Светодиод", "Вспышка раз в секунду на каждом пакете телеметрии, пока агент считает. Выключенный светодиод — способ найти плату: мигает только та, у которой он включён и которая считает.", "вкл / выкл", "свой у агента, на ходу"],
+  tl: ["Телеметрия", "<b>Обычная</b> — раз в период. <b>Редкая</b> — в 10 раз реже. <b>Молчание</b> — агент ничего не передаёт по Wi-Fi (кроме подтверждений команд), команды слышит; эфир чище; счётчики накопительные — итоги не теряются, теряются только подробности во времени (и журнал простых).", "обычная / редкая / молчание", "свой у агента, на ходу"],
+  tq: ["Молчать секунд", "Срок молчания: по истечении телеметрия возобновляется сама. 0 — пока не отменят.", "0 … 65535 с", "свой у агента, на ходу"],
+  rmm: ["Радиус датчика вращения", "Где на колесе стоит агент с датчиком ICM-42688 — только для сверки: радиус прибор измеряет сам (r = k·g/ω²). Невесомость наверху при r = 450 мм — 44,6 об/мин.", "50 … 2000 мм", "свой у агента, на ходу"],
+  afs: ["Статическим: предел", "Диапазон акселерометра статического агента. ±2 g — единица 61 мкg, шум датчика ~1,1 мg: квантование далеко ниже шума. Смена предела — другой эталон шума.", "±2 / 4 / 8 / 16 g", "свой у агента, на ходу"],
+  role: ["Роль", "<b>Генерация (A)</b> — ищет простые (сам или сообща). <b>Рассеяние (B)</b> — не ищет, а рассеивает простые сета A по режиму рассеяния своей функцией. <b>Статический акселерометр (S)</b> — только меряет ускорение 500 Гц и шлёт оси; спектр и тревоги считает сервер (второй экран /acc); роль запоминается в памяти платы, агент перезапускается.", "A / B / S", "свой у агента, новый номер"],
+  sf: ["Функция рассеяния", "Чем агент B смешивает число со своим шумом: <b>хеш</b> — SHA-256(шум, номер блока, число); <b>XOR</b> — число ⊕ шум; <b>умножение</b> — на случайное нечётное по модулю 2ⁿ; <b>перестановка</b> — биты числа переставлены в порядке, заданном шумом. Все необратимы без шума, а шум тут же забывается.", "хеш / XOR / умножение / перестановка", "свой у агента, новый номер"],
+  own: ["Свои параметры агентов", "У каждого агента может быть своё значение источников шума, предела, мощности, частоты, пинга, светодиода, роли, функции рассеяния, телеметрии, радиуса. «общ.» — как в «Агентам по умолчанию», ✎ — своё. Применяются кнопкой «Применить» вместе с общими; смена роли или источников даёт новый номер настройки у всех выбранных."],
+  sessions: ["Сессии", "Отрезок работы с отдельной статистикой: все собрались → параметры выставились (стоя) → поехали (общий старт) → работа → стоп и итоги (счётчики замирают, сервер забирает итоги и вывод статических акселерометров). Участники и параметры — из управления. Итоги — data/sessions/, в истории сессий можно открыть графики за её время. Любой запуск, в том числе сессия, попадает и в журнал опытов."],
+  program: ["Программа автоматического эксперимента", "Шаги режимов по очереди (в повторе — в случайном порядке), у каждого свой номер настройки и время на установление. Контрольные шаги (пустышка, тишина). Аномалия — показатель опытного шага (статические акселерометры или сама генерация: простых/с, кандидатов/с, температура…) отличается от контрольных больше чем на z их разбросов; тогда программа сама добавляет пары «опыт — контроль» для проверки. Испорченный шаг (толчок у статических или агент не подтвердил настройку) повторяется и в сравнение не идёт."],
+  restrot: ["Отдых в группах", "Кнопка переключает: выкл → по очереди → вся группа. «Вся группа»: все работают вместе на полной мощности, пока регулятор не начнёт резать самого горячего (у предела, работа < 95 %); тогда отдыхают все вместе, пока он не остынет на 6 °C (40–90 с), и вместе возвращаются — пока работают, круги собираются из кусочков всех. «По очереди» — для эстафеты и каскада от трёх агентов. Урезанный регулятором агент тормозит всю группу: его кусочки и ходы ждут. Сервер раз в 2 с смотрит температуры: у предела (не ниже предела − 2 °C) и урезанный ниже 85 % — кандидат; самый горячий уходит отдыхать. Агент доводит свой ход, говорит группе «отдыхаю» (его сразу не ждут: кусочки — свой шум, ход — мимо), стоит на 80 МГц и ничего не считает. Возвращается, остыв на 5 °C (не раньше 60 с), или через 150 с — «снова в деле». Одновременно отдыхает не больше четверти группы (из четырёх — один), один агент — не чаще раза в 3 мин. Настройка группы при этом не меняется. Каждый отдых — в истории агента. Подробно — docs/thermal.md, § 4.3."],
+  rating: ["Надёжность агента", "Сервер ведёт историю ошибок каждого агента (data/agents/events.jsonl) и считает рейтинг: 100 минус веса событий за сутки, вес тает вдвое за 6 ч. Веса: простое не прошло проверку — 50; сосед нашёл свидетеля (его «простое» составное) — 30; самопроверка — 40; сбой прошивки, сторож задач, просадка питания — 25; сторож перезапустил: радио не передавало — 20, нет Wi-Fi — 15; «зомби» Wi-Fi — 8; кадры от него теряются — 5; прошивка по Wi-Fi не загрузилась — 10; группа его не слышала — 3; тепловая авария — 2. Штатные перезапуски (питание, USB, прошивка по Wi-Fi) пишутся без веса. «Систематически» — одно и то же три раза за сутки. ✓ 90 и выше, ◐ 70–89, ✗ ниже 70. Подробно — docs/thermal.md, § 5."],
+  usb: ["Новые платы по USB", "Новая плата прошивается по USB один раз: так в неё попадают прошивка prime_lab с обновлением по Wi-Fi, данные сети и ключ подписи. Сервер видит платы на USB (серийный номер USB у ESP32-S3 — это MAC, плату для этого не перезапускают): «★ новая» — в реестре нет, «✗ не на связи» — записана, но в сеть не выходит, «✓ на связи» — обновляется по Wi-Fi. Кнопка записывает новые в реестр следующими номерами, собирает прошивку один раз и заливает в каждую. Кнопка работает только с компьютера, к которому подключены платы. Плату не видно или заливка не идёт — зажмите на плате BOOT, переподключите кабель, отпустите. Без панели — двойной щелчок по tools/new_board.cmd."],
+  ota: ["Прошивка по Wi-Fi", "Сервер отдаёт последнюю сборку (tools/build.sh) и шлёт агентам подписанную ключом secrets/ota.key команду. Агент останавливает счёт, скачивает образ во второй раздел, сверяет MD5, перезапускается; минуту на связи — подтверждена, иначе (вылет, нет связи 10 минут) загрузчик возвращает прежнюю. На плитке: «ждёт подтверждения», «загрузка». Поверх неподтверждённой новую не залить."],
+  totals: ["Итоги агента", "Счётчики с момента применения текущей настройки. «Выход против теории» — простых на кандидата и на уцелевшего после отсева против ожидания для случайных чисел этой длины (2/(n·ln2) и ∏(1−1/p)); z по Пуассону, |z| > 3 — заметить. «Проверка сервером» — последнее простое из каждого пакета перепроверяется; с журналом простых — каждое."],
+  compose: ["Агенты и группы", "Здесь видно, что делает каждый агент, и меняется, как он работает. <b>Колесо</b> — где агент стоит физически (задаётся раз, по месту установки). <b>Группа</b> 1–4 — логическая: в ней генерация (ищет простые по набору группы) и рассеяние (выпускает в эфир простые своей группы); «стоит» — не считает и остывает; «статический» — только меряет ускорение. У каждой группы свой <b>набор</b> (каждый сам, эстафета, каскад…). <b>Пуск</b> применяет все группы сразу — у каждой свой номер настройки, группы работают независимо и друг другу не мешают (проверено: две эстафеты 2 + 2 — по 30–33 простых/с). <b>Стоп</b> — все генераторы стоят и остывают. <b>Тушение</b> — все генераторы только рассеивают свой шум (пустышка с фоном 50 кадров/с): шум в шум, ни одного простого. Новый агент появляется в таблице сам с отметкой «новый» и стоит, пока его не поставят в группу."],
+  raw: ["Как брать шум", "<b>С хешем</b> (обычно) — сырьё источников собирается в блоки SHA-256: в каждый 256-битный блок каждый отмеченный источник кладёт не меньше 256 засчитанных бит, числа равномерны, а перекосы и ритмы сырья полностью размешаны. <b>Без хеша</b> — в число идут младшие биты сырья как есть (CSI — младший бит каждого замера поднесущей с данными, 102 бита на пакет; АЦП и дрожание — младший бит отсчёта; ГСЧ — слова целиком; эфир сета B — байты целиком): структура источника остаётся в числах — чтобы видеть, не проступает ли в них физика. <b>Без хеша, фон Нейман</b> — пары бит 01 → 0, 10 → 1, 00 и 11 отбрасываются: снят перекос нулей и единиц, но связь соседних отсчётов остаётся; бит выходит вчетверо меньше. Несколько источников без хеша складываются побитно (XOR). Без хеша выход простых может отличаться от теории просто из-за перекоса сырья (например, кандидаты чаще делятся на 3) — сравнивайте с тем же источником с хешем. Без хеша медленные источники быстрее: CSI ~3 раза, АЦП и дрожание ~4 раза.", "с хешем / без / фон Нейман", "общий или свой у агента, новый номер"],
+  preset: ["Набор", "Готовое сочетание параметров для режима: каждый сам, два ядра, все на одном числе, эстафета, каскад, с рассеянием, пустышка, петля. Выбор только заполняет форму — менять дальше можно как угодно, применяет кнопка «Применить». Для нескольких групп сразу — раздел «Агенты и группы»."],
+  group: ["Сообща", "Циклы и простые группы (суммы по мастерам), сравнение с «каждый сам» при тех же настройках, когерентность (серия циклов без сбоев), сбои (переспросы, разрывы, перехваты, два мастера), согласие (ответы всех про одно число сошлись?), запас кандидатов, связь и пары: у плохого передатчика потери от него ко всем. Эстафета и каскад: цикл — ход (до заданного числа простых), мастер — проверяющий, согласие — сверка чужих простых другой базой, плюс круги, собранные без чьих-то кусочков (срок ожидания)."],
+  scatter: ["Рассеяние", "Сет A: объявлено простых. Сет B: получено, выпущено (и фон), пропущено (очередь полна), ждали шум, эстафета (начато / передано / в эфир), задержка от получения до своего кадра, услышано кадров; потери ESP-NOW."],
+  runs: ["Журнал опытов", "Запись открывается, когда сервер отправил настройку с пуском, закрывается остановкой или сменой настройки у тех же агентов. Раз в 15 с по каждому агенту: температура, доля работы, сигнал, темп простых и кандидатов, потери пакетов. В итоге: кандидатов и простых, выход против теории, диапазон температур, минимальная доля работы, потери пакетов и переподключения Wi-Fi сторожем, сбои и согласие группы, рассеяние, журнал простых, проверка сервером. Файлы — data/runs/&lt;дата&gt;.jsonl."],
+  history: ["История сессий", "Сессии с итогами; «открыть» — шаги, итоги и графики за время сессии (из памяти сервера — последние 2 часа)."],
+  static: ["Статические акселерометры", "Агенты с ролью S. Эталон шума записывается, пока основные группы стоят; дальше каждое окно 10 с сравнивается с эталоном: линии, полосы, форма шума, квантование, толчки, сдвиг. Вывод для текущего отрезка: продолжать / повторить / проверить. Подробности — второй экран /acc."],
+};
+function showHelp(key) {
+  const h = HELP[key];
+  if (!h) return;
+  $("helpTitle").textContent = h[0];
+  $("helpBody").innerHTML = `<div>${h[1]}</div>` + (h[2] ? `<div class="kv2"><span class="mut">значения</span><span>${esc(h[2])}</span>` +
+    `<span class="mut">вид</span><span>${esc(h[3] || "")}</span></div>` : "");
+  $("helpDlg").showModal();
+}
+$("helpClose").onclick = () => $("helpDlg").close();
+function helpBtn(key) {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "help"; b.textContent = "i"; b.title = "что это и чем управляет";
+  b.onclick = e => { e.preventDefault(); e.stopPropagation(); showHelp(key); };
+  return b;
+}
+function addHelpIcons() {
+  document.querySelectorAll("#ctl select, #ctl input").forEach(el => {
+    if (!HELP[el.id] || el.nextElementSibling?.classList?.contains("help")) return;
+    el.insertAdjacentElement("afterend", helpBtn(el.id));
+  });
+  const sb = $("srcBoxes");
+  if (sb && !sb.previousElementSibling?.querySelector?.(".help")) sb.previousElementSibling?.appendChild(helpBtn("src"));
+  document.querySelectorAll("[data-help]").forEach(h => {
+    if (h.querySelector(".help")) return;
+    h.appendChild(document.createTextNode(" "));
+    h.appendChild(helpBtn(h.dataset.help));
+  });
+}
+
+// ---------------- управление ----------------
+function buildForm(o) {
+  $("srcBoxes").innerHTML = o.source_groups.map(gr =>
+    `<div class="sgrp"><b>${esc(gr.name)}</b><div class="mut small">${esc(gr.note)}</div></div>` +
+    o.sources.filter(s => s.group === gr.key).map(s =>
+      `<input type="checkbox" id="src${s.bit}" data-bit="${s.bit}"><label for="src${s.bit}"><b>${esc(s.name)}</b></label>
+       <div class="note">${esc(s.note)}</div>`).join("")).join("");
+  $("mode").innerHTML = o.modes.map(m => `<option value="${m.mode}">${esc(m.name)}</option>`).join("");
+  $("preset").innerHTML = `<option value="">— свой —</option>` + (last.presets || []).map(x =>
+    `<option value="${x.key}">${esc(x.name)}</option>`).join("");
+  $("preset").addEventListener("change", () => applyPresetToForm($("preset").value));
+  $("gv").innerHTML = o.gv.map(x => `<option value="${x.gv}">${esc(x.name)}</option>`).join("");
+  $("rk").innerHTML = o.rk.map(v => `<option value="${v}">${v}</option>`).join("");
+  $("pw").innerHTML = o.pw.map(v => `<option value="${v}">${v ? (v < 1000 ? v + " мс" : v / 1000 + " с") + ", потом своим шумом" : "всех, переспрашивая"}</option>`).join("");
+  $("tmax").innerHTML = o.tmax.map(t => `<option value="${t}">${t}</option>`).join("");
+  $("raw").innerHTML = o.raw.map(x => `<option value="${x.raw}">${esc(x.name)}</option>`).join("");
+  $("nr").innerHTML = o.nr.map(x => `<option value="${x.nr}">${esc(x.name)}</option>`).join("");
+  $("bits").innerHTML = o.bits.map(b => `<option value="${b}">${b}</option>`).join("");
+  $("nb").innerHTML = Array.from({ length: o.nb_max }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join("");
+  $("td").innerHTML = o.td.map(t => `<option value="${t}">${t ? t.toLocaleString("ru-RU") : "без отсева"}</option>`).join("");
+  $("k").innerHTML = o.k.map(v => `<option value="${v}">${v}</option>`).join("");
+  $("tp").innerHTML = o.tp.map(v => `<option value="${v}">${v < 1000 ? v + " мс" : v / 1000 + " с"}</option>`).join("");
+  $("txp").innerHTML = o.txp.map(v => `<option value="${v}">${v}</option>`).join("");
+  $("cpu").innerHTML = o.cpu.map(v => `<option value="${v}">${v}</option>`).join("");
+  $("ping").innerHTML = o.ping.map(v => `<option value="${v}">${v}</option>`).join("");
+  $("sm").innerHTML = o.sm.map(x => `<option value="${x.sm}">${esc(x.name)}</option>`).join("");
+  $("tl").innerHTML = o.tl.map(x => `<option value="${x.tl}">${esc(x.name)}</option>`).join("");
+  $("afs").innerHTML = o.afs.map(v => `<option value="${v}">±${v}</option>`).join("");
+  $("cf").innerHTML = o.cf.map(x => `<option value="${x.cf}">${esc(x.name)}</option>`).join("");
+  $("bgr").innerHTML = o.bgr.map(v => `<option value="${v}">${v || "нет"}</option>`).join("");
+  $("role").innerHTML = o.roles.map(x => `<option value="${x.role}">${esc(x.name)}</option>`).join("");
+  $("sf").innerHTML = o.sf.map(x => `<option value="${x.sf}">${esc(x.name)}</option>`).join("");
+  document.querySelectorAll("#ctl input, #ctl select").forEach(e => e.addEventListener("change", () => {
+    if (e.id !== "target") dirty = true;
+    showNbList();
+  }));
+  $("target").addEventListener("change", () => { dirty = false; fillForm(); });
+  addHelpIcons();
+}
+
+function showNbList() {
+  if (!opts) return;
+  const grpOn = +$("mode").value === 1, gv = +$("gv").value;
+  const show = (id, on) => { $(id).style.display = on ? "" : "none"; };
+  show("gvRow", grpOn);
+  show("rkRow", grpOn && gv);
+  show("dcRow", !grpOn || gv);                       // «все на одном числе» двух ядер не использует
+  show("kRow", grpOn && !gv);                        // эстафета и каскад берут сколько влезает в кадр
+  show("preRow", grpOn);
+  show("nrRow", grpOn || +$("role").value === 1 || Object.values(ownEdit || {}).some(o => o.role === 1));
+  $("modeNote").textContent = !grpOn ? "Каждый агент генерирует и проверяет сам."
+    : gv === 1 ? "Эстафета: группа — агенты из «Кому», порядок — по номерам. Число складывается из кусочков шума всех, проверяет его один — всеми базами, без кругов ответов; нашёл простое — ход и запас чисел следующему, тот сверяет это простое другой базой. Темп — как у одной платы, все остальные дают шум."
+    : gv === 2 ? "Каскад: числа складываются из кусочков шума всех, а проверяют все сразу — каждый свои; найденное простое уходит следующему на сверку. Темп близок к «каждый сам», но кусочки идут от всех ко всем — на 8–16 агентах эфир становится узким местом (ставьте срок ожидания)."
+    : "Все на одном числе: каждый даёт кусочек шума, мастер складывает число в случайном порядке и отсеивает, каждый проверяет своими базами; нашедший свидетеля — следующий мастер, простое — эстафета дальше.";
+  const n = +$("nb").value;
+  $("nbList").textContent = "базы: " + opts.bases.slice(0, n).join(", ");
+  const c = formCfg(), anyBc = (c.src & 16) || Object.values(ownEdit || {}).some(o => (o.src ?? 0) & 16);
+  $("srcNote").innerHTML = anyBc && !c.bgr
+    ? `<span class="warn">⚠ эфир сета B без фона: пока сет A не найдёт простое, рассеивать нечего — включите «Фон сета B»</span>`
+    : "";
+}
+
+// Набор: заполнить форму его параметрами (применяет — «Применить»).
+function applyPresetToForm(key) {
+  const p = (last.presets || []).find(x => x.key === key);
+  if (!p) { $("presetNote").textContent = "Готовые сочетания параметров: выбор заполняет форму, применяет — «Применить»."; return; }
+  const c = p.cfg;
+  if (c.mode != null) $("mode").value = c.mode;
+  if (c.gv != null) $("gv").value = c.gv;
+  if (c.dc != null) $("dc").checked = !!c.dc;
+  if (c.rk != null) $("rk").value = c.rk;
+  if (c.pw != null) $("pw").value = c.pw;
+  if (c.sm != null) $("sm").value = c.sm;
+  if (c.sh != null) $("sh").checked = !!c.sh;
+  if (c.bgr != null) $("bgr").value = c.bgr;
+  $("presetNote").innerHTML = `<b>${esc(p.name)}</b>: ${esc(p.desc)}${p.b ? " — нужны агенты с ролью «рассеяние»" : ""}` +
+    (p.a_src ? " — генерации ставится шум «эфир сета B» (петля)" : "");
+  dirty = true;
+  showNbList();
+}
+
+function formCfg() {
+  let src = 0;
+  document.querySelectorAll("#srcBoxes input").forEach(e => { if (e.checked) src |= +e.dataset.bit; });
+  return { src, bits: +$("bits").value, nb: +$("nb").value, all: $("all").checked ? 1 : 0, td: +$("td").value,
+           tmax: +$("tmax").value, mode: +$("mode").value, nr: +$("nr").value,
+           k: +$("k").value, pre: $("pre").checked ? 1 : 0, tp: +$("tp").value,
+           txp: +$("txp").value, cpu: +$("cpu").value, ping: +$("ping").value, led: $("led").checked ? 1 : 0,
+           sm: +$("sm").value, cf: +$("cf").value, role: +$("role").value, sf: +$("sf").value,
+           sh: $("sh").checked ? 1 : 0, bgr: +$("bgr").value,
+           tl: +$("tl").value, tq: +$("tq").value || 0, rmm: +$("rmm").value || 450, afs: +$("afs").value,
+           pl: $("pl").checked ? 1 : 0, dc: $("dc").checked ? 1 : 0,
+           gv: +$("gv").value, rk: +$("rk").value, pw: +$("pw").value, raw: +$("raw").value };
+}
+
+function setForm(c) {
+  if (!c) return;
+  document.querySelectorAll("#srcBoxes input").forEach(e => e.checked = !!(c.src & +e.dataset.bit));
+  $("bits").value = c.bits; $("nb").value = c.nb; $("all").checked = !!c.all; $("td").value = c.td;
+  $("tmax").value = c.tmax || 70; $("mode").value = c.mode || 0; $("nr").value = c.nr ?? 1;
+  $("k").value = c.k ?? 24; $("pre").checked = (c.pre ?? 1) !== 0; $("tp").value = c.tp ?? 1000;
+  $("txp").value = c.txp ?? 20; $("cpu").value = c.cpu ?? 240; $("ping").value = c.ping ?? 100;
+  $("led").checked = (c.led ?? 1) !== 0;
+  $("sm").value = c.sm === 4 ? 1 : (c.sm ?? 1); $("sh").checked = !!c.sh || c.sm === 4;
+  $("cf").value = c.cf ?? 0; $("role").value = c.role ?? 0; $("sf").value = c.sf ?? 0; $("bgr").value = c.bgr ?? 0;
+  $("tl").value = c.tl ?? 0; $("tq").value = c.tq ?? 0; $("rmm").value = c.rmm ?? 450; $("afs").value = c.afs ?? 2;
+  $("pl").checked = !!c.pl; $("dc").checked = !!c.dc;
+  $("gv").value = c.gv ?? 0; $("rk").value = c.rk ?? 1; $("pw").value = c.pw ?? 0; $("raw").value = c.raw ?? 0;
+  showNbList();
+}
+
+function fillForm() {
+  if (dirty || !last) return;
+  const t = $("target").value;
+  const mac = t === "all" ? selected : t;
+  const c = last.control[mac] || {};
+  setForm(last.common || c.desired || c.applied || last.default);
+}
+
+// ---------------- свои параметры агентов ----------------
+// Пустое значение — как общие. Источники: галочка «свои» открывает свои галочки.
+const OWN_FIELDS = [
+  { key: "raw", name: "шум", fmt: v => ["с хешем", "без хеша", "без хеша, фон Нейман"][v] ?? v, opts: () => [0, 1, 2] },
+  { key: "tmax", name: "предел", fmt: v => `${v} °C`, opts: o => o.tmax },
+  { key: "txp", name: "мощность", fmt: v => `${v} дБм`, opts: o => o.txp },
+  { key: "cpu", name: "процессор", fmt: v => `${v} МГц`, opts: o => o.cpu },
+  { key: "ping", name: "пинг CSI", fmt: v => `${v}/с`, opts: o => o.ping },
+  { key: "led", name: "светодиод", fmt: v => (v ? "вкл" : "выкл"), opts: () => [1, 0] },
+  { key: "role", name: "роль", fmt: v => ROLE_NAMES[v] ?? v, opts: () => [0, 1, 2] },
+  { key: "sf", name: "функция", fmt: v => SF_NAMES[v] ?? v, opts: o => o.sf.map(x => x.sf) },
+  { key: "tl", name: "телеметрия", fmt: v => ["обычная", "редкая", "молчание"][v] ?? v, opts: () => [0, 1, 2], all: true },
+  { key: "rmm", name: "радиус, мм", fmt: v => `${v} мм`, num: true },
+  { key: "afs", name: "предел", fmt: v => `±${v} g`, opts: o => o.afs, stat: true },
+  { key: "avg", name: "отсчётов", fmt: v => `${1000 / v} Гц`, opts: o => o.avg.map(x => x.avg), stat: true },
+];
+const ROLE_NAMES = ["генерация (A)", "рассеяние (B)", "статический (S)"];
+// какие свои параметры у статического акселерометра
+const STAT_KEYS = ["role", "txp", "cpu", "led", "tl", "afs", "avg"];
+const ownFields = kind => OWN_FIELDS.filter(f => kind === "S" ? STAT_KEYS.includes(f.key) : !f.stat);
+const SF_NAMES = ["хеш", "XOR", "умножение", "перестановка"];
+const SM_NAMES = ["тишина", "каждый сам", "россыпь", "эстафета", "пустышка"];
+let ownEdit = {}, ownDirty = false, ownKey = "";
+
+function ownNow(c) {                 // что агент применил сейчас — из телеметрии
+  const a = c && c.applied;
+  if (!a) return "нет данных";
+  if (a.txp == null) return "старая прошивка: своих параметров не знает";
+  if (a.role === 2) return `сейчас: <b>статический</b> — только меряет · ±${a.afs} g · ${1000 / (a.avg || 2)} Гц · ` +
+    `${fmtNum(a.txr ?? a.txp, 2)} дБм · ${a.cpu} МГц · светодиод ${a.led ? "вкл" : "выкл"} · телеметрия ` +
+    `${["обычная", "редкая", "молчание"][a.tls] ?? "—"}${c.pending ? " · ⏳ применяется" : ""}`;
+  if (c.desired && c.desired.role === 2) return `⏳ станет статическим: агент перезапустится с этой ролью`;
+  return `сейчас: ${srcList(a.src)} · ${a.tmax} °C · ${fmtNum(a.txr ?? a.txp, 2)} дБм · ${a.cpu} МГц · ` +
+    `пинг ${a.ping}/с · светодиод ${a.led ? "вкл" : "выкл"}` +
+    (a.role != null ? ` · ${a.role ? `<b>рассеяние</b>, ${SF_NAMES[a.sf] ?? a.sf}` : "генерация"}` : "") +
+    `${c.pending ? " · ⏳ применяется" : ""}`;
+}
+
+function ownCard(mac, common) {
+  const o = ownEdit[mac] || {}, srcOwn = o.src != null, id = mac.replace(/:/g, ""), n = Object.keys(o).length;
+  const sel = f => f.num
+    ? `<label class="small">${f.name} <input type="number" data-mac="${mac}" data-k="${f.key}" style="width:70px"
+         placeholder="общ.: ${common[f.key]}" value="${o[f.key] ?? ""}">${o[f.key] != null ? " ✎" : ""}</label>`
+    : `<label class="small">${f.name} <select data-mac="${mac}" data-k="${f.key}">
+      <option value="">общ.: ${f.fmt(common[f.key])}</option>
+      ${f.opts(opts).map(v => `<option value="${v}"${o[f.key] === v ? " selected" : ""}>✎ ${f.fmt(v)}</option>`).join("")}
+    </select></label>`;
+  const kind = (last.agents.find(a => a.mac === mac) || {}).kind || "";
+  const srcs = opts.sources.map(s => `<label class="small"><input type="checkbox" data-mac="${mac}" data-bit="${s.bit}"` +
+    `${((srcOwn ? o.src : common.src) & s.bit) ? " checked" : ""}${srcOwn ? "" : " disabled"}> ${esc(s.name)}</label>`).join("");
+  return `<div class="ownc"><div class="hd"><b>${esc(agentName(mac))}</b>
+      <span class="small">${n ? `✎ своих: ${n}` : "всё как общие"}</span></div>
+    <div class="mut small" id="ownNow_${id}"></div>
+    ${kind === "S" ? "" : `<div class="row2"><label class="small"><input type="checkbox" data-mac="${mac}" data-k="srcown"${srcOwn ? " checked" : ""}>
+      <b>свои источники:</b></label>${srcs}</div>`}
+    <div class="row2">${ownFields(kind).map(sel).join("")}</div></div>`;
+}
+
+function renderOwn(d) {
+  if (!opts || !d) return;
+  const macs = Object.keys(d.gen).concat((d.static || []).map(x => x.mac));
+  if (!ownDirty) ownEdit = JSON.parse(JSON.stringify(d.own || {}));
+  const common = formCfg();
+  const kindOf = m => (d.agents.find(a => a.mac === m) || {}).kind || "";
+  const key = JSON.stringify([macs, ownEdit, common, macs.map(agentName), macs.map(kindOf)]);
+  if (key !== ownKey) {                // перерисовать — только если что-то поменялось
+    ownKey = key;
+    $("ownBox").innerHTML = macs.length ? KIND_ORDER.map(k => {
+      const ms = macs.filter(m => kindOf(m) === k);
+      return ms.length ? `<div class="kindh">${KINDS[k]} · ${ms.length}</div>` + ms.map(m => ownCard(m, common)).join("") : "";
+    }).join("") : `<span class="mut small">нет агентов</span>`;
+  }
+  macs.forEach(m => {
+    const e = $("ownNow_" + m.replace(/:/g, ""));
+    if (e) e.innerHTML = ownNow(d.control[m]);
+  });
+}
+
+let ownTimer = null;
+function renderOwnSoon() { clearTimeout(ownTimer); ownTimer = setTimeout(() => renderOwn(last), 1500); }
+$("ownBox").addEventListener("change", e => {
+  const t = e.target, mac = t.dataset.mac;
+  if (!mac) return;
+  ownDirty = true;
+  const o = ownEdit[mac] = ownEdit[mac] || {};
+  if (t.dataset.k === "srcown") {
+    if (t.checked) o.src = formCfg().src || 1;
+    else delete o.src;
+  } else if (t.dataset.bit) {
+    let src = 0;
+    document.querySelectorAll(`#ownBox input[data-mac="${mac}"][data-bit]`).forEach(x => { if (x.checked) src |= +x.dataset.bit; });
+    o.src = src;
+  } else if (t.dataset.k) {
+    if (t.value === "") delete o[t.dataset.k];
+    else o[t.dataset.k] = +t.value;
+  }
+  if (t.type === "number") { renderOwnSoon(); return; }   // число — дописать дадим, перерисуем позже
+  if (!Object.keys(o).length) delete ownEdit[mac];
+  renderOwn(last);
+});
+
+function renderTargets(d) {
+  const macs = Object.keys(d.gen);
+  const want = ["all"].concat(macs).join(",");
+  const sel = $("target");
+  if (sel.dataset.k !== want) {
+    const prev = sel.value;
+    sel.innerHTML = `<option value="all">все агенты (статические — только свои параметры)</option>` +
+      macs.map(m => `<option value="${m}">${esc(agentName(m))}</option>`).join("");
+    sel.dataset.k = want;
+    sel.value = macs.includes(prev) || prev === "all" ? prev : (macs.length === 1 ? macs[0] : "all");
+  }
+}
+
+function renderCtlStatus(d) {
+  const parts = Object.entries(d.control).map(([mac, c]) => {
+    const name = esc(agentName(mac));
+    if (c.ack && c.ack.ok === 0 && c.desired && c.ack.cid === c.desired.cid)
+      return `<span class="bad">✗ ${name}: отклонено — ${esc(c.ack.err)}</span>`;
+    if (c.pending) return `<span class="warn">⏳ ${name}: ждём подтверждения №${c.desired.cid}</span>`;
+    if (c.applied) return `<span class="ok">✓ ${name}: работает по настройке №${c.applied.cid}${c.applied.cid ? "" : " (заводская)"}</span>`;
+    return `<span class="mut">${name}: нет данных</span>`;
+  });
+  if (!$("ctlStatus").dataset.msgUntil || Date.now() > +$("ctlStatus").dataset.msgUntil)
+    $("ctlStatus").innerHTML = parts.join(" · ");
+}
+
+async function sendCfg(targets, cfg, own, reset) {
+  try {
+    const r = await getJSON("/api/control", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targets, cfg, own, reset: !!reset }),
+    });
+    $("ctlStatus").innerHTML = `<span class="ok">отправлено, настройка №${r.cid}</span>`;
+    $("ctlStatus").dataset.msgUntil = Date.now() + 2500;
+    dirty = false;
+    ownDirty = false;
+  } catch (e) {
+    $("ctlStatus").innerHTML = `<span class="bad">✗ ${esc(e.message)}</span>`;
+    $("ctlStatus").dataset.msgUntil = Date.now() + 6000;
+  }
+  tick();
+}
+
+$("apply").onclick = () => {
+  const t = $("target").value;
+  sendCfg(t === "all" ? "all" : [t], formCfg(), ownEdit);
+};
+$("reset").onclick = () => {                 // те же настройки с новым номером: счёт с нуля
+  const t = $("target").value;
+  sendCfg(t === "all" ? "all" : [t], last.common || formCfg(), last.own || {}, true);
+};
+
+// ---------------- итоги ----------------
+// Выход простых против теории. Среди нечётных чисел длиной ровно b бит простых в среднем
+// 2/(b·ln2 − 0,307) (плотность 1/ln x, усреднённая по [2^(b−1), 2^b)); после отсева делителями
+// меньше td уцелевает доля ∏(1 − 1/p) по нечётным простым p < td. Пуассоновский разброс: √ожидания.
+const SURV = {};
+function survFrac(td) {
+  if (!td) return 1;
+  if (SURV[td]) return SURV[td];
+  let s = 1;
+  for (let p = 3; p < td; p += 2) {
+    let prime = true;
+    for (let q = 3; q * q <= p; q += 2) if (p % q === 0) { prime = false; break; }
+    if (prime) s *= 1 - 1 / p;
+  }
+  return SURV[td] = s;
+}
+function yieldText(g) {
+  if (!g.cand || !g.bits || g.cand < 2000) return "мало кандидатов";
+  const dens = 2 / (g.bits * Math.LN2 - 0.307), S = survFrac(g.td);
+  const mri = g.cand - (g.tdr || 0), pr = g.pr || 0;
+  const expC = g.cand * dens, expM = mri * dens / S;
+  const zC = (pr - expC) / Math.sqrt(expC), zM = expM > 0 ? (pr - expM) / Math.sqrt(expM) : 0;
+  const cls = Math.abs(zM) > 4 ? "bad" : Math.abs(zM) > 3 ? "warn" : "ok";
+  return `<span class="${cls}">${Math.abs(zM) > 3 ? "⚠" : "✓"}</span> 1 на ${fmtNum(g.cand / Math.max(pr, 1), 1)} кандидатов ` +
+    `(теория ${fmtNum(1 / dens, 1)}, z ${fmtNum(zC, 1)}) · 1 на ${fmtNum(mri / Math.max(pr, 1), 2)} уцелевших после отсева ` +
+    `(теория ${fmtNum(S / dens, 2)}, z ${fmtNum(zM, 1)}) · уцелело ${fmtNum(100 * mri / g.cand, 2)} % (теория ${fmtNum(100 * S, 2)})`;
+}
+
+function plogText(g, p) {
+  if (!g.pl) return "выключен — на сервер идёт одно простое в секунду (галочка «журнал простых» в управлении)";
+  p = p || {};
+  return `<b>${fmtInt(p.n)}</b> простых получено (${fmtNum(p.rate, 1)}/с), ` +
+    (p.fail ? `<span class="bad">✗ ${fmtInt(p.fail)} не простых!</span>` : `<span class="ok">✓ все простые</span>`) +
+    (g.pll ? ` · <span class="warn">⚠ агент не записал ${fmtInt(g.pll)} (кольцо полно)</span>` : "") +
+    ` · агент записал ${fmtInt(g.pln)} · файл data/primes/<дата>/`;
+}
+
+function renderTotals(d) {
+  const g = d.gen[selected];
+  if (!g) { $("totals").innerHTML = `<span class="mut">ждём агента с прошивкой prime_lab…</span><span></span>`; return; }
+  const r = g.rate || {}, v = g.verify || {};
+  $("totTitle").textContent = `Итоги ${agentName(selected)} с момента применения настроек`;
+  const ent = (g.e || []).reduce((s, x) => s + x[2], 0);
+  const rows = [
+    ["настройки", `№${g.cid}${g.cid ? "" : " (заводская)"}: ${g.bits} бит · ${srcList(g.src)} · баз ${g.nb}${g.all ? ", все проверяют каждого" : ""} · делители < ${g.td || "—"}${g.dc ? " · <b>два ядра</b>" : ""}`],
+    ["применены", fmtUp(g.age) + " назад"],
+    ["кандидатов", `${fmtInt(g.cand)} · ${fmtNum(r.g_cand_s, 0)} в секунду`],
+    ["отсеяно делителями", `${fmtInt(g.tdr)} (${pct(g.tdr, g.cand)})`],
+    ["дошло до Миллера — Рабина", `${fmtInt(g.mri)} · отсеяно ${fmtInt(g.mri - g.pr)}`],
+    ["простых", `<b>${fmtInt(g.pr)}</b> · ${fmtNum(r.g_pr_s, 1)} в секунду · 1 на ${g.pr ? fmtNum(g.cand / g.pr, 1) : "—"} кандидатов`],
+    ["ложных простых", g.bits === 32 ? (g.fp ? `<span class="bad">⚠ ${fmtInt(g.fp)} — составные прошли все базы</span>` : "0 (для 32 бит проверяется точно)") : "точно проверяется только для 32 бит"],
+    ["выход против теории", g.mode === 1 && !g.gv ? "сообща — смотрите группу" : yieldText(g)],
+    ["обманули базу", `${fmtInt(g.dis)} кандидатов прошли хотя бы одну базу, но пойманы другой`],
+    ["время на простое", g.tpn ? `среднее ${fmtUs(g.tps / g.tpn)} · мин ${fmtUs(g.tpmin)} · макс ${fmtUs(g.tpmax)}` : "—"],
+    ["время на кандидата", g.cand ? `${fmtUs((ent + g.tdus + g.mrus) / g.cand)}: шум ${fmtUs(ent / g.cand)}, делители ${fmtUs(g.tdus / g.cand)}, МР ${fmtUs(g.mrus / g.cand)}` : "—"],
+    ["два ядра", g.dc ? `конвейер: ядро счёта ждало кандидата ${fmtInt((g.dcq || [])[0])} раз, ядро связи ждало места в очереди ${fmtInt((g.dcq || [])[1])} раз` +
+      ((g.dcq || [])[0] > (g.dcq || [])[1] * 3 ? " — узкое место: шум и отсев" : (g.dcq || [])[1] > (g.dcq || [])[0] * 3 ? " — узкое место: проверка" : " — уравновешены")
+      : "выключены — шум, отсев и проверка на ядре счёта"],
+    ["проверка сервером", v.n ? (v.fail ? `<span class="bad">✗ ${v.fail} из ${v.n} не простые</span>` : `<span class="ok">✓ ${fmtInt(v.n)} простых проверено, ошибок нет</span>`) : (g.bits > 256 ? "длиннее 256 бит не присылаются" : "ждём")],
+    ["журнал простых", plogText(g, (d.agents.find(a => a.mac === selected) || {}).plog)],
+    ["самопроверка прошивки", g.st === 1 ? `<span class="ok">✓ пройдена</span>` : g.st === 0 ? `<span class="bad">✗ ошибка</span>` : "—"],
+    ["радио", g.rf === 1 ? `<span class="ok">✓ включено без сна — шум приёмника идёт в генератор</span>` : g.rf === 2 ? `<span class="warn">◐ со сном — шум идёт не всё время</span>` : `<span class="bad">✗ выключено</span>`],
+    ["прервано ожиданий", fmtInt(g.stall) + (g.err ? ` · ошибок mbedtls ${fmtInt(g.err)}` : "")],
+    ["температура", `${tempMark((d.agents.find(a => a.mac === selected) || {}).values?.temp, g.tmax)} · предел ${g.tmax ?? "—"} °C · ` +
+      (g.ts === 2 ? `<span class="bad">⚠ пауза: перегрев, счёт стоит, радио спит</span>`
+        : g.ts === 3 ? `<span class="bad">⚠ работа ${fmtNum(g.work, 0)} % и радио спит — счёт уже не охлаждает</span>`
+        : g.ts === 1 ? `<span class="warn">◐ работа ${fmtNum(g.work, 0)} %</span>` : `работа 100 %`)],
+  ];
+  if (g.mode === 1) rows.splice(2, 0, ["режим", g.gv ? `${GV_SHORT[g.gv]} — числа из шума всех, проверяет агент в свой ход; итоги группы ниже, здесь — его ходы`
+    : "сообща — числа делает группа, итоги группы ниже; здесь — работа этого агента"]);
+  $("totals").innerHTML = rows.map(([k, x]) => `<span>${k}</span><span>${x}</span>`).join("");
+}
+
+// ---------------- графики ----------------
+function chartTables(def, d) {
+  if (def.scope === "all") {
+    const per = d.series[def.metrics[0]] || {};
+    const macs = d.agents.map(a => a.mac).filter(m => per[m]);
+    return { labels: macs.map(agentName), tables: macs.map(m => per[m]), styles: macs.map((m, i) => ({ c: PALETTE[i % 8], dash: [] })) };
+  }
+  const out = { labels: [], tables: [], styles: [] };
+  const mac = def.pick ? def.pick() : selected;
+  def.metrics.forEach((m, i) => {
+    const s = (d.series[m] || {})[mac];
+    if (s && s[1].some(x => x)) {
+      out.labels.push(def.names[i]); out.tables.push(s);
+      out.styles.push({ c: PALETTE[i % 8], dash: DASHES[i % 4], scale: (def.scales || [])[i] || "y" });
+    }
+  });
+  return out;
+}
+
+// подписи времени по-русски, 24 часа; секунды — если окно короче 5 минут
+function timeTicks(u, splits) {
+  const span = splits.length > 1 ? splits[splits.length - 1] - splits[0] : 0;
+  const o = span < 300 ? { hour: "2-digit", minute: "2-digit", second: "2-digit" } : { hour: "2-digit", minute: "2-digit" };
+  return splits.map(v => new Date(v * 1000).toLocaleTimeString("ru-RU", o));
+}
+
+function renderCharts(d) { renderChartSet(d, CHARTS, "charts"); }
+
+function renderChartSet(d, defs, boxId) {
+  const box = $(boxId);
+  if (!box.children.length) {
+    box.innerHTML = defs.map(c => `<section class="panel chart"><h2><span>${c.title}</span><span class="mut small" id="sub_${c.id}"></span></h2><div class="box" id="ch_${c.id}"></div></section>`).join("");
+  }
+  for (const def of defs) {
+    const el = $("ch_" + def.id);
+    const pm = def.pick ? def.pick() : selected;
+    $("sub_" + def.id).textContent = def.scope === "sel" && pm ? agentName(pm) : "";
+    if (typeof uPlot === "undefined") { el.innerHTML = `<div class="empty">библиотека графиков не загрузилась (нужен интернет для cdn.jsdelivr.net)</div>`; continue; }
+    const t = chartTables(def, d);
+    const key = t.labels.join("|");
+    const ch = charts[def.id];
+    if (!t.tables.length) {
+      if (ch) { ch.u.destroy(); delete charts[def.id]; }
+      el.innerHTML = `<div class="empty">нет данных в окне</div>`;
+      continue;
+    }
+    let data = uPlot.join(t.tables);
+    if (def.log) data = data.map((col, i) => i ? col.map(v => v > 0 ? v : null) : col);   // у логарифма нет нуля
+    if (ch && ch.key === key) { ch.u.setData(data); continue; }
+    if (ch) ch.u.destroy();
+    el.innerHTML = "";
+    const u = new uPlot({
+      width: el.clientWidth || 320, height: 170,
+      scales: { x: { time: true }, y: def.log ? { distr: 3 } : {}, r: { range: [0, 105] } },
+      legend: { live: false },
+      series: [{}].concat(t.labels.map((l, i) => ({
+        label: l, stroke: t.styles[i].c, dash: t.styles[i].dash, width: 2, spanGaps: true, points: { show: false },
+        scale: t.styles[i].scale || "y",
+      }))),
+      axes: [{ stroke: "#8a8f98", grid: { stroke: "#8a8f9833" }, size: 30, values: timeTicks },
+             { stroke: "#8a8f98", grid: { stroke: "#8a8f9833" }, size: 56, values: (u, v) => v.map(x => x == null ? "" : fmtNum(x, Math.abs(x) < 10 ? 2 : 0)) }]
+        .concat(t.styles.some(st => st.scale === "r") ? [{ scale: "r", side: 1, stroke: "#8a8f98", grid: { show: false }, size: 44 }] : []),
+    }, data, el);
+    charts[def.id] = { u, key };
+  }
+}
+const resizeCharts = () => {
+  for (const [id, ch] of Object.entries(charts)) {
+    const el = $("ch_" + id);
+    if (el && el.clientWidth) ch.u.setSize({ width: el.clientWidth, height: 170 });
+  }
+};
+new ResizeObserver(resizeCharts).observe($("charts"));
+new ResizeObserver(resizeCharts).observe($("gcharts"));
+["wcharts", "mcharts", "scharts"].forEach(id => new ResizeObserver(resizeCharts).observe($(id)));
+
+// ---------------- базы, распределение, источники ----------------
+function renderBases(d) {
+  const g = d.gen[selected];
+  if (!g || !g.bt) { $("bases").innerHTML = "—"; return; }
+  const bt = g.bt, br = g.br, bus = g.bus, max = Math.max(1, ...bt);
+  const sumT = bt.reduce((a, b) => a + b, 0), sumR = br.reduce((a, b) => a + b, 0);
+  $("bases").innerHTML = `<div class="tw"><table>
+    <tr><th>база</th><th>проверила кандидатов</th><th>сказала «составное»</th><th class="r">доля</th><th class="r">время одной проверки</th></tr>
+    ${bt.map((t, i) => `<tr><td><b>${opts.bases[i]}</b></td>
+      <td class="bar"><i style="width:${100 * t / max}%"></i><b>${fmtInt(t)}</b></td>
+      <td class="bar rej"><i style="width:${100 * br[i] / max}%"></i><b>${fmtInt(br[i])}</b></td>
+      <td class="r">${pct(br[i], t, 2)}</td><td class="r">${t ? fmtUs(bus[i] / t) : "—"}</td></tr>`).join("")}
+    <tr><td class="mut">всего</td><td><b>${fmtInt(sumT)}</b> проверок</td><td><b>${fmtInt(sumR)}</b></td><td></td>
+      <td class="r">${fmtUs(bt.reduce((s, t, i) => s + bus[i], 0) / Math.max(1, g.cand))} на кандидата</td></tr>
+  </table></div>
+  <div class="mut small" style="margin-top:6px">${g.all
+    ? "Режим «все базы»: каждая база проверяет каждого кандидата, прошедшего делители — как 8 агентов сета."
+    : "Режим «до первой ошибки»: следующая база проверяет только тех, кого предыдущие пропустили; почти все составные отсеивает первая база."}</div>`;
+}
+
+function renderHist(d) {
+  const g = d.gen[selected];
+  const h = g && g.tph;
+  if (!h || !h.some(x => x)) { $("hist").innerHTML = "—"; return; }
+  let a = h.findIndex(x => x), b = h.length - 1;
+  while (b > a && !h[b]) b--;
+  const max = Math.max(...h.slice(a, b + 1)), tot = h.reduce((s, x) => s + x, 0);
+  const lab = k => fmtUs(2 ** k).replace(/,\d+/, "");
+  let bars = "", labs = "";
+  for (let k = a; k <= b; k++) {
+    bars += `<div style="height:${Math.max(1, 100 * h[k] / max)}%" title="${lab(k)} – ${lab(k + 1)}: ${h[k]} (${pct(h[k], tot)})"><span>${h[k] ? pct(h[k], tot, 0) : ""}</span></div>`;
+    labs += `<span>${lab(k)}</span>`;
+  }
+  $("hist").innerHTML = `<div class="hist">${bars}</div><div class="hlab">${labs}</div>
+    <div class="mut small" style="margin-top:6px">Столбец — сколько простых нашлось за время от отметки под ним до следующей (каждая вдвое больше). Всего ${fmtInt(tot)}.</div>`;
+}
+
+function renderSources(d) {
+  const g = d.gen[selected];
+  if (!g || !g.e) { $("sources").innerHTML = "—"; return; }
+  const r = g.rate || {}, c = g.csi || [0, 0, 0];
+  $("sources").innerHTML = `<div class="tw"><table>
+    <tr><th>источник</th><th>в работе</th><th class="r">сырья в секунду</th><th class="r">зачтено бит/с</th>
+      <th class="r">время на сбор</th><th class="r">мл. бит: единиц</th><th class="r">совпал с прошлым</th><th class="r">всего зачтено бит</th></tr>
+    ${opts.source_groups.map(gr => `<tr class="gh"><td colspan="8">${esc(gr.name)}</td></tr>` +
+      opts.sources.filter(s => s.group === gr.key).map(s => {
+      const i = SRC_KEYS.indexOf(s.key), e = (i >= 0 && g.e[i]) || [0, 0, 0, 0, 0, 0, 0];
+      const on = g.src & s.bit, k = s.key;
+      const unit = { rng: "слов", csi: "пакетов", adc: "отсчётов", jit: "отсчётов" }[k];
+      return `<tr><td><b>${esc(s.name)}</b></td><td>${on ? '<span class="ok">✓ да</span>' : '<span class="mut">— нет</span>'}</td>
+        <td class="r">${on ? fmtNum(r["g_units_" + k], 0) + " " + unit : "—"}</td>
+        <td class="r">${on ? fmtNum(r["g_bits_" + k], 0) : "—"}</td>
+        <td class="r">${on ? fmtNum(r["g_time_" + k], 1) + " %" : "—"}</td>
+        <td class="r">${pct(e[3], e[4])}</td><td class="r">${pct(e[5], e[6])}</td><td class="r">${fmtInt(e[1])}</td></tr>`;
+    }).join("")).join("")}
+  </table></div>
+  <div class="mut small" style="margin-top:6px">Хороший шум: младший бит — единица в ~50 % и совпадает с прошлым в ~50 %.
+    Блоков смешивания SHA-256: ${fmtInt(g.sha)}. CSI: принято пакетов ${fmtInt(c[0])}, лишних выброшено ${fmtInt(c[1])}, ответов на пинг ${fmtInt(c[2])}.</div>`;
+}
+
+// ---------------- сообща ----------------
+// По парам: кому сколько не доставлено и с каким сигналом слышат друг друга.
+function linksText(grp, members) {
+  const out = [];
+  for (const m of members) {
+    (grp || []).forEach((id, i) => {
+      if (id === m.id) return;
+      const ok = (m.ok_to || [])[i] || 0, bad = (m.fail_to || [])[i] || 0, rs = (m.rssi_from || [])[i];
+      const loss = ok + bad ? 100 * bad / (ok + bad) : 0;
+      out.push(`№${m.id}→№${id}: ${loss >= 1 ? `<span class="warn">не доставлено ${fmtNum(loss, 1)} %</span>` : "доставлено всё"}` +
+               (rs ? `, слышит №${id} на ${rs} дБм` : ""));
+    });
+  }
+  return out.join("; ") || "—";
+}
+
+// Запас кандидатов и кусочки заранее (протокол третьей версии).
+function reserveText(r) {
+  if (r.gath_per_cycle == null) return "—";
+  return `сборов на цикл ${fmtNum(r.gath_per_cycle, 2)} · после отсева уцелело ${fmtNum(r.surv_pct, 1)} % кандидатов` +
+    ` · цикл ждал число ${fmtNum(r.wait_pct, 1)} %` +
+    (r.pre_pct != null ? ` · кусочки шума были готовы заранее ${fmtNum(r.pre_pct, 0)} %` : "") +
+    (r.hop_ms != null ? ` · итог идёт до нового мастера ${fmtNum(r.hop_ms, 2)} мс` : "");
+}
+
+function espnowNote(x) {                 // потери кадров ESP-NOW у агента: очередь, радио, подтверждения, приём
+  const e = x.etx || [];
+  const parts = [];
+  if (e[1]) parts.push(`выброшено из очереди ${fmtInt(e[1])}`);
+  if (e[2]) parts.push(`радио не приняло ${fmtInt(e[2])}`);
+  if (x.rxdrop) parts.push(`не влезло в приём ${fmtInt(x.rxdrop)}`);
+  return parts.length ? `<br><span class="warn">⚠ ESP-NOW: ${parts.join(", ")}</span>` : "";
+}
+
+function renderScatter(d) {
+  const rows = d.scatter || [];
+  $("scatBox").hidden = !rows.length;
+  if (!rows.length) return;
+  const b = rows.find(x => x.role === 1) || {};
+  const CF = ["", " · CSI только от роутера", " · CSI только с кадров B"];
+  $("scatTitle").textContent = `Рассеяние: ${SM_NAMES[b.sm === 4 ? 1 : b.sm] ?? "—"}` + (b.sh || b.sm === 4 ? " · пустышка" : "") +
+    (b.bgr ? ` · фон ${b.bgr}/с` : "") + (CF[(rows.find(x => x.cf) || {}).cf || 0] || "");
+  const rate = v => v == null ? "" : ` <span class="mut">(${fmtNum(v, 1)}/с)</span>`;
+  $("scatTable").innerHTML = `<tr><th>агент</th><th>сет</th><th class="r">простых</th><th class="r">кадров рассеяния</th>
+      <th class="r">пропущено / ждали шум</th><th class="r">эстафета: начато / передано / в эфир</th>
+      <th class="r">задержка</th><th class="r">услышано рассеяния</th></tr>` +
+    rows.map(x => x.role === 1
+      ? `<tr><td><b>${esc(agentName(x.mac))}</b></td><td>B · ${SF_NAMES[x.sf] ?? x.sf}</td>
+          <td class="r">получено ${fmtInt(x.prx)}${rate(x.g_prx_s)}</td><td class="r">выпущено ${fmtInt(x.stx)}${rate(x.g_stx_s)}` +
+          (x.sbg ? `<br><span class="mut">фон ${fmtInt(x.sbg)}${rate(x.g_sbg_s)}</span>` : "") + `</td>
+          <td class="r">${x.sdrop ? `<span class="warn">⚠ ${fmtInt(x.sdrop)}</span>` : "0"} / ${fmtInt(x.swait)}</td>
+          <td class="r">${x.sm === 3 ? `${fmtInt(x.chs)} / ${fmtInt(x.chf)} / ${fmtInt(x.chd)}` : "—"}</td>
+          <td class="r">${x.lat_ms != null ? fmtNum(x.lat_ms, 2) + " мс" : "—"}</td><td class="r">${fmtInt(x.heard)}${rate(x.g_heard_s)}${espnowNote(x)}</td></tr>`
+      : `<tr><td><b>${esc(agentName(x.mac))}</b></td><td>A</td>
+          <td class="r">объявлено ${fmtInt(x.ann)}${rate(x.g_ann_s)}${x.adrop ? ` <span class="warn">⚠ не объявлено ${fmtInt(x.adrop)}</span>` : ""}</td>
+          <td class="r">—</td><td class="r">—</td><td class="r">—</td><td class="r">—</td>
+          <td class="r">${fmtInt(x.heard)}${rate(x.g_heard_s)}` +
+          ((x.src ?? 0) & 16 ? `<br><span class="mut">в шум: ${fmtNum((x.g_bits_bc || 0) / 1000, 1)} кбит/с</span>` : "") +
+          (x.bclost ? `<br><span class="warn">⚠ не влезло ${fmtInt(x.bclost)} байт</span>` : "") + espnowNote(x) + `</td></tr>`).join("");
+}
+
+// ---------------- датчики ----------------
+function pickList(selId, rows, cur) {          // список агентов блока; выбранного сохранить
+  const el = $(selId), k = rows.map(r => r.mac).join(",");
+  if (el.dataset.k !== k) {
+    el.innerHTML = rows.map(r => `<option value="${r.mac}">${esc(agentName(r.mac))}</option>`).join("");
+    el.dataset.k = k;
+  }
+  const m = rows.some(r => r.mac === cur) ? cur : (rows[0] || {}).mac || null;
+  if (m) el.value = m;
+  return m;
+}
+$("wheelSel").onchange = e => { wheelSel = e.target.value; render(); };
+$("fieldSel").onchange = e => { fieldSel = e.target.value; render(); };
+
+function renderSensors(d) {
+  const W = d.wheel || [], F = d.field || [], S = d.static || [];
+  $("wheelBox").hidden = !W.length;
+  $("fieldBox").hidden = !F.length;
+  $("statBox").hidden = !S.length;
+  if (W.length) {
+    wheelSel = pickList("wheelSel", W, wheelSel);
+    const w = W.find(x => x.mac === wheelSel) || {}, r = w.last_rev || {};
+    const rset = w.r_set || 450, crit = 60 / (2 * Math.PI) * Math.sqrt(9.80665 / (rset / 1000));
+    const k = r.k, where = k == null ? "—" : Math.abs(k - 1) <= 0.05 ? "✓ в окрестности невесомости (±5 %)"
+      : k < 1 ? `◐ ниже: не хватает ${fmtNum(crit - (r.rpm || 0), 2)} об/мин` : `▲ выше на ${fmtNum((r.rpm || 0) - crit, 2)} об/мин`;
+    $("wheelTot").innerHTML = [
+      ["обороты", w.rpm_now ? `<b>${fmtNum(Math.abs(w.rpm_now), 2)}</b> об/мин сейчас · по обороту ${fmtNum(r.rpm, 2)}` : "◌ колесо стоит"],
+      ["невесомость", `${fmtNum(crit, 2)} об/мин для радиуса ${rset} мм · ${where}`],
+      ["k = ω²r/g", `${fmtNum(k, 3)} по ускорению · ${fmtNum(r.k_r, 3)} по заданному радиусу`],
+      ["|f| за оборот", `вверху ${fmtNum(r.fmin, 3)} g · внизу ${fmtNum(r.fmax, 3)} g`],
+      ["радиус", `${fmtNum(r.r_mm, 1)} мм по измерению · задан ${rset} мм`],
+      ["датчик", `${fmtNum(w.hz, 0)} Гц · оборотов ${fmtInt(w.revs)} · ${w.frame ? "оси колеса найдены" : "оси колеса ещё не найдены (нужен оборот)"}` +
+        (w.err ? ` · <span class="warn">ошибок I2C ${fmtInt(w.err)}</span>` : "")],
+    ].map(([a, b]) => `<span>${a}</span><span>${b}</span>`).join("");
+    $("wheelNote").textContent = "k — среднее ускорение за оборот: тяжесть за оборот усредняется в ноль, остаётся центростремительное ω²r. " +
+      "k = 1 — в верхней точке невесомость; |f| вверху тогда около нуля, внизу около 2 g.";
+    renderChartSet(d, WCHARTS, "wcharts");
+  }
+  if (F.length) {
+    fieldSel = pickList("fieldSel", F, fieldSel);
+    const f = F.find(x => x.mac === fieldSel) || {}, b = f.b || [];
+    $("fieldTot").innerHTML = [
+      ["|B|", `<b>${fmtNum(f.babs, 1)}</b> мкТл (за пакет от ${fmtNum(f.bmin, 1)} до ${fmtNum(f.bmax, 1)})`],
+      ["по осям датчика", `x ${fmtNum(b[0], 1)} · y ${fmtNum(b[1], 1)} · z ${fmtNum(b[2], 1)} мкТл`],
+      ["датчик", `усиление ${f.gain ?? "—"} (подбирается само) · ${fmtNum(f.t, 1)} °C` +
+        (f.err ? ` · <span class="warn">ошибок I2C ${fmtInt(f.err)}</span>` : "")],
+    ].map(([a, b2]) => `<span>${a}</span><span>${b2}</span>`).join("");
+    renderChartSet(d, MCHARTS, "mcharts");
+  }
+  if (S.length) {
+    const v = d.static_verdict;
+    const VN = { ok: "✓ продолжать", repeat: "↻ повторить", check: "⚠ проверить", nobase: "◌ нет эталона", nodata: "✗ нет данных" };
+    const why = v ? Object.entries(v.sensors || {}).flatMap(([m, p]) => (p.reasons || []).slice(0, 2)
+      .map(r => `${esc(agentName(m))}: ${esc(r)}`)).slice(0, 3).join("; ") : "";
+    $("statVerdict").innerHTML = v ? `<div class="sverdict ${v.verdict}"><span class="big">${VN[v.verdict] || "—"}</span>
+      <span><b>${esc(v.what || "")}</b>${why ? " — " + why : ""}${(v.notes || []).map(n => ` <span class="warn">◐ ${esc(n)}</span>`).join("")}</span></div>` : "";
+    $("statRows").innerHTML = S.map(s => {
+      const l = s.last || {}, b = s.base;
+      return `<div class="srow"><div><b>${s.id ? "№" + s.id : "…" + s.mac.slice(-5)}</b> <span class="mut small">${s.id ? esc(s.label || "") + " · …" + s.mac.slice(-5) : "не в реестре"}</span></div>
+        <div class="s1 ${s.status}">${esc(s.text)}</div>
+        <div class="small mut">разброс ${l.sd ? l.sd.map(x => fmtInt(x)).join(" · ") : "—"} мкg · эксцесс ${l.kurt ? l.kurt.map(x => fmtNum(x, 2)).join(" · ") : "—"}
+          · эталон ${b ? `${fmtTime(b.t0)}, окон ${b.n}${b.fits ? "" : " (другой режим)"}` : "нет"}</div></div>`;
+    }).join("");
+    if (layout === "1") renderChartSet(d, SCHARTS, "scharts");
+  }
+}
+
+// ---------------- экран: один или два ----------------
+let layout = "1";
+try { layout = localStorage.getItem("layout") || "1"; } catch (e) { }
+function setLayout(v) {
+  layout = v;
+  try { localStorage.setItem("layout", v); } catch (e) { }
+  document.body.classList.toggle("two", v === "2");
+  $("lay1").classList.toggle("on", v === "1");
+  $("lay2").classList.toggle("on", v === "2");
+  if (last) render();
+}
+$("lay1").onclick = () => setLayout("1");
+$("lay2").onclick = () => { setLayout("2"); window.open("/acc", "acc"); };
+$("accOpen").onclick = () => window.open("/acc", "acc");
+setLayout(layout);
+
+const GV_SHORT = { 0: "сообща", 1: "эстафета", 2: "каскад" };
+
+// ---------------- агенты и группы (составы) ----------------
+const GCOL = { 1: "#0072B2", 2: "#E69F00", 3: "#009E73", 4: "#CC79A7" };   // Okabe-Ito; номер группы — всегда цифрой
+const gnum = k => `<span class="gnum${k === "2" ? " g2" : ""}" style="background:${GCOL[k]}">${k}</span>`;
+function slotName(x) {
+  if (!x || x === "idle") return "стоит";
+  if (x === "S") return "статический — только меряет";
+  return `группа ${x[0]} · ${x[1] === "A" ? "генерация" : "рассеяние"}`;
+}
+function agentNow(d, a) {                              // что агент делает сейчас — словами
+  const g = d.gen[a.mac];
+  if (a.kind === "S") return "статический: меряет ускорение";
+  if (!g) return a.status === "online" ? "без prime_lab" : "—";
+  if (a.status !== "online") return "не на связи";
+  if (!g.run) return g.cpu === 80 ? "стоит, остывает" : "стоит";
+  const r = g.rate || {}, gr = (g.gstat || {}).rate || {};
+  if (g.role === 1) return `рассеяние${g.sh ? " — пустышка" : ""}${g.bgr ? `, фон ${g.bgr}/с` : ""} · ` +
+    `выпускает ${fmtNum(r.g_stx_s || 0, 1)}/с`;
+  const mode = g.mode === 1 ? (GV_SHORT[g.gv || 0] || "сообща") + (g.dc && g.gv ? ", два ядра" : "")
+                            : g.dc ? "каждый сам, два ядра" : "каждый сам";
+  const pr = g.mode === 1 && !g.gv ? gr.g_gpr_s : (r.g_pr_s ?? gr.g_gpr_s);
+  return `${mode} · ${fmtNum(pr || 0, 1)} простых/с`;
+}
+function renderCompose(d) {
+  const box = $("cmpBox");
+  if (box.contains(document.activeElement) && document.activeElement.tagName === "SELECT") return;   // не мешать выбору
+  const c = d.compose || {}, presets = d.presets || [], slots = d.slots || [];
+  const slot = c.slot || {}, wheels = c.wheels || {};
+  const ags = d.agents.filter(a => d.gen[a.mac] || a.kind === "S").sort((x, y) => (x.id || 999) - (y.id || 999));
+  const mine = a => slot[a.mac] || (a.kind === "S" ? "S" : "idle");
+  const used = {};
+  for (const a of ags) { const x = mine(a); if (/^[1-4][AB]$/.test(x)) (used[x[0]] = used[x[0]] || { A: [], B: [] })[x[1]].push(a); }
+  const keys = ["1", "2", "3", "4"].filter(k => used[k] || k === "1" || k === "2");
+  $("cmpGroups").innerHTML = keys.map(k => {
+    const gr = (c.groups || {})[k] || {}, p = presets.find(x => x.key === gr.preset) || presets[0] || {};
+    const m = used[k] || { A: [], B: [] };
+    const lv = (d.groups || []).find(x => x.name === `группа ${k}`);
+    const genRate = m.A.reduce((sum, a) => sum + (((d.gen[a.mac] || {}).rate || {}).g_pr_s || 0), 0);
+    const now = lv ? `${fmtNum(lv.pr_s, 1)} простых/с · ${lv.gv ? "ходов" : "циклов"} ${fmtNum(lv.cyc_s, 1)}/с` +
+                     (lv.truncs ? ` · без чужих кусочков ${fmtInt(lv.truncs)}` : "")
+      : m.A.some(a => (d.gen[a.mac] || {}).run) ? `${fmtNum(genRate, 1)} простых/с` : "стоит";
+    return `<div class="cmp-g"><h3>${gnum(k)} группа ${k}
+        <select data-gp="${k}" title="набор группы">${presets.map(x => `<option value="${x.key}"${x.key === p.key ? " selected" : ""}>${esc(x.name)}</option>`).join("")}</select></h3>
+      <div class="small mut">${esc(p.desc || "")}</div>
+      <div class="small">генерация: ${m.A.map(a => "№" + a.id).join(", ") || "—"} · рассеяние: ${m.B.map(a => "№" + a.id).join(", ") || "—"}` +
+      `${p.b && !m.B.length && m.A.length ? ` <span class="warn">⚠ набору нужно рассеяние</span>` : ""}</div>
+      <div class="small">сейчас: ${now}</div></div>`;
+  }).join("");
+  const byW = {};
+  for (const a of ags) (byW[wheels[a.mac] || ""] = byW[wheels[a.mac] || ""] || []).push(a);
+  const order = ["1", "2", "3", "4", ""].filter(w => byW[w]);
+  const wOpts = w => ["", "1", "2", "3", "4"].map(x => `<option value="${x}"${x === (w || "") ? " selected" : ""}>${x ? "колесо " + x : "не задано"}</option>`).join("");
+  const sOpts = x => slots.map(o => `<option value="${o}"${o === x ? " selected" : ""}>${esc(slotName(o))}</option>`).join("");
+  $("cmpTable").innerHTML = `<tr><th>агент</th><th>колесо</th><th>группа и роль</th><th>сейчас</th></tr>` + order.map(w =>
+    `<tr class="wh"><td colspan="4">${w ? "колесо " + w : "колесо не задано"} · агентов ${byW[w].length}</td></tr>` +
+    byW[w].map(a => {
+      const x = mine(a), v = a.values || {};
+      const fresh = !(a.mac in slot) && !(a.mac in wheels);
+      return `<tr><td><span class="st ${a.status}">${a.status === "online" ? "●" : "○"}</span> <b>№${a.id}</b>` +
+        `${fresh ? ` <span class="badge warn">новый</span>` : ""} <span class="small">${a.rating ? ratingIcon(a.rating) : ""}</span>` +
+        ` <span class="small mut">${v.temp != null ? fmtNum(v.temp, 0) + " °C · " : ""}${esc(a.fw || "")}</span></td>
+        <td><select data-wh="${a.mac}">${wOpts(wheels[a.mac])}</select></td>
+        <td><select data-sl="${a.mac}">${sOpts(x)}</select> ${/^[1-4]/.test(x) ? gnum(x[0]) : ""}</td>
+        <td class="small">${esc(agentNow(d, a))}</td></tr>`;
+    }).join("")).join("");
+  const st = { run: "▶ составы применены", stop: "⏹ все стоят", quench: "≋ тушение — шум в шум" }[c.state] || "";
+  if (!cmpBusy) $("cmpState").innerHTML = st ? `${st}${c.t ? " · " + new Date(c.t * 1000).toLocaleTimeString("ru-RU") : ""}` : "";
+}
+let cmpBusy = false;
+async function postCompose(body) {
+  cmpBusy = true;
+  $("cmpState").innerHTML = `<span class="mut">…</span>`;
+  try {
+    const r = await fetch("/api/compose", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).then(x => x.json());
+    if (!r.ok) throw new Error(r.error || "ошибка");
+    if (last) last.compose = { ...(last.compose || {}), ...r.compose };
+    const ap = (r.applied || []).map(x => `${esc(x.label)} — №${x.cid}, агентов ${x.n}`).join("; ");
+    $("cmpState").innerHTML = ap ? `<span class="ok">✓ ${ap}</span>` : `<span class="ok">✓ сохранено</span>`;
+  } catch (e) {
+    $("cmpState").innerHTML = `<span class="bad">✗ ${esc(e.message)}</span>`;
+  } finally {
+    cmpBusy = false;
+    if (last) renderCompose(last);
+  }
+}
+$("cmpBox").addEventListener("change", e => {
+  const t = e.target;
+  if (t.dataset.wh != null) postCompose({ action: "save", wheels: { [t.dataset.wh]: t.value } });
+  else if (t.dataset.sl != null) postCompose({ action: "save", slot: { [t.dataset.sl]: t.value } });
+  else if (t.dataset.gp != null) postCompose({ action: "save", groups: { [t.dataset.gp]: { preset: t.value } } });
+  t.blur();
+});
+$("cmpRun").onclick = () => postCompose({ action: "apply" });
+$("cmpStop").onclick = () => postCompose({ action: "stop" });
+$("cmpQuench").onclick = () => postCompose({ action: "quench" });
+$("restRot").onclick = async () => {   // выкл → по очереди → вся группа → выкл
+  const r = (last && last.rest_rot) || {};
+  const [on, mode] = !r.on ? [true, "turns"] : r.mode === "turns" ? [true, "group"] : [false, r.mode || "turns"];
+  try {
+    await getJSON("/api/rest_rot", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ on, mode }) });
+    if (last) last.rest_rot = { ...r, on, mode };
+    renderRest(last);
+  } catch (e) { $("restNow").innerHTML = `<span class="bad">✗ ${esc(e.message)}</span>`; }
+};
+function renderRest(d) {
+  const r = (d && d.rest_rot) || {};
+  const b = $("restRot");
+  b.textContent = !r.on ? "⏸ Отдых: выкл" : r.mode === "group" ? "⏸ Отдых: вся группа" : "⏸ Отдых: по очереди";
+  b.classList.toggle("on", !!r.on);
+  const now = Object.values(r.now || {});
+  $("restNow").innerHTML = now.length
+    ? `<span class="warn">⏸ отдыхают: ${now.map(x => `№${x.id} — ${x.s} с, ${fmtNum(x.temp0, 1)} → ${x.temp != null ? fmtNum(x.temp, 1) : "?"} °C`).join("; ")}</span>`
+    : r.on ? `<span class="mut">${r.mode === "group" ? "отдых всей группой" : "отдых по очереди"} включён: сейчас никто не отдыхает</span>` : "";
+}
+
+function renderGroups(d) {
+  const grs = d.groups || [];
+  $("groupBox").hidden = !grs.length;
+  if (!grs.length) return;
+  const r = grs.find(x => x.grp && x.members.some(m => m.mac === selected)) || grs[0];
+  const names = (r.grp || []).map(id => "№" + id).join(" → ");
+  const rel = r.gv > 0, cyc = rel ? "ходов" : "циклов";
+  $("groupTitle").textContent = `${rel ? (r.gv === 1 ? "Эстафета" : "Каскад") : "Сообща"}: группа ${names} · настройка №${r.cid} · ${r.bits} бит`;
+  const roles = r.members.map(m => `№${m.id}: ${m.role === 2 ? (rel ? "<b>проверяет</b>" : "<b>мастер</b>") : m.role === 1 ? (rel ? "даёт шум" : "участник") : "вне группы"}`).join(", ");
+  const streak = r.streak == null ? "—" : `${fmtInt(r.streak)} ${cyc} (${fmtUp(r.streak_ms / 1000)})`;
+  const rows = [
+    ["сейчас", roles],
+    [cyc, `${fmtInt(r.cycles)} · ${fmtNum(r.cyc_s, 1)} в секунду`],
+    ["простых", `<b>${fmtInt(r.primes)}</b> · ${fmtNum(r.pr_s, 2)} в секунду`],
+    ["каждый сам за себя", r.solo_known ? `при тех же настройках дал бы вместе ${fmtNum(r.solo_pr_s, 1)} простых/с` +
+      (r.slowdown ? ` — сообща медленнее в <b>${fmtNum(r.slowdown, 1)} раза</b>` : "") : "нет замера: запустите «каждый сам» с теми же настройками"],
+    ["когерентность", `серия без сбоев ${streak}; лучшая ${fmtInt(r.streak_max)} ${cyc} (${fmtUp((r.streak_ms_max || 0) / 1000)})`],
+    ["сбои", `переспросов ${fmtInt(r.asks)}, разрывов ${fmtInt(r.breaks)}, перехватов ${rel ? "хода" : "мастерства"} ${fmtInt(r.resyncs)}, ${rel ? "двух проверяющих" : "двух мастеров"} ${fmtInt(r.conflicts)}`],
+    ...(rel ? [["кусочки", r.truncs ? `<span class="warn">◐ ${fmtInt(r.truncs)} кругов собраны без чьих-то кусочков: ${fmtInt(r.trunc_pcs)} наборов заменены своим шумом</span>`
+      : `<span class="ok">✓ все круги — из кусочков всех</span>`],
+      ["молчащие", (r.mute_now || []).filter(i => !(r.resting || []).includes(i)).length
+        ? `<span class="warn">◐ молчат: ${r.mute_now.filter(i => !(r.resting || []).includes(i)).map(i => "№" + i).join(", ")}</span>` +
+        ` — их кусочки заменяет свой шум, ход идёт мимо; подадут голос — снова в деле` : r.mute ? `замолкали ${fmtInt(r.mute)} раз, сейчас все на связи`
+        : `<span class="ok">✓ никто не замолкал</span>` +
+        ((r.resting || []).length ? ` · <span class="warn">⏸ отдыхают: ${r.resting.map(i => "№" + i).join(", ")}</span>` : "")]] : []),
+    ["согласие", rel ? (r.agree ? (r.split ? `<span class="bad">⚠ сверка нашла составное в ${fmtInt(r.split)} из ${fmtInt(r.agree)} простых соседей</span>` +
+        (r.gls ? ` · последнее: <code>${esc(r.gls)}</code>` : "")
+      : `<span class="ok">✓ ${fmtInt(r.agree)} простых соседей сверено другой базой — все простые</span>`) : "ждём первых сверок")
+      : r.agree ? (r.split || r.disagree
+      ? `<span class="bad">⚠ ответы расходились в ${fmtInt(r.split + r.disagree)} из ${fmtInt(r.agree)} циклов</span>` +
+        (r.gls ? ` · последнее: <code>${esc(r.gls)}</code> (число и базы-свидетели по местам; −1 — не нашёл)` : "")
+      : `<span class="ok">✓ ${fmtInt(r.agree)} циклов — все агенты согласны</span>`) +
+      ` <span class="mut">(одно число проверяют все; «все базы» — у каждого ещё и одинаковая первая база-свидетель)</span>` : "—"],
+    ["запас", reserveText(r)],
+    ["связь", r.members.map(m => `№${m.id}: отправлено ${fmtInt(m.tx)}, принято ${fmtInt(m.rx)}${m.tx_fail ? `, <span class="warn">не доставлено ${fmtInt(m.tx_fail)}</span>` : ""}`).join("; ")],
+    ["пары", linksText(r.grp, r.members)],
+  ];
+  $("groupTot").innerHTML = rows.map(([k, x]) => `<span>${k}</span><span>${x}</span>`).join("");
+  if (r.avg_ms) {
+    const [tg, ts, tt, th, tc] = r.avg_ms, [cp, cs, ct] = r.comp_ms;
+    const max = Math.max(tc, 1e-6);
+    const bar = (name, v, c) => `<tr><td>${name}</td><td class="bar"><i style="width:${100 * v / max}%"></i><b>${fmtNum(v, 2)} мс</b></td><td class="r mut">${c == null ? "" : "счёт " + fmtNum(c, 2) + " мс"}</td></tr>`;
+    $("groupCycle").innerHTML = rel ? `<div class="tw"><table>
+      <tr><th>ход (среднее)</th><th>время</th><th class="r">из него чистый счёт</th></tr>
+      ${bar("ядро счёта ждало числа", tg, null)}${bar("шум и отсев на ядре счёта", ts, cp + cs)}${bar("проверка", tt, ct)}${bar("передача хода", th, null)}
+      <tr><td><b>весь ход</b></td><td><b>${fmtNum(tc, 2)} мс</b></td><td class="r">ожидание <b>${fmtNum(r.sync_pct, 1)} %</b></td></tr>
+    </table></div>` : `<div class="tw"><table>
+      <tr><th>этап цикла (среднее)</th><th>время</th><th class="r">из него чистый счёт</th></tr>
+      ${bar("ждали кусочки шума", tg, cp)}${bar("ждали отсев", ts, cs)}${bar("проверка и ответы", tt, ct)}${bar("итог и число до нового мастера", th, null)}
+      <tr><td><b>весь цикл</b></td><td><b>${fmtNum(tc, 2)} мс</b></td><td class="r">синхронизация <b>${fmtNum(r.sync_pct, 1)} %</b></td></tr>
+    </table></div>`;
+  } else {
+    $("groupCycle").innerHTML = `<span class="mut">ждём первых циклов…</span>`;
+  }
+  renderChartSet(d, GCHARTS, "gcharts");
+}
+
+// ---------------- программа эксперимента ----------------
+let progTemplate = null, progShown = null;
+
+async function loadPrograms() {
+  try {
+    const r = await getJSON("/api/programs");
+    progTemplate = r.template;
+    if (!$("progJson").value.trim()) $("progJson").value = JSON.stringify(r.template, null, 1);
+    const a = r.active;
+    $("progStop").disabled = !a;
+    $("progStart").disabled = !!a;
+    $("progActive").innerHTML = a ? `<b>идёт №${a.id} «${esc(a.name)}»</b>: шаг ${a.done + 1} из ${a.total}` +
+      (a.now ? ` — «${esc(a.now.name)}»${a.now.control ? " (контроль)" : ""}${a.now.confirm ? " · проверка аномалии" : ""}` : "") +
+      (a.anomalies ? ` · <span class="warn">⚠ аномалий ${a.anomalies}</span>` : "") +
+      (a.spoiled ? ` · ↻ испорчено и повторено шагов ${a.spoiled}` : "") +
+      (a.last && a.last.watch ? `<div>прошлый шаг «${esc(a.last.name)}»: ${WATCH_NAMES[a.last.watch.verdict] || "—"}</div>` : "")
+      : `<span class="mut">программа не идёт</span>`;
+    $("progList").innerHTML = r.list.length ? `<table>${r.list.slice(0, 10).map(x => `<tr><td>№${x.id}</td>
+      <td>${esc(x.name)}</td><td class="mut">${fmtTime(x.t_start)}</td><td>${STATES[x.state] || x.state}</td>
+      <td class="r">шагов ${x.runs}</td><td>${x.confirmed ? `<span class="bad">⚠ подтвердилось ${x.confirmed}</span>`
+        : x.anomalies ? `◐ выбросов ${x.anomalies}, не подтвердились` : "✓ без аномалий"}${x.spoiled ? ` · ↻ испорчено ${x.spoiled}` : ""}</td>
+      <td><button data-pid="${x.id}">открыть</button></td></tr>`).join("")}</table>` : `<span class="mut">программ ещё не было</span>`;
+    $("progList").querySelectorAll("button[data-pid]").forEach(b => b.onclick = () => openProgram(+b.dataset.pid));
+    if (progShown) openProgram(progShown, true);
+  } catch (e) { /* сервер недоступен — покажет общая строка */ }
+}
+
+const WATCH_NAMES = { ok: '<span class="ok">✓ продолжать</span>', repeat: '<span class="warn">↻ повторить</span>',
+  check: '<span class="bad">⚠ проверить</span>', nobase: '<span class="mut">◌ нет эталона</span>', nodata: '<span class="mut">✗ нет данных</span>' };
+function watchText(r) {                  // вывод слежения за статическими по шагу программы
+  const w = r.watch;
+  if (!w) return "—";
+  const why = Object.entries(w.sensors || {}).flatMap(([m, p]) => (p.reasons || []).slice(0, 1).map(x => `${esc(agentName(m))}: ${esc(x)}`));
+  return `${WATCH_NAMES[w.verdict] || esc(w.verdict)}${r.spoiled ? " · испорчен, в сравнение не идёт" : ""}` +
+    `${why.length ? `<div class="mut">${why.slice(0, 2).join("; ")}</div>` : ""}`;
+}
+
+function chanName(m) {                  // канал показателя программы: статический (MAC) или генерация
+  return String(m).startsWith("gen:") ? "генерация " + m.slice(4) : agentName(m);
+}
+
+async function openProgram(id, quiet) {
+  const x = await getJSON(`/api/program?id=${id}`);
+  progShown = id;
+  const an = x.anomalies || {};
+  const prRate = r => {                 // простых в секунду за шаг — сумма по агентам
+    const dur = Math.max(1e-6, r.t1 - r.t0);
+    const pr = Object.values(r.agents || {}).reduce((s, a) => s + ((a.gen || {}).pr || 0) +
+      ((a.gstat || {}).primes_m || 0), 0);
+    return pr / dur;
+  };
+  const stx = r => Object.values(r.agents || {}).reduce((s, a) => s + ((a.gen || {}).stx || 0), 0);
+  const zmax = i => (an[i] || []).reduce((m, h) => Math.max(m, Math.abs(h.z)), 0);
+  $("progView").innerHTML = `<h3 class="sub">№${x.id} «${esc(x.program.name)}» · ${STATES[x.state] || x.state}
+      ${x.note ? ` · <span class="bad">${esc(x.note)}</span>` : ""} <button id="progClose">закрыть</button></h3>
+    ${x.baseline ? `<div class="small">эталон шума статических записан в начале: ${Object.entries(x.baseline.sensors || {}).map(([m, v]) =>
+      `${esc(agentName(m))} ${v.ok ? "✓" : "✗ " + esc(v.why)}`).join(", ")}</div>` : ""}
+    <div class="tw"><table><tr><th>№</th><th>шаг</th><th>вид</th><th class="r">длилось</th><th class="r">простых/с</th>
+      <th class="r">кадров рассеяния</th><th>статические: вывод слежения</th><th>отклонение от контроля (статические и генерация)</th></tr>
+    ${x.runs.map((r, i) => `<tr><td>${i + 1}</td><td><b>${esc(r.name)}</b>${r.redo ? ` <span class="mut small">(повтор ${r.redo})</span>` : ""}</td>
+      <td>${r.control ? "контроль" : "опыт"}${r.confirm ? " · проверка" : ""}</td>
+      <td class="r">${fmtUp(r.t1 - r.t0)}</td><td class="r">${fmtNum(prRate(r), 2)}</td><td class="r">${fmtInt(stx(r))}</td>
+      <td class="small">${watchText(r)}</td>
+      <td>${an[i] ? `<span class="warn">⚠ z до ${fmtNum(zmax(i), 1)}: ${an[i].slice(0, 3).map(h =>
+        `${esc(chanName(h.mac))} ${h.metric} ${fmtNum(h.value, 1)} против ${fmtNum(h.ctrl, 1)} (z ${fmtNum(h.z, 1)})`).join("; ")}</span>`
+        : r.spoiled ? `<span class="mut">испорчен: ${esc(r.spoiled_why || "")}</span>`
+        : r.control ? "—" : Object.values(r.static || {}).some(Boolean) || r.gen ? "✓ в пределах" : "нет данных"}</td></tr>`).join("")}
+    </table></div>
+    ${Object.entries(x.verdicts || {}).map(([i, v]) => `<div>${v.confirmed ? '<span class="bad">⚠ ПОДТВЕРДИЛОСЬ</span>'
+      : '<span class="ok">✓ не подтвердилось — случайный выброс</span>'}: шаг ${+i + 1} «${esc(x.runs[+i].name)}», ${esc(chanName(v.mac))}
+      ${v.metric} (z ${fmtNum(v.z, 1)}); в проверке то же отклонение — в ${v.same} из ${v.of} повторов</div>`).join("")}`;
+  $("progView").hidden = false;
+  $("progClose").onclick = () => { $("progView").hidden = true; progShown = null; };
+  if (!quiet) $("progView").scrollIntoView();
+}
+
+$("progTpl").onclick = () => { if (progTemplate) $("progJson").value = JSON.stringify(progTemplate, null, 1); };
+$("progStart").onclick = async () => {
+  let prog;
+  try { prog = JSON.parse($("progJson").value); }
+  catch (e) { $("progStatus").innerHTML = `<span class="bad">✗ не JSON: ${esc(e.message)}</span>`; return; }
+  try {
+    const r = await getJSON("/api/program/start", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ program: prog }) });
+    $("progStatus").innerHTML = `<span class="ok">программа №${r.id} начата</span>`;
+  } catch (e) { $("progStatus").innerHTML = `<span class="bad">✗ ${esc(e.message)}</span>`; }
+  loadPrograms();
+};
+$("progStop").onclick = async () => {
+  try { await getJSON("/api/program/stop", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }); }
+  catch (e) { $("progStatus").innerHTML = `<span class="bad">✗ ${esc(e.message)}</span>`; }
+  loadPrograms();
+};
+
+// ---------------- сессии ----------------
+const STATES = { new: "создана", gathering: "собираем агентов", configuring: "выставляем параметры",
+  starting: "старт", running: "идёт", stopping: "останавливаем", done: "завершена",
+  stopped: "остановлена вручную", failed: "не удалась", interrupted: "прервана перезапуском сервера" };
+let viewRange = null;                    // графики прошлой сессии: {t0, t1, id}
+let lastSessKey = "";
+
+function fmtTime(t) { return t ? new Date(t * 1000).toLocaleTimeString("ru-RU") : "—"; }
+function stepsHtml(steps) {
+  return `<table>${(steps || []).map(s => `<tr>
+    <td>${s.ok === true ? '<span class="ok">✓</span>' : s.ok === false ? '<span class="bad">✗</span>' : '<span class="warn">…</span>'}</td>
+    <td><b>${esc(s.name)}</b></td><td class="mut">${fmtTime(s.t0)}${s.t1 ? " – " + fmtTime(s.t1) : ""}</td>
+    <td>${esc(s.note || "")}</td></tr>`).join("")}</table>`;
+}
+function cfgText(c) {
+  return c ? `${c.mode === 1 ? GV_SHORT[c.gv || 0] || "сообща" : "каждый сам"}, ${c.bits} бит, баз ${c.nb}${c.all ? " (все)" : ""}, ${srcList(c.src)}, делители < ${c.td}, предел ${c.tmax} °C` : "—";
+}
+
+function renderSessionActive(d) {
+  const x = d.session;
+  $("sStop").disabled = !x;
+  $("sStart").disabled = !!x;
+  if (!x) { $("sActive").innerHTML = `<span class="mut">сессия не идёт</span>`; return; }
+  const run = x.t_start ? ` · идёт ${fmtUp(d.time - x.t_start)}${x.duration_s ? " из " + fmtUp(x.duration_s) : " (до остановки)"}` : "";
+  $("sActive").innerHTML = `<div><b>№${x.id} «${esc(x.name)}»</b> · ${STATES[x.state] || x.state}${run}</div>${stepsHtml(x.steps)}`;
+  const key = x.id + x.state;
+  if (key !== lastSessKey) { lastSessKey = key; loadSessions(); }
+}
+
+let lastListJson = "";
+async function loadSessions() {
+  const r = await getJSON("/api/sessions");
+  if (!r.active && lastSessKey && !lastSessKey.startsWith("idle")) lastSessKey = "idle";
+  const js = JSON.stringify(r.list);
+  if (js === lastListJson) return;          // без изменений — не перерисовывать (кнопки не мигают)
+  lastListJson = js;
+  $("sessList").innerHTML = r.list.length ? `<div class="tw"><table>
+    <tr><th>№</th><th>название</th><th>начало</th><th>шла</th><th>режим и параметры</th><th>агенты</th><th>итог</th><th></th></tr>
+    ${r.list.map(x => { const sm = x.summary || {}; return `<tr>
+      <td>${x.id}</td><td>${esc(x.name)}</td><td>${fmtTime(x.t_start || x.created)}</td>
+      <td>${sm.duration_s ? fmtUp(sm.duration_s) : "—"}</td><td class="small">${cfgText(x.cfg)}</td>
+      <td>${(x.targets_ids || []).map(i => "№" + i).join(", ")}</td>
+      <td>${STATES[x.state] || x.state}${sm.primes != null ? ` · простых ${fmtInt(sm.primes)} (${fmtNum(sm.primes_s, 2)}/с)` : ""}${x.note ? ` · <span class="bad">${esc(x.note)}</span>` : ""}</td>
+      <td><button data-sid="${x.id}">открыть</button></td></tr>`; }).join("")}</table></div>`
+    : `<span class="mut">сессий ещё не было</span>`;
+  $("sessList").querySelectorAll("button[data-sid]").forEach(b => b.onclick = () => openSession(+b.dataset.sid));
+}
+
+// ---------------- журнал опытов ----------------
+let runsJson = "", runShown = null;
+const yieldZ = y => y && y.z != null ? `<span class="${Math.abs(y.z) > 4 ? "bad" : Math.abs(y.z) > 3 ? "warn" : "ok"}">z ${fmtNum(y.z, 1)}</span>` : "—";
+
+async function loadRuns() {
+  const r = await getJSON("/api/runs?n=60");
+  const js = JSON.stringify(r.list);
+  if (js === runsJson) return;
+  runsJson = js;
+  $("runList").innerHTML = r.list.length ? `<div class="tw"><table>
+    <tr><th>№</th><th>начало</th><th>шёл</th><th>что задано</th><th>агенты</th><th class="r">кандидатов</th><th class="r">простых</th>
+      <th>выход</th><th>кристалл</th><th>потери</th><th>группа</th><th>откуда</th><th></th></tr>
+    ${r.list.map(x => { const s = x.summary || {}; const y = s.yield; const g = s.group;
+      return `<tr><td>${x.id}</td><td>${fmtTime(x.t0)}</td><td>${x.state === "идёт" ? `<span class="ok">идёт</span> ` : ""}${fmtUp(x.dur_s)}</td>
+      <td class="small txt">${esc(x.text || "")}</td><td>${Object.values(x.agents || {}).join(", ")}</td>
+      <td class="r">${s.cand != null ? fmtInt(s.cand) : "—"}</td><td class="r">${s.pr != null ? `<b>${fmtInt(s.pr)}</b>${s.pr_s != null ? ` · ${fmtNum(s.pr_s, 1)}/с` : ""}` : "—"}</td>
+      <td class="small">${y ? `1 на ${fmtNum(y.per_surv, 2)} (${fmtNum(y.exp_surv, 2)}) ${yieldZ(y)}` : "—"}</td>
+      <td>${s.temp ? `${fmtNum(s.temp[0], 0)}–${fmtNum(s.temp[1], 0)} °C` : "—"}</td>
+      <td class="small">${s.lost != null ? `пакетов ${fmtInt(s.lost)}${s.udpf ? `, не ушло ${fmtInt(s.udpf)}` : ""}${s.wrst ? `, <span class="bad">Wi-Fi ×${s.wrst}</span>` : ""}` : "—"}</td>
+      <td class="small">${g ? `циклов ${fmtInt(g.cycles)}${g.breaks ? `, <span class="warn">разрывов ${g.breaks}</span>` : ", без разрывов"}${g.split ? `, <span class="bad">расхождений ${g.split}</span>` : ""}` : "—"}</td>
+      <td class="small">${esc(x.context || "")}</td><td><button data-rid="${x.id}">открыть</button></td></tr>`; }).join("")}</table></div>`
+    : `<span class="mut">опытов ещё не было</span>`;
+  $("runList").querySelectorAll("button[data-rid]").forEach(b => b.onclick = () => openRun(+b.dataset.rid));
+  if (runShown) openRun(runShown, true);
+}
+
+function miniChart(el, times, series, opts = {}) {
+  if (typeof uPlot === "undefined" || !times.length) { el.innerHTML = `<div class="empty">нет данных</div>`; return; }
+  el.innerHTML = "";
+  new uPlot({
+    width: el.clientWidth || 320, height: 170,
+    scales: { x: { time: true }, y: {}, r: { range: opts.rRange || [0, 105] } },
+    legend: { live: false },
+    series: [{}].concat(series.map((s, i) => ({ label: s.label, stroke: s.color || PALETTE[i % 8], dash: s.dash || [], width: 2,
+      spanGaps: true, points: { show: false }, scale: s.scale || "y" }))),
+    axes: [{ stroke: "#8a8f98", grid: { stroke: "#8a8f9833" }, size: 30, values: timeTicks },
+           { stroke: "#8a8f98", grid: { stroke: "#8a8f9833" }, size: 56, values: (u, v) => v.map(x => x == null ? "" : fmtNum(x, Math.abs(x) < 10 ? 2 : 0)) }]
+      .concat(series.some(s => s.scale === "r") ? [{ scale: "r", side: 1, stroke: "#8a8f98", grid: { show: false }, size: 44 }] : []),
+  }, [times].concat(series.map(s => s.data)), el);
+}
+
+async function openRun(id, quiet) {
+  const x = await getJSON(`/api/run?id=${id}`);
+  runShown = id;
+  const s = x.summary || {}, res = x.results || {};
+  const macs = x.macs || [];
+  const name = m => (x.agents || {})[m] || agentName(m);
+  const rows = [["что задано", esc(x.text || "")], ["настройка", `№${x.cid}${x.context ? ` · ${esc(x.context)}` : ""}`],
+    ["время", `${fmtTime(x.t0)} – ${fmtTime(x.t1)} (${fmtUp(x.dur_s)}) · ${esc(x.state || "")}`]];
+  if (s.pr != null) rows.push(["итог", `кандидатов ${fmtInt(s.cand)}, простых <b>${fmtInt(s.pr)}</b> (${fmtNum(s.pr_s, 2)}/с)` +
+    (s.yield ? ` · выход 1 на ${fmtNum(s.yield.per_cand, 1)} кандидатов (теория ${fmtNum(s.yield.exp_cand, 1)}), 1 на ${fmtNum(s.yield.per_surv, 2)} уцелевших (теория ${fmtNum(s.yield.exp_surv, 2)}) ${yieldZ(s.yield)}` : "") +
+    (s.temp ? ` · кристаллы ${fmtNum(s.temp[0], 0)}–${fmtNum(s.temp[1], 0)} °C` : "") +
+    ` · потеряно пакетов ${fmtInt(s.lost)}${s.udpf ? `, не ушло ${fmtInt(s.udpf)}` : ""}${s.wrst ? `, переподключений Wi-Fi ${s.wrst}` : ""}`]);
+  if (s.group) rows.push(["сообща", `циклов ${fmtInt(s.group.cycles)}, переспросов ${fmtInt(s.group.asks)}, разрывов ${fmtInt(s.group.breaks)}, перехватов ${fmtInt(s.group.resyncs)}; согласие: сравнено ${fmtInt(s.group.agree)}, расхождений ${fmtInt(s.group.split)}`]);
+  const agentRows = macs.map(m => { const r = res[m] || {}; const y = r.yield, g = r.group, sc = r.scatter, pl = r.plog || {}, v = r.verify || {};
+    return `<tr><td><b>${esc(name(m))}</b><div class="mut small">${esc(r.fw || "")}</div></td>
+      <td>${r.role === 1 ? "рассеяние" : r.mode === 1 ? "сообща" : "генерация"}</td>
+      <td class="r">${fmtInt(r.cand)}</td><td class="r"><b>${fmtInt(r.pr)}</b></td>
+      <td class="small">${y ? `1 на ${fmtNum(y.per_surv, 2)} (${fmtNum(y.exp_surv, 2)}) ${yieldZ(y)}` : "—"}</td>
+      <td>${r.temp ? `${fmtNum(r.temp[0], 0)}–${fmtNum(r.temp[1], 0)} (ср. ${fmtNum(r.temp[2], 0)}) °C` : "—"}${r.work_min != null && r.work_min < 99.9 ? `<div class="warn small">работа до ${fmtNum(r.work_min, 0)} %</div>` : ""}</td>
+      <td>${r.rssi ? `${r.rssi[0]}…${r.rssi[1]} дБм` : "—"}</td>
+      <td class="small">${r.lost != null ? `${fmtInt(r.lost)} пакетов` : "—"}${r.udpf ? `, не ушло ${fmtInt(r.udpf)}` : ""}${r.wrst ? `, <span class="bad">Wi-Fi ×${r.wrst}</span>` : ""}</td>
+      <td class="small">${g ? `мастером ${fmtInt(g.cycles_m)}, простых ${fmtInt(g.primes_m)}, разрывов ${(g.brk_pcs || 0) + (g.brk_res || 0) + (g.brk_hand || 0)}, не доставлено ${fmtInt(g.tx_fail)}` : sc ? (r.role === 1 ? `получено ${fmtInt(sc.prx)}, выпущено ${fmtInt(sc.stx)}${sc.sdrop ? `, пропущено ${sc.sdrop}` : ""}` : `объявлено ${fmtInt(sc.ann)}, услышано ${fmtInt(sc.heard)}`) : "—"}</td>
+      <td class="small">${pl.n ? `журнал: ${fmtInt(pl.n)}${pl.fail ? ` <span class="bad">не простых ${pl.fail}</span>` : " ✓"}` : ""}${v.n ? ` проверка: ${fmtInt(v.n)}${v.fail ? ` <span class="bad">✗ ${v.fail}</span>` : " ✓"}` : ""}${r.dcq ? `<div class="mut">два ядра: ждали ${fmtInt(r.dcq[0])} / ${fmtInt(r.dcq[1])}</div>` : ""}</td></tr>`; }).join("");
+  $("runView").innerHTML = `<h3 class="sub">Опыт №${x.id} <button id="runClose">закрыть</button></h3>
+    <div class="tot">${rows.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join("")}</div>
+    <div class="tw" style="margin-top:8px"><table><tr><th>агент</th><th>роль</th><th class="r">кандидатов</th><th class="r">простых</th><th>выход (теория)</th>
+      <th>кристалл</th><th>сигнал</th><th>потери</th><th>группа / рассеяние</th><th>проверка</th></tr>${agentRows}</table></div>
+    <div class="mini"><div><div class="mut small">кристалл, °C (пунктир — работа, % справа)</div><div class="box" id="rc_temp"></div></div>
+      <div><div class="mut small">простых в секунду</div><div class="box" id="rc_pr"></div></div>
+      <div><div class="mut small">кандидатов в секунду</div><div class="box" id="rc_cand"></div></div>
+      <div><div class="mut small">сигнал, дБм</div><div class="box" id="rc_rssi"></div></div></div>`;
+  $("runView").hidden = false;
+  $("runClose").onclick = () => { $("runView").hidden = true; runShown = null; };
+  const samp = x.samples || {};
+  const times = [...new Set(macs.flatMap(m => (samp[m] || []).map(p => p[0])))].sort((a, b) => a - b);
+  const col = (m, i) => { const by = new Map((samp[m] || []).map(p => [p[0], p[i]])); return times.map(t => by.has(t) ? by.get(t) : null); };
+  const ser = (i, scale) => macs.map((m, k) => ({ label: name(m), data: col(m, i), color: PALETTE[k % 8], scale }));
+  miniChart($("rc_temp"), times, ser(1).concat(macs.map((m, k) => ({ label: name(m) + " работа", data: col(m, 2), color: PALETTE[k % 8], dash: [4, 4], scale: "r" }))));
+  miniChart($("rc_pr"), times, ser(4));
+  miniChart($("rc_cand"), times, ser(5));
+  miniChart($("rc_rssi"), times, ser(3));
+  if (!quiet) $("runView").scrollIntoView();
+}
+
+async function openSession(id) {
+  const x = await getJSON(`/api/session?id=${id}`);
+  const sm = x.summary || {};
+  const rows = [["параметры", cfgText(x.cfg)], ["агенты", (x.targets_ids || []).map(i => "№" + i).join(", ")],
+    ["время", `${fmtTime(x.t_start)} – ${fmtTime(x.t_stop)}${sm.duration_s ? ` (${fmtUp(sm.duration_s)})` : ""}`]];
+  const own = Object.entries(x.own || {});
+  if (own.length) rows.push(["свои у агентов", own.map(([m, o]) => `${esc(agentName(m))}: ` + Object.entries(o).map(([k, v]) =>
+    k === "src" ? srcList(v) : (OWN_FIELDS.find(f => f.key === k) || { fmt: x => x }).fmt(v)).join(", ")).join("; ")]);
+  if (x.cfg && x.cfg.mode === 1 && sm.cycles != null) {
+    const cm = sm.cycle_ms || [0, 0, 0, 0, 0], cp = sm.comp_ms || [0, 0, 0];
+    rows.push(["сообща", `циклов ${fmtInt(sm.cycles)} (${fmtNum(sm.cycles_s, 1)}/с), простых <b>${fmtInt(sm.primes)}</b> (${fmtNum(sm.primes_s, 2)}/с)`],
+      ["когерентность", `лучшая серия без сбоев ${fmtInt(sm.streak_max)} циклов (${fmtUp((sm.streak_ms_max || 0) / 1000)}); переспросов ${fmtInt(sm.asks)}, разрывов ${fmtInt(sm.breaks)}, перехватов ${fmtInt(sm.resyncs)}`],
+      ["цикл", `${fmtNum(cm[4], 2)} мс: ждали кусочки ${fmtNum(cm[0], 2)} (счёт ${fmtNum(cp[0], 2)}), ждали отсев ${fmtNum(cm[1], 2)}, проверка ${fmtNum(cm[2], 2)} (счёт ${fmtNum(cp[2], 2)}), итог до нового мастера ${fmtNum(cm[3], 2)}; синхронизация ${fmtNum(sm.sync_pct, 1)} %`],
+      ["запас", reserveText(sm)]);
+  } else if (sm.primes != null) {
+    rows.push(["каждый сам", `кандидатов ${fmtInt(sm.cand)} (${fmtNum(sm.cand_s, 0)}/с), простых <b>${fmtInt(sm.primes)}</b> (${fmtNum(sm.primes_s, 2)}/с), ложных ${fmtInt(sm.false_primes)}`]);
+  }
+  if (sm.scatter) {
+    const c = sm.scatter;
+    rows.push(["рассеяние", `${SM_NAMES[c.sm === 4 ? 1 : c.sm] ?? "—"}${c.sh || c.sm === 4 ? " (пустышка)" : ""}` +
+      `${c.bgr ? `, фон ${c.bgr}/с (выпущено ${fmtInt(c.sbg)})` : ""}: сет A ${c.agents_a}, сет B ${c.agents_b}; объявлено ${fmtInt(c.ann)}, ` +
+      `получено сетом B ${fmtInt(c.prx)}, выпущено кадров ${fmtInt(c.stx)} (${fmtNum(c.stx_s, 1)}/с), пропущено ${fmtInt(c.sdrop)}` +
+      (c.sm === 3 ? `, эстафет в эфир ${fmtInt(c.chd)} из ${fmtInt(c.chs)}` : "") +
+      (c.lat_ms != null ? `, задержка ${fmtNum(c.lat_ms, 2)} мс` : "") + `; сет A услышал кадров рассеяния ${fmtInt(c.heard_a)}`]);
+  }
+  if (sm.verified != null) rows.push(["проверка сервером", sm.verify_fail ? `<span class="bad">✗ ${sm.verify_fail} из ${sm.verified}</span>` : `✓ ${fmtInt(sm.verified)} простых, ошибок нет`]);
+  const per = Object.values(x.results || {}).map(r => {
+    const g = r.gen || {}, gs = r.gstat || {};
+    const bt = (g.bt || []).reduce((a, b) => a + b, 0), br = (g.br || []).reduce((a, b) => a + b, 0);
+    return `<tr><td><b>№${r.id}</b></td><td class="r">${fmtInt(g.cand)}</td><td class="r">${fmtInt(g.pr)}</td>
+      <td class="r">${fmtInt(bt)} / ${fmtInt(br)}</td>
+      <td class="r">${x.cfg.mode === 1 ? `${fmtInt(gs.cycles_m)} / ${fmtInt(gs.primes_m)} / ${fmtInt(gs.found)}` : "—"}</td>
+      <td class="r">${x.cfg.mode === 1 ? `${fmtInt(gs.tx)} / ${fmtInt(gs.rx)} / ${fmtInt(gs.tx_fail)}` : "—"}</td>
+      <td class="r">${r.temp != null ? fmtNum(r.temp) + " °C" : "—"}</td></tr>`;
+  }).join("");
+  $("sessView").innerHTML = `<div class="btns" style="justify-content:space-between"><h2 style="margin:0">Сессия №${x.id} «${esc(x.name)}» · ${STATES[x.state] || x.state}</h2>
+      <span><button id="sGraphs">графики этой сессии</button> <button id="sClose">закрыть</button></span></div>
+    <div class="row3" style="margin-top:8px"><div class="tot">${rows.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join("")}</div><div>${stepsHtml(x.steps)}</div></div>
+    ${per ? `<div class="tw"><table><tr><th>агент</th><th class="r">кандидатов</th><th class="r">простых (сам)</th><th class="r">проверок МР / «составное»</th>
+      <th class="r">мастером циклов / простых / нашёл свидетеля</th><th class="r">ESP-NOW отправлено / принято / не доставлено</th><th class="r">кристалл в конце</th></tr>${per}</table></div>` : ""}`;
+  $("sessView").hidden = false;
+  $("sClose").onclick = () => { $("sessView").hidden = true; };
+  $("sGraphs").onclick = () => {
+    if (!x.t_start) return;
+    viewRange = { t0: x.t_start - 5, t1: (x.t_stop || Date.now() / 1000) + 5, id: x.id };
+    tick();
+    $("charts").scrollIntoView();
+  };
+}
+
+$("sStart").onclick = async () => {
+  const t = $("target").value;
+  try {
+    const r = await getJSON("/api/session/start", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ targets: t === "all" ? "all" : [t], cfg: formCfg(), own: ownEdit,
+                             minutes: +$("sMin").value, name: $("sName").value, quiet: $("sQuiet").checked }),
+    });
+    $("ctlStatus").innerHTML = `<span class="ok">сессия №${r.id} начата</span>`;
+    $("ctlStatus").dataset.msgUntil = Date.now() + 3000;
+  } catch (e) {
+    $("ctlStatus").innerHTML = `<span class="bad">✗ ${esc(e.message)}</span>`;
+    $("ctlStatus").dataset.msgUntil = Date.now() + 6000;
+  }
+  tick();
+};
+$("sStop").onclick = async () => {
+  try { await getJSON("/api/session/stop", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }); }
+  catch (e) { $("ctlStatus").innerHTML = `<span class="bad">✗ ${esc(e.message)}</span>`; }
+  tick();
+};
+$("stopAll").onclick = () => {
+  const t = $("target").value;
+  sendCfg(t === "all" ? "all" : [t], { ...formCfg(), run: 0 });
+};
+
+// ---------------- сырые пакеты и файлы ----------------
+async function loadRaw() {
+  if (!$("rawBox").open || !selected) return;
+  const pk = await getJSON(`/api/recent?mac=${selected}`);
+  $("rawTitle").textContent = `Последние пакеты ${agentName(selected)} (сверху свежие)`;
+  $("raw").textContent = pk.slice(-30).reverse().map(p => JSON.stringify(p)).join("\n");
+}
+async function loadFiles() {
+  if (!$("filesBox").open) return;
+  const f = await getJSON("/api/files");
+  $("files").innerHTML = f.length
+    ? f.map(x => `<tr><td><a href="/data/raw/${encodeURIComponent(x.name)}" download>${esc(x.name)}</a></td><td class="mut">${fmtBytes(x.bytes)}</td></tr>`).join("")
+    : "<tr><td class='mut'>пока пусто</td></tr>";
+}
+$("rawBox").addEventListener("toggle", loadRaw);
+$("filesBox").addEventListener("toggle", loadFiles);
+
+// ---------------- цикл ----------------
+function render() {
+  const d = last;
+  if (!d) return;
+  if (!opts) { opts = d.options; buildForm(opts); }
+  if (!selected || !d.agents.some(a => a.mac === selected))
+    selected = (d.agents.find(a => d.gen[a.mac]) || d.agents[0] || {}).mac || null;
+  renderTiles(d);
+  renderCompose(d);
+  renderFw(d);
+  renderUsb(d);
+  renderRel(d);
+  renderRest(d);
+  renderTargets(d);
+  fillForm();
+  renderCtlStatus(d);
+  renderOwn(d);
+  renderTotals(d);
+  renderSessionActive(d);
+  renderCharts(d);
+  renderGroups(d);
+  renderScatter(d);
+  renderSensors(d);
+  renderBases(d);
+  renderHist(d);
+  renderSources(d);
+}
+
+async function tick() {
+  try {
+    const w = $("window").value;
+    const range = viewRange ? `&t0=${viewRange.t0}&t1=${viewRange.t1}` : "";
+    last = await getJSON(`/api/dash?window=${w}&metrics=${METRICS.join(",")}${range}`);
+    $("viewBanner").hidden = !viewRange;
+    if (viewRange) $("viewBanner").innerHTML = `графики сессии №${viewRange.id} · <a href="#" id="liveBack">вернуться к живым</a>`;
+    $("err").textContent = "";
+    $("srv").textContent = `сервер работает ${fmtUp(last.uptime)} · принято пакетов ${fmtInt(last.rx)}${last.bad ? " · битых " + last.bad : ""} · ${new Date(last.time * 1000).toLocaleTimeString("ru-RU")}`;
+    render();
+    if (tickN++ % 5 === 0) { loadRaw(); loadFiles(); loadSessions(); loadPrograms(); loadRuns(); }
+  } catch (e) {
+    $("err").textContent = "сервер недоступен";
+  }
+}
+$("window").onchange = tick;
+document.addEventListener("click", e => {
+  if (e.target && e.target.id === "liveBack") { e.preventDefault(); viewRange = null; tick(); }
+});
+setInterval(tick, 2000);
+tick();
+</script>
+</body>
+</html>

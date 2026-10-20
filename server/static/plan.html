@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Колесо-2 · планшетка</title>
+<link rel="stylesheet" href="/ui.css">
+<style>
+/* Планшетка (docs/how_it_works.md § 12): одно главное окно на весь экран, без прокрутки —
+   колесо 1 · установка · колесо 2, внизу лента шагов. Всё, что настраивается подробно (состав и
+   подгруппы, агент, шаги, опыт, диагностика, прошивка, откуда шумы), — во всплывающих окнах;
+   отчёт — отдельным окном (/report). Опыт задаётся слоями: роль колеса, способ, шум, поле, шаг.
+   Цвет никогда не единственный признак: у каждого состояния значок и слово (Okabe-Ito в ui.css). */
+.plan { grid-template-rows:auto minmax(0, 1fr) auto auto; }
+.topbar { padding:6px 10px; }
+.topbar .row { gap:6px; }
+.topbar .btn { padding:.3em .75em; }
+.cols3 { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr); gap:8px; min-height:0; }
+.wbody { display:flex; flex-direction:column; gap:6px; overflow:auto; }
+.grp { padding:5px 7px; gap:3px; }
+.grp .chips { grid-template-columns:repeat(8, minmax(0, 1fr)); }
+.layers { display:grid; grid-template-columns:auto minmax(0, 1fr); gap:5px 8px; align-items:start; }
+.lh { color:var(--mut); font-size:.82em; padding-top:3px; white-space:nowrap; }
+.opts { display:flex; flex-wrap:wrap; gap:3px; }
+.opt { border:1px solid var(--line); border-radius:6px; padding:1px 7px; cursor:pointer; user-select:none; font-size:.86em; background:var(--card); }
+.opt.on { border-color:var(--on); background:var(--on-bg); font-weight:600; }
+.opt.on::before { content:"✓ "; }
+.opt.dis { opacity:.5; cursor:not-allowed; text-decoration:line-through; }
+.dim { opacity:.45; }
+.mid { gap:6px; }
+.pic { flex:1 1 auto; min-height:140px; }
+.pic svg { width:100%; height:100%; display:block; }
+.pic svg [data-act] { cursor:pointer; }
+.now { border:1px solid var(--line); border-radius:9px; padding:6px 10px; }
+.now .tm { font-size:2em; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.1; }
+.now .kv { display:grid; grid-template-columns:auto 1fr; gap:1px 10px; font-size:.92em; }
+.now .kv b { font-variant-numeric:tabular-nums; font-weight:600; }
+.setline { font-size:.9em; }
+.ribbon { max-height:24vh; }
+.steps { display:flex; gap:4px; overflow-x:auto; padding:2px 0 4px; }
+.step { min-width:118px; max-width:170px; border:1px solid var(--line); border-radius:8px; padding:3px 6px; font-size:.8em; flex:0 0 auto; background:var(--card); cursor:pointer; }
+.step.ctl { background:repeating-linear-gradient(135deg, transparent 0 6px, rgba(128,128,128,.12) 6px 12px); }
+.step.cur { border:2px solid var(--on); }
+.step.spoiled { border-style:dashed; }
+.step.plan { border-style:dotted; }
+.step .n { font-weight:700; }
+.step .bar { height:4px; margin-top:3px; }
+.step .bar i { height:4px; }
+.foot { display:flex; gap:14px; flex-wrap:wrap; font-size:.86em; padding:0 4px; align-items:center; }
+.dlg-h { display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:1.05em; }
+.kv2 { display:grid; grid-template-columns:auto 1fr; gap:4px 14px; align-items:center; }
+.kv2 > span:nth-child(odd) { color:var(--mut); }
+.btn.sm { padding:.12em .55em; font-size:.88em; }
+.btn.tiny { padding:0 .4em; font-size:.82em; border-radius:6px; }
+label.inl { display:inline-flex; align-items:center; gap:4px; margin:2px 10px 2px 0; }
+.fs { border:1px solid var(--line); border-radius:9px; padding:6px 10px; margin:0 0 8px; }
+.fs legend { color:var(--mut); font-size:.85em; padding:0 4px; }
+@media (max-width: 900px) {
+  .cols3 { display:flex; flex-direction:column; }
+  .pic { height:300px; flex:none; }
+  .ribbon { max-height:none; }
+}
+</style>
+</head>
+<body>
+<div class="screen plan">
+  <header class="panel topbar"><div class="row">
+    <b>Колесо-2 · планшетка</b>
+    <span id="conn" class="small"></span>
+    <span id="exp" class="small"></span>
+    <span class="sp"></span>
+    <button class="btn" id="bIdent" data-act="identmode" title="Режим «найти плату»: нажмите на агента — его светодиод замигает 20 с">◉ найти плату</button>
+    <button class="btn" data-act="compose" title="Какие агенты на каком колесе и в какой подгруппе">состав…</button>
+    <button class="btn" data-act="seq" title="Последовательность шагов: добавить, переставить, убрать">шаги…</button>
+    <button class="btn" data-act="exper" title="Длительность шага, температура, отдых, повторы, контроль">опыт…</button>
+    <button class="btn" data-act="diag" title="Проверить установку: связь, слышимость, скорость, температура, память, датчики">диагностика…</button>
+    <button class="btn" data-act="fw" title="Прошивка агентов: по Wi-Fi и новых плат по USB">прошивка…</button>
+    <button class="btn" data-act="report" title="Отчёт по программам — отдельным окном">отчёт ↗</button>
+    <button class="btn big go" id="bRun" title="Запустить последовательность шагов (лента внизу)">▶ Запустить</button>
+    <button class="btn big stop" id="bStop" title="Остановить программу после текущего шага">⏹ Остановить</button>
+    <button class="btn big stop" id="bHalt" title="Всё стоп сразу: программа, счёт у всех агентов, катушки выкл">■ Всё стоп</button>
+  </div></header>
+  <main class="cols3">
+    <section class="panel" id="w1"></section>
+    <section class="panel mid" id="mid">
+      <div class="pic" id="pic"></div>
+      <div id="now"></div>
+      <div class="row small"><span class="lh">4 · поле катушек (колесо 1, колесо 2)</span><span id="fields"></span></div>
+      <div class="row setline" id="setline"></div>
+    </section>
+    <section class="panel" id="w2"></section>
+  </main>
+  <section class="panel ribbon" id="ribbon"></section>
+  <footer class="foot" id="foot"><span class="mut">…</span></footer>
+</div>
+
+<script src="/ui.js"></script>
+<script>
+"use strict";
+// ---------- слои ----------
+const ROLES_W = [["gen", "генерация"], ["abs", "поглощение"], ["idle", "стоит"]];
+const WAYS_GEN = [["solo", "эгоистичный", "каждый из своего шума — своё простое"],
+                  ["cascade", "групповой", "шум от всех в подгруппе, свои числа из общего шума (каскад)"],
+                  ["same", "групповой · одинаковые числа", "все считают одно число — появится с прошивкой", true]];
+const WAYS_ABS = [["all", "все со всеми", "каждый поглотитель получает все простые своей группы"],
+                  ["pair", "один к одному", "агент i поглощает простые агента i — появится с прошивкой", true]];
+// Шумы: [ключ, название, откуда берётся, ещё нельзя (зачёркнут), настройка агента]
+const NOISES = [
+  ["rng", "ГСЧ чипа", "Аппаратный генератор ESP32-S3 (esp_random). При включённом радио в него подмешивается шум приёмника Wi-Fi. ~44 800 слов/с. Без радио слабее.", false, { src: 1 }],
+  ["all", "все доступные", "ГСЧ + CSI с пульса + АЦП + дрожание RC сразу, через хеш SHA-256: число случайно, даже если хорош только один из них.", false, { src: 15, ping: 0, hb: 10 }],
+  ["csi", "CSI с пульса", "«Отпечаток» радиоканала: амплитуды и фазы 64 поднесущих в каждом принятом кадре. Меняются от отражений, движения, вращения, поля. Кадры — пульс соседних агентов (ESP-NOW, 10 в секунду от каждого), роутер не нужен.", false, { src: 2, ping: 0, hb: 10 }],
+  ["csiping", "CSI с пинга роутера", "Тот же CSI, но кадры — ответы роутера на пинг 20 раз в секунду. На старом роутере пинг вызывал «зомби» (07.10) — до нового роутера осторожно.", false, { src: 2, ping: 20, hb: 1 }],
+  ["csiair", "CSI со всего эфира", "CSI с любых чужих кадров вокруг (телефоны, соседские сети) — режим прослушки. Появится с прошивкой.", true, null],
+  ["adc", "АЦП D0", "Ножка D0 висит в воздухе, подтянута к середине питания. АЦП ловит наводки (сеть 50 Гц, радио, провода рядом) и шум резисторов. ~21 000 отсчётов/с, засчитываем 1/4 бита на отсчёт. К D0 ничего не подключать.", false, { src: 4 }],
+  ["jit", "дрожание RC", "Внутренняя частота: RC-генератор 136 кГц против кварца 40 МГц — сколько тактов кварца уложилось в 8 периодов RC. Разброс — тепловой шум RC-цепи; частота сильно зависит от температуры. ~16 000 отсчётов/с, 1/4 бита на отсчёт.", false, { src: 8 }],
+  ["bc", "обратный шум (подмешать)", "ГСЧ + содержимое кадров, которые выпустили поглотители (их шум, смешанный с нашими простыми). Только в шаге, где другое колесо поглощает.", false, { src: 17 }],
+  ["bconly", "обратный шум (только он)", "Число только из кадров поглотителей — петля через эфир. Только в шаге с поглощением.", false, { src: 16 }],
+  ["acc", "акселерометр", "ICM-42688-P на ободе: младшие разряды осей — собственный шум датчика, вибрации, вращение. Появится с прошивкой и запаянным датчиком.", true, null],
+  ["mag", "магнитометр", "MLX90393: младшие разряды поля — шум датчика, поле катушки, поле Земли, наводки. Появится с прошивкой и запаянным датчиком.", true, null],
+  ["tmp", "температура кристалла", "Проверена 03.10 и отвергнута: датчик даёт шаг 1 °C и меняется раз в несколько секунд (за 4096 чтений — 2 значения), шума в нём нет. Тепловой шум уже входит в дрожание RC и АЦП; сама температура записывается в каждый шаг.", true, null]];
+const FIELDS = [["off", "выкл"], ["pp", "+ +"], ["pm", "+ −"], ["mp", "− +"], ["mm", "− −"]];
+const GEN_CFG = { solo: { mode: 0, dc: 1 }, cascade: { mode: 1, gv: 2, dc: 1, rk: 1, pw: 20 }, same: { mode: 1, gv: 2, dc: 1 } };
+const ABS_CFG = { all: { sm: 1, sh: 0 }, pair: { sm: 1, sh: 0 } };
+const WAY_SHORT = { solo: "эго", cascade: "групп", same: "одинак.", all: "все", pair: "1:1" };
+const LETTERS = "абвгдежз";                 // подгруппы на колесе — как SUBGROUPS на сервере
+const MAX_GROUP = 16;                       // предел участников группы в прошивке (MAX_GROUP)
+const DEF = { w1: { roles: ["gen"], ways: ["solo"], abs: ["all"], noise: ["rng"] },
+              w2: { roles: ["idle"], ways: ["solo"], abs: ["all"], noise: ["rng"] },
+              fields: ["off"], merge: false, minutes: 1, quiet: false, repeat: 2, shuffle: true,
+              restMode: "stable", restMin: 2, restBelow: 45, restMax: 6, tmax: 70, agentStep: false, radioOff: false,
+              idleStep: true, baseline: 0, confirm: 0, seq: [], diagMin: 1, diagId: null };
+let P = (() => { try { return { ...DEF, ...JSON.parse(localStorage.getItem("plan.v2") || "{}") }; } catch (e) { return { ...DEF }; } })();
+P.w1 = { ...DEF.w1, ...(P.w1 || {}) }; P.w2 = { ...DEF.w2, ...(P.w2 || {}) }; P.seq = Array.isArray(P.seq) ? P.seq : [];
+function save() { try { localStorage.setItem("plan.v2", JSON.stringify(P)); } catch (e) { /* без памяти */ } }
+let D = null, prog = null, progT = 0, diag = null, diagT = 0, dlg = null, identMode = false, ribbonMode = "auto";
+
+// ---------- данные ----------
+const isStatic = (d, a) => a.kind === "S" || (d.compose.slot || {})[a.mac] === "S";
+// агенты колеса — по составу на сервере, и те, что ещё не выходили на связь (видны как ✗)
+function wheelMacs(d, w) { return d.agents.filter(a => (d.compose.wheels || {})[a.mac] === w && !isStatic(d, a)).map(a => a.mac); }
+function staticList(d) { return d.agents.filter(a => isStatic(d, a)); }
+function agentById(d, m) { return d.agents.find(a => a.mac === m) || {}; }
+function nameOf(d, m) { const a = agentById(d, m); return a.id ? "№" + a.id : m.slice(-5); }
+function subOf(d, m) { const s = (d.compose.sub || {})[m]; return s && LETTERS.includes(s) ? s : "а"; }
+function byId(d) { return (p, q) => (agentById(d, p).id || 0) - (agentById(d, q).id || 0); }
+// Подгруппы колеса по порядку букв: [{letter, macs}], агенты внутри — по номерам
+function wheelGroups(d, w) {
+  const by = {};
+  for (const m of wheelMacs(d, w).sort(byId(d))) (by[subOf(d, m)] = by[subOf(d, m)] || []).push(m);
+  return [...LETTERS].filter(l => by[l]).map(l => ({ letter: l, macs: by[l] }));
+}
+// Состояние агента — значок и слово: ▶ считает / ▼ поглощает / ⏸ стоит / ◇ молчит / ◌ без радио / ✔ сдал итоги / ✗ нет связи / ◆ меряет
+function stateOf(d, a) {
+  const g = d.gen[a.mac] || {}, p = d.program, now = p && p.state === "running" && p.now;
+  // шаг без радио: агент молчит нарочно — Wi-Fi выключен до конца шага
+  if (!alive(a.status) && now && now.ro && !now.rest && prog && (prog.targets || []).includes(a.mac) && !isStatic(d, a))
+    return { icon: "◌", word: "считает без радио", cls: "mut", k: 0 };
+  if (!alive(a.status)) return { icon: "✗", word: a.status === "never" ? "не выходил на связь" : "нет связи", cls: "bad", k: 3 };
+  if (a.status === "quiet") return { icon: "◇", word: "молчит (считает)", cls: "mut", k: 0 };
+  if (isStatic(d, a)) return { icon: "◆", word: "меряет", cls: "ok", k: 0 };
+  if (!g.run && g.done && g.done === g.cid) return { icon: "✔", word: "сдал итоги", cls: "ok", k: 2 };
+  if (g.run) return g.role === 1 ? { icon: "▼", word: "поглощает", cls: "ok", k: 1 } : { icon: "▶", word: g.mode === 1 ? "считает сообща" : "считает", cls: "ok", k: 0 };
+  return { icon: "⏸", word: "стоит", cls: "mut", k: 2 };
+}
+function sensBadges(a) { const s = a.sens || 0; return (s & 1 ? ["А"] : []).concat(s & 2 ? ["М"] : []); }   // датчики: акселерометр, магнитометр
+// Чем занята подгруппа — по большинству её агентов: ▲ генерация / ▼ поглощение / ○ стоят / ✗ нет связи
+function groupState(d, macs) {
+  const cnt = [0, 0, 0, 0];
+  for (const m of macs) cnt[stateOf(d, agentById(d, m)).k]++;
+  const k = cnt.indexOf(Math.max(...cnt));
+  return { k, icon: ["▲", "▼", "○", "✗"][k], word: ["генерация", "поглощение", "стоят", "нет связи"][k] };
+}
+function plural(n, a, b, c) { const m = n % 10, h = n % 100; return `${n} ${h > 10 && h < 20 ? c : m === 1 ? a : m > 1 && m < 5 ? b : c}`; }
+function wayName(k) { return ({ solo: "эгоистичный", cascade: "групповой (каскад)", same: "групповой · одинаковые числа", all: "все со всеми", pair: "один к одному" })[k] || ""; }
+function noiseName(k) { const n = NOISES.find(x => x[0] === k); return n ? n[1] : ""; }
+function fieldName(k) { return ({ off: "выкл", pp: "+ +", pm: "+ −", mp: "− +", mm: "− −" })[k] || k; }
+function stateWord(s) { return ({ running: "идёт", done: "выполнена", stopped: "остановлена", error: "ошибка" })[s] || s; }
+function setHTML(el, html) { if (el && el._h !== html) { el._h = html; el.innerHTML = html; } }
+function optsHTML(scope, key, list, sel) {
+  return `<div class="opts" data-scope="${scope}" data-key="${key}">${list.map(([v, name, note, dis]) =>
+    `<span class="opt ${sel.includes(v) ? "on" : ""} ${dis ? "dis" : ""}" data-v="${v}" title="${esc(note || "")}">${esc(name)}</span>`).join("")}</div>`;
+}
+
+// ---------- колесо ----------
+function chipHTML(d, m) {
+  const a = agentById(d, m), st = stateOf(d, a), v = a.values || {}, g = d.gen[m] || {};
+  let cls = "";
+  if (st.icon === "✗") cls = "off";
+  else if (st.icon === "◌" || a.status === "quiet") cls = "quiet " + (g.role === 1 ? "B" : "A");
+  else if (g.run) cls = g.role === 1 ? "B" : "A";
+  const tmax = v.tmax || P.tmax, tp = v.temp != null ? Math.max(0, Math.min(100, 100 * (v.temp - 40) / Math.max(1, tmax - 40))) : 0;
+  const rate = g.run && (g.rate || {}).g_pr_s != null ? `, ${fmt(g.rate.g_pr_s, 1)} простых/с` : "";
+  return `<div class="chip ${cls}" data-act="agent" data-mac="${m}" title="${esc(nameOf(d, m))} · группа ${subOf(d, m)}: ${esc(st.word)}${v.temp != null ? ", " + fmt(v.temp, 1) + " °C" : ""}${rate}${sensBadges(a).length ? ", датчики " + sensBadges(a).join(" ") : ""}">
+    <span class="q">${st.icon}</span><span class="g">${sensBadges(a).join("")}</span><div class="n">${a.id || "?"}</div>
+    <div class="r">${v.temp != null ? fmt(v.temp, 0) + "°" : "—"}</div><div class="t"><i class="${v.temp != null && v.temp >= tmax - 2 ? "hot" : ""}" style="width:${tp}%"></i></div></div>`;
+}
+function spinHTML(d, macs) {
+  const rows = (d.wheel || []).filter(x => macs.includes(x.mac));
+  return rows.map(x => {
+    const r = (x.r_set || 450) / 1000, need = 60 / (2 * Math.PI) * Math.sqrt(9.81 / r);
+    const rev = x.last_rev || {}, k = rev.k != null ? rev.k : (x.w != null ? x.w * x.w * r / 9.81 : null);
+    const word = k == null || !x.rpm_now ? "стоит" : Math.abs(k - 1) <= 0.05 ? "✓ невесомость наверху" : k < 1 ? `◐ недобор, k ${fmt(k, 2)}` : `◐ перебор, k ${fmt(k, 2)}`;
+    return `<div class="small">⟳ №${x.id}: <b>${fmt(x.rpm_now, 1)}</b> об/мин · нужно ${fmt(need, 1)} · ${word}</div>`;
+  }).join("");
+}
+function renderWheel(d, w) {
+  const S = P["w" + w], groups = wheelGroups(d, w), macs = groups.flatMap(g => g.macs);
+  const gl = groups.map(g => {
+    const gs = groupState(d, g.macs);
+    return `<div class="card grp"><div class="row small"><b>группа ${g.letter}</b><span class="mut">${gs.icon} ${gs.word} · ${g.macs.length}</span>${g.macs.length > MAX_GROUP ? `<span class="bad">✗ больше ${MAX_GROUP}</span>` : ""}</div>
+      <div class="chips">${g.macs.map(m => chipHTML(d, m)).join("")}</div></div>`;
+  }).join("") || `<div class="mut small">агентов нет — «состав…»</div>`;
+  const gen = S.roles.includes("gen"), abs = S.roles.includes("abs");
+  setHTML($("w" + w), `<h2>Колесо ${w} <span class="small mut">${plural(macs.length, "агент", "агента", "агентов")}${groups.length > 1 ? " · " + plural(groups.length, "группа", "группы", "групп") : ""}</span>
+      <span class="sp"></span><button class="btn sm" data-act="compose" title="перенести агентов, разбить на подгруппы">состав…</button></h2>
+    <div class="fill wbody">
+      ${gl}
+      <div class="small mut">⚙ управление: нет — появится с мостами DRV8871 (катушка, шина, ток)</div>
+      ${spinHTML(d, macs)}
+      <div class="layers">
+        <span class="lh">1 · роль</span>${optsHTML("w" + w, "roles", ROLES_W, S.roles)}
+        <span class="lh ${gen ? "" : "dim"}">2 · генерация</span><div class="${gen ? "" : "dim"}">${optsHTML("w" + w, "ways", WAYS_GEN, S.ways)}</div>
+        <span class="lh ${abs ? "" : "dim"}">2 · поглощение</span><div class="${abs ? "" : "dim"}">${optsHTML("w" + w, "abs", WAYS_ABS, S.abs)}</div>
+        <span class="lh ${gen ? "" : "dim"}">3 · шум <button class="btn tiny" data-act="noises" title="откуда берётся каждый шум">ⓘ</button></span><div class="${gen ? "" : "dim"}">${optsHTML("w" + w, "noise", NOISES, S.noise)}</div>
+      </div>
+    </div>`);
+}
+
+// ---------- рисунок установки ----------
+function arcPath(cx, cy, r, a0, a1) {
+  const x0 = cx + r * Math.cos(a0), y0 = cy + r * Math.sin(a0), x1 = cx + r * Math.cos(a1), y1 = cy + r * Math.sin(a1);
+  return `M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${r} ${r} 0 ${a1 - a0 > Math.PI ? 1 : 0} 1 ${x1.toFixed(1)} ${y1.toFixed(1)}`;
+}
+function currentLayers() {
+  if (!prog || !prog.now || !prog.plan || prog.state !== "running") return null;
+  const it = prog.plan[prog.now.n - 1];
+  const st = it && (prog.program.steps || [])[it.step];
+  return st && st.layers;
+}
+function renderPic(d) {
+  const W = 640, H = 360, R = 104, cx = [140, 500], cy = 168;
+  const L = currentLayers();
+  let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="установка: два колеса с подгруппами агентов и измерители между ними">`;
+  for (const w of [1, 2]) {
+    const x0 = cx[w - 1], groups = wheelGroups(d, String(w)), macs = groups.flatMap(g => g.macs);
+    const Lw = L ? L["w" + w] : null, S = P["w" + w];
+    const role = Lw ? Lw.role : (S.roles[0] || "idle");
+    s += `<circle cx="${x0}" cy="${cy}" r="${R}" fill="none" stroke="var(--line2)" stroke-width="3"/>`;
+    s += `<text x="${x0}" y="${cy - 20}" text-anchor="middle" font-size="15" font-weight="700" fill="var(--ink)">колесо ${w}</text>`;
+    s += `<text x="${x0}" y="${cy - 5}" text-anchor="middle" font-size="10" fill="var(--mut)">${groups.length ? plural(groups.length, "группа", "группы", "групп") + ": " + groups.map(g => g.letter + "·" + g.macs.length).join(" ") : "агентов нет"}</text>`;
+    s += `<text x="${x0}" y="${cy + 11}" text-anchor="middle" font-size="12" fill="var(--ink)">${role === "gen" ? "▲ генерация" : role === "abs" ? "▼ поглощение" : "○ стоит"}${L ? "" : " (план)"}</text>`;
+    const way = Lw ? Lw.way : (role === "gen" ? S.ways[0] : role === "abs" ? S.abs[0] : "");
+    s += `<text x="${x0}" y="${cy + 26}" text-anchor="middle" font-size="11" fill="var(--mut)">${esc(wayName(way))}</text>`;
+    if (role === "gen") s += `<text x="${x0}" y="${cy + 40}" text-anchor="middle" font-size="11" fill="var(--mut)">шум: ${esc(Lw ? Lw.noise : noiseName(S.noise[0]))}</text>`;
+    const coil = L ? (L.field || {})[String(w)] : (P.fields[0] === "off" || !P.fields[0] ? "выкл" : fieldName(P.fields[0]).split(" ")[w - 1]);
+    const on = coil && coil !== "выкл";
+    s += `<text x="${x0}" y="${cy + R + 30}" text-anchor="middle" font-size="12" ${on ? 'font-weight="700"' : ""} fill="${on ? "var(--ink)" : "var(--mut)"}">катушка ${esc(coil || "выкл")}${L ? "" : " (план)"}</text>`;
+    // агенты по ободу подгруппами: дуга над каждой с буквой и занятием (по большинству агентов)
+    const n = Math.max(macs.length, 1), step = 2 * Math.PI / n;
+    let i0 = 0;
+    for (const g of groups) {
+      const i1 = i0 + g.macs.length - 1, gs = groupState(d, g.macs);
+      const a0 = -Math.PI / 2 + i0 * step - step * 0.35, a1 = -Math.PI / 2 + i1 * step + step * 0.35;
+      const dash = gs.k === 1 ? 'stroke-dasharray="6 4"' : gs.k >= 2 ? 'stroke-dasharray="2 4"' : "";
+      if (macs.length > 1) s += `<path d="${arcPath(x0, cy, R + 23, a0, a1)}" fill="none" stroke="var(--line2)" stroke-width="2" ${dash}/>`;
+      const am = (a0 + a1) / 2, lx = x0 + (R + 36) * Math.cos(am), ly = cy + (R + 36) * Math.sin(am);
+      s += `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="middle" font-size="10" fill="var(--ink)"><tspan font-weight="700">${g.letter}</tspan> ${gs.icon} ${gs.word} ${g.macs.length}</text>`;
+      g.macs.forEach((m, j) => {
+        const a = agentById(d, m), ang = -Math.PI / 2 + (i0 + j) * step, px = x0 + R * Math.cos(ang), py = cy + R * Math.sin(ang), v = a.values || {};
+        const st = stateOf(d, a), off = st.icon === "✗", badges = sensBadges(a);
+        s += `<g data-act="agent" data-mac="${m}"><title>${esc(nameOf(d, m))} · группа ${g.letter}: ${esc(st.word)}${v.temp != null ? ", " + fmt(v.temp, 1) + " °C" : ""}${badges.length ? ", датчики: " + badges.join(" ") : ""}</title>
+          <circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="16" fill="var(--card)" stroke="${off ? "var(--bad)" : "var(--ink)"}" stroke-width="1.6" ${off ? 'stroke-dasharray="3 2"' : ""}/>
+          <text x="${px.toFixed(1)}" y="${(py + 1).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--ink)">${a.id || "?"}</text>
+          <text x="${px.toFixed(1)}" y="${(py + 11).toFixed(1)}" text-anchor="middle" font-size="9" fill="var(--mut)">${st.icon}${v.temp != null ? " " + Math.round(v.temp) + "°" : ""}</text>
+          ${badges.length ? `<text x="${(px + 11).toFixed(1)}" y="${(py - 10).toFixed(1)}" font-size="8" font-weight="700" fill="var(--ink)">${badges.join("")}</text>` : ""}</g>`;
+      });
+      i0 = i1 + 1;
+    }
+  }
+  // измерители — между колёсами
+  const st = staticList(d);
+  s += `<text x="${W / 2}" y="${cy - R - 2}" text-anchor="middle" font-size="12" fill="var(--mut)">◆ измерители</text>`;
+  st.slice(0, 4).forEach((a, i) => {
+    const y = cy - R + 22 + i * 44, v = a.values || {}, sv = (d.static || []).find(x => x.mac === a.mac), vv = sv && STATIC_VERDICT[sv.verdict] || {};
+    s += `<g data-act="agent" data-mac="${a.mac}"><title>${esc(nameOf(d, a.mac))}: ${vv.word || "нет данных"}</title>
+      <rect x="${W / 2 - 42}" y="${y - 14}" width="84" height="34" rx="6" fill="var(--card)" stroke="${alive(a.status) ? "var(--ink)" : "var(--bad)"}" ${alive(a.status) ? "" : 'stroke-dasharray="3 2"'}/>
+      <text x="${W / 2}" y="${y - 1}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--ink)">№${a.id || "?"} ${sensBadges(a).join("") || "А"}${v.temp != null ? " " + Math.round(v.temp) + "°" : ""}</text>
+      <text x="${W / 2}" y="${y + 13}" text-anchor="middle" font-size="9" fill="var(--mut)">${vv.icon || "·"} ${esc(vv.word || (alive(a.status) ? "нет данных" : "нет связи"))}</text></g>`;
+  });
+  if (!st.length) s += `<text x="${W / 2}" y="${cy}" text-anchor="middle" font-size="11" fill="var(--mut)">нет</text>`;
+  setHTML($("pic"), s + `</svg>`);
+}
+
+// ---------- «сейчас»: таймер шага и живые итоги ----------
+// Простых за шаг: по общей скорости за измеренное время (счётчики агентов — накопительные, в группе — у мастера)
+function primesInRun(r) { const g = (r.gen || {})["все"] || {}; return r.t1 && r.t0 && g.pr_s != null ? Math.round(g.pr_s * (r.t1 - r.t0)) : 0; }
+function renderNow(d) {
+  const p = d.program, running = p && p.state === "running" && p.now;
+  const targets = prog && prog.targets || [], live = targets.map(m => d.gen[m] || {});
+  const prStep = live.reduce((s, g) => s + (g.run ? (g.pr || 0) : 0), 0), rate = live.reduce((s, g) => s + (g.run ? ((g.rate || {}).g_pr_s || 0) : 0), 0);
+  const prDone = prog ? (prog.runs || []).reduce((s, r) => s + primesInRun(r), 0) : 0;
+  const sv = d.static_verdict, svv = sv && STATIC_VERDICT[sv.verdict];
+  const temps = d.agents.filter(a => alive(a.status) && !isStatic(d, a) && (a.values || {}).temp != null).map(a => a.values.temp);
+  const tline = temps.length ? `${fmt(Math.min(...temps), 0)}–${fmt(Math.max(...temps), 0)} °C · предел ${P.tmax} °C` : "—";
+  const stat = `<span>статика</span><b class="${svv ? svv.cls : "mut"}">${svv ? svv.icon + " " + svv.word : "нет датчиков"}</b>`;
+  if (!running) {
+    const last = prog && (prog.runs || []).slice(-1)[0];
+    setHTML($("now"), `<div class="now"><div class="kv"><span>сейчас</span><b>${p && p.state === "running" ? "программа начинается" : "программа не идёт"}</b>
+      ${prog ? `<span>последняя</span><b>№${prog.id} «${esc((prog.program || {}).name || "")}» · ${esc(stateWord(prog.state))} · шагов ${(prog.runs || []).length} · простых ${fmt(prDone)}</b>` : ""}
+      ${last ? `<span>последний шаг</span><b>${esc(last.name)} · ${fmt(primesInRun(last))} простых</b>` : ""}
+      <span>температура</span><b>${tline}</b>${stat}</div></div>`);
+    return;
+  }
+  const n = p.now, t0 = n.t_meas || n.t0, tot = (n.minutes || 0) * 60, el2 = Math.max(0, Date.now() / 1000 - t0), left = Math.max(0, tot - el2);
+  const sum = w => live.reduce((s, g, i) => s + ((d.compose.wheels || {})[targets[i]] === w && g.run ? (g.pr || 0) : 0), 0);
+  setHTML($("now"), `<div class="now">
+    <div class="row small"><span class="mut">шаг ${n.n} из ${n.of}${n.control ? " · контроль" : ""}${n.confirm ? " · проверка" : ""}${n.agent ? " · на агенте" : ""}${n.ro ? " · ◌ без радио" : ""}</span><span class="sp"></span><span class="mut">${esc(n.name)}</span></div>
+    <div class="row"><span class="tm">${n.rest ? "⏸ отдых" : fmtDur(left)}</span><div class="bar" style="flex:1"><i style="width:${n.rest ? 0 : Math.min(100, 100 * el2 / Math.max(tot, 1))}%"></i></div></div>
+    <div class="kv"><span>простых за шаг</span><b>${fmt(prStep)} <span class="mut small">(К1 ${fmt(sum("1"))} · К2 ${fmt(sum("2"))})</span> · ${fmt(rate, 1)}/с</b>
+      <span>за программу</span><b>${fmt(prDone + prStep)} простых · шагов ${p.done} из ${p.total} · аномалий ${p.anomalies} · испорчено ${p.spoiled}</b>
+      <span>температура</span><b>${tline}</b>${stat}</div></div>`);
+}
+function restWord() { return ({ none: "без отдыха", fixed: `отдых ${P.restMin} мин`, stable: "отдых до стабилизации", below: `отдых до ${P.restBelow} °C` })[P.restMode] || ""; }
+function renderMidRows() {
+  setHTML($("fields"), optsHTML("P", "fields", FIELDS, P.fields) + `<span class="small mut">переключать начнём с мостами DRV8871 — пока поле записывается в шаг</span>`);
+  setHTML($("setline"), `<span class="mut">5 · шаг:</span> <b>${fmt(P.minutes, 1)} мин</b>${P.agentStep ? " · на агенте" : ""}${P.agentStep && P.radioOff ? " · Wi-Fi выкл, где эфир не нужен" : ""}${P.quiet ? " · молчание" : ""}
+    · греться до <b>${P.tmax} °C</b> · ${restWord()} · повторов ${P.repeat}${P.shuffle ? " · случайно" : ""}${P.idleStep ? " · контроль «все стоят»" : ""}${P.baseline ? ` · эталон ${P.baseline} мин` : ""}
+    <span class="sp"></span><button class="btn sm" data-act="exper">изменить…</button>`);
+}
+
+// ---------- матрица → шаги ----------
+function* product(lists) {
+  if (!lists.length) { yield []; return; }
+  for (const x of lists[0]) for (const rest of product(lists.slice(1))) yield [x, ...rest];
+}
+function noiseCfg(k) { const n = NOISES.find(x => x[0] === k); return n && n[4] ? { ...n[4] } : { src: 1 }; }
+const avail = (list, sel) => sel.filter(k => { const it = list.find(x => x[0] === k); return it && !it[3] && (list !== NOISES || it[4]); });
+// Группы шага: генераторы — каждая подгруппа колеса своей группой (или оба колеса одной, если «одна группа»);
+// поглотители другого колеса — к группе с той же буквой, иначе по кругу между группами генераторов
+function makeStep(d, r1, r2, w1, w2, n1, n2, f) {
+  const G1 = wheelGroups(d, "1"), G2 = wheelGroups(d, "2");
+  const layers = { w1: { role: r1, way: w1 || "", noise: n1 ? noiseName(n1) : "" }, w2: { role: r2, way: w2 || "", noise: n2 ? noiseName(n2) : "" },
+                   field: { "1": f === "off" ? "выкл" : f[0] === "p" ? "+" : "−", "2": f === "off" ? "выкл" : f[1] === "p" ? "+" : "−" } };
+  const genGroup = (macs, way, noise, label) => {
+    const own = {};
+    macs.forEach(m => own[m] = { role: 0 });
+    return { targets: macs.slice(), cfg: { ...GEN_CFG[way], ...noiseCfg(noise), pl: 1, tmax: P.tmax }, own, label };
+  };
+  const attachAbs = (GG, Gabs, absWay) => {
+    const byLetter = Object.fromEntries(GG.map(g => [g.letter, g]));
+    Gabs.forEach((s, j) => {
+      const tgt = (GG.length > 1 && byLetter[s.letter]) || GG[j % GG.length];
+      s.macs.forEach(m => { tgt.targets.push(m); tgt.own[m] = { role: 1 }; });
+      Object.assign(tgt.cfg, ABS_CFG[absWay || "all"]);
+    });
+  };
+  const genWheel = (w, G, way, noise) => G.map(g => ({ ...genGroup(g.macs, way, noise, `колесо ${w}${G.length > 1 ? " · группа " + g.letter : ""} · генерация`), letter: g.letter }));
+  let groups = [];
+  if (r1 === "gen" && r2 === "gen") {
+    if (P.merge) groups = [genGroup(G1.concat(G2).flatMap(g => g.macs), w1, n1, "колёса 1+2 · генерация")];
+    else groups = genWheel(1, G1, w1, n1).concat(genWheel(2, G2, w2, n2));
+  } else if (r1 === "gen") {
+    groups = genWheel(1, G1, w1, n1);
+    if (r2 === "abs") { attachAbs(groups, G2, w2); groups.forEach(g => g.label += ", колесо 2 поглощает"); }
+  } else if (r2 === "gen") {
+    groups = genWheel(2, G2, w2, n2);
+    if (r1 === "abs") { attachAbs(groups, G1, w1); groups.forEach(g => g.label += ", колесо 1 поглощает"); }
+  }
+  groups = groups.filter(g => g.targets.length).map(g => ({ targets: g.targets, cfg: g.cfg, own: g.own, label: g.label }));
+  const sh = s => s === "gen" ? "ген" : s === "abs" ? "погл" : "стоит";
+  const gr = (r, G) => r === "gen" && G.length > 1 && !(P.merge && r1 === "gen" && r2 === "gen") ? `×${G.length}гр` : "";
+  const name = `К1 ${sh(r1)}${w1 ? "·" + WAY_SHORT[w1] : ""}${n1 ? "·" + n1 : ""}${gr(r1, G1)} | К2 ${sh(r2)}${w2 ? "·" + WAY_SHORT[w2] : ""}${n2 ? "·" + n2 : ""}${gr(r2, G2)} | поле ${fieldName(f)}`;
+  return { name, minutes: P.minutes, quiet: P.quiet, control: false, groups, layers, coil: layers.field };
+}
+function idleStep(d) {
+  const m = wheelMacs(d, "1").concat(wheelMacs(d, "2"));
+  return { name: "все стоят (контроль статики)", minutes: P.minutes, quiet: P.quiet, control: true,
+           groups: [{ targets: m, cfg: { mode: 0, dc: 0, run: 0 }, own: {}, label: "все стоят" }],
+           layers: { w1: { role: "idle", way: "", noise: "" }, w2: { role: "idle", way: "", noise: "" }, field: { "1": "выкл", "2": "выкл" } }, coil: { "1": "выкл", "2": "выкл" } };
+}
+function combos(d, first) {
+  const roles1 = wheelMacs(d, "1").length ? P.w1.roles : ["idle"], roles2 = wheelMacs(d, "2").length ? P.w2.roles : ["idle"];
+  const out = [], seen = new Set();
+  const pick = l => first ? l.slice(0, 1) : l;
+  for (const [r1, r2, f] of product([pick(roles1), pick(roles2), pick(P.fields.length ? P.fields : ["off"])])) {
+    if (r1 === "idle" && r2 === "idle") continue;
+    if ((r1 === "abs" && r2 !== "gen") || (r2 === "abs" && r1 !== "gen")) continue;   // поглощать нечего
+    const ways1 = r1 === "gen" ? avail(WAYS_GEN, P.w1.ways) : r1 === "abs" ? avail(WAYS_ABS, P.w1.abs) : [""];
+    const ways2 = r2 === "gen" ? avail(WAYS_GEN, P.w2.ways) : r2 === "abs" ? avail(WAYS_ABS, P.w2.abs) : [""];
+    const noise1 = r1 === "gen" ? avail(NOISES, P.w1.noise) : [""], noise2 = r2 === "gen" ? avail(NOISES, P.w2.noise) : [""];
+    for (const [w1, w2, n1, n2] of product([pick(ways1), pick(ways2), pick(noise1), pick(noise2)])) {
+      if (!(r1 === "abs" || r2 === "abs") && ((n1 || "").startsWith("bc") || (n2 || "").startsWith("bc"))) continue;   // обратный шум — только с поглотителем
+      if ((r1 === "gen" && (!w1 || !n1)) || (r2 === "gen" && (!w2 || !n2))) continue;
+      const st = makeStep(d, r1, r2, w1, w2, n1, n2, f);
+      if (!st.groups.length || seen.has(st.name)) continue;
+      seen.add(st.name);
+      out.push(st);
+    }
+  }
+  return out;
+}
+function markControls(steps) {
+  const fieldVaries = new Set(steps.map(s => s.coil ? s.coil["1"] + s.coil["2"] : "")).size > 1;
+  if (fieldVaries) for (const s of steps) if (s.coil && s.coil["1"] === "выкл" && s.coil["2"] === "выкл" && s.groups.length && !s.name.startsWith("все стоят")) s.control = true;
+  return steps;
+}
+// Проверка групп шага: не больше MAX_GROUP в сете (предел прошивки), не больше 20 собеседников у агента (ESP-NOW)
+function checkSteps(steps) {
+  for (const s of steps) for (const g of s.groups) {
+    if (g.targets.length > 20) return `«${g.label}»: ${g.targets.length} агентов — предел ESP-NOW 20 собеседников`;
+    const gens = g.targets.filter(m => !(g.own[m] || {}).role).length, abs = g.targets.length - gens;
+    if (gens > MAX_GROUP || abs > MAX_GROUP) return `«${g.label}»: ${Math.max(gens, abs)} в сете — предел прошивки ${MAX_GROUP}`;
+  }
+  return "";
+}
+function addCurrent() {
+  if (!D) return;
+  const st = combos(D, true)[0];
+  if (!st) { note("✗ из текущих настроек шаг не собирается (поглощению нужна генерация на другом колесе)", "bad"); return; }
+  const bad = checkSteps([st]); if (bad) { note("✗ " + bad, "bad"); return; }
+  P.seq.push(st); save(); ribbonMode = "plan"; renderAll(); note(`✓ шаг ${P.seq.length}: ${st.name}`, "ok");
+}
+function addMatrix() {
+  if (!D) return;
+  const steps = combos(D, false); if (P.idleStep) steps.push(idleStep(D)); markControls(steps);
+  const bad = checkSteps(steps); if (bad) { note("✗ " + bad, "bad"); return; }
+  P.seq = P.seq.concat(steps); save(); ribbonMode = "plan"; renderAll(); note(`✓ добавлено ${steps.length} шагов`, "ok");
+}
+function restSeconds() { return P.restMode === "fixed" ? P.restMin * 60 : P.restMode === "none" ? 0 : Math.min(P.restMax * 60, 180); }
+function seqEstimate() { return P.seq.length * P.repeat * (P.minutes * 60 + 10 + restSeconds()) + P.baseline * 60; }
+
+// ---------- лента шагов ----------
+function layText(L, coil) {
+  const ri = k => k === "gen" ? "▲" : k === "abs" ? "▼" : "○";
+  return L ? `К1 ${ri(L.w1.role)}${L.w1.way ? " " + WAY_SHORT[L.w1.way] : ""} · К2 ${ri(L.w2.role)}${L.w2.way ? " " + WAY_SHORT[L.w2.way] : ""}<br><span class="mut">${esc(L.w1.noise || L.w2.noise || "—")}</span><br><span class="mut">поле ${coil ? esc(coil["1"] + " " + coil["2"]) : "—"}</span>` : "";
+}
+async function loadProg(d) {
+  const p = d.program;
+  const id = p && p.id ? p.id : (prog && prog.id) || null;
+  if (!id) { if (!prog) { try { const l = await getJSON("/api/programs"); if (l.list && l.list[0]) prog = await getJSON(`/api/program?id=${l.list[0].id}`); } catch (e) { /* нет */ } } return; }
+  if (Date.now() - progT < 4000 && prog && prog.id === id) return;
+  progT = Date.now();
+  try { prog = await getJSON(`/api/program?id=${id}`); } catch (e) { /* дальше */ }
+}
+function renderRibbon(d) {
+  const running = prog && prog.state === "running";
+  const mode = ribbonMode === "auto" ? (running ? "prog" : P.seq.length ? "plan" : "prog") : ribbonMode;
+  const nm = combos(d, false).length + (P.idleStep ? 1 : 0);
+  let head = `<h2>Лента шагов <span class="seg"><button class="${mode === "plan" ? "sel" : ""}" data-act="rmode" data-m="plan">план (${P.seq.length})</button><button class="${mode === "prog" ? "sel" : ""}" data-act="rmode" data-m="prog">${prog ? `программа №${prog.id}` : "программа"}</button></span>`;
+  let body = "";
+  if (mode === "plan") {
+    head += `<span class="small mut">${P.seq.length ? `${P.seq.length} × повторов ${P.repeat} ≈ ${fmtDur(seqEstimate())} · не запущен` : "пусто — добавьте шаги"}</span>`;
+    body = P.seq.map((s, i) => `<div class="step plan ${s.control ? "ctl" : ""}" data-act="seq" title="${esc(s.name)}"><div class="n">${i + 1}${s.control ? " · контроль" : ""}</div><div>${layText(s.layers, s.coil) || esc(s.name)}</div><div class="mut">${plural(s.groups.length, "группа", "группы", "групп")} · ${fmt(P.minutes, 1)} мин</div></div>`).join("")
+      || `<span class="mut small">Отметьте слои на колёсах и нажмите «＋ шаг» или «⇊ вся матрица»; порядок и контроль — в «шаги…».</span>`;
+  } else if (!prog) {
+    body = `<span class="mut small">программа не запускалась</span>`;
+  } else {
+    const steps = (prog.program || {}).steps || [], plan = prog.plan || [], runs = prog.runs || [], now = prog.now;
+    head += `<span class="small mut">«${esc((prog.program || {}).name || "")}» · ${stateWord(prog.state)} · ${runs.length} из ${plan.length} шагов · простых ${fmt(runs.reduce((s, r) => s + primesInRun(r), 0))} · аномалий ${Object.keys(prog.anomalies || {}).length}</span>`;
+    body = plan.map((it, i) => {
+      const st = steps[it.step] || {}, r = runs[i], cur = running && now && now.n - 1 === i;
+      let res;
+      if (r) {
+        const g = (r.gen || {})["все"] || {}, sv = r.watch && STATIC_VERDICT[r.watch.verdict];
+        res = `<div>${r.spoiled ? `<span class="bad">✗ испорчен</span>` : `<b>${fmt(primesInRun(r))}</b> пр · ${fmt(g.pr_s, 1)}/с`}${sv ? ` <span class="${sv.cls}" title="${esc(sv.word)}">${sv.icon}</span>` : ""}${prog.anomalies && prog.anomalies[String(i)] ? ` <span class="bad">аномалия</span>` : ""}</div>`;
+      } else if (cur) {
+        const t0 = now.t_meas || now.t0, tot = (now.minutes || 0) * 60, el2 = Math.max(0, Date.now() / 1000 - t0);
+        res = now.rest ? `<div class="warn">⏸ отдых</div>` : `<div>▶ ${fmtDur(Math.max(0, tot - el2))}</div><div class="bar"><i style="width:${Math.min(100, 100 * el2 / Math.max(tot, 1))}%"></i></div>`;
+      } else res = `<div class="mut">ждёт</div>`;
+      return `<div class="step ${st.control ? "ctl" : ""} ${cur ? "cur" : ""} ${r && r.spoiled ? "spoiled" : ""}" data-act="report" title="${esc(st.name || "")}"><div class="n">${i + 1}${st.control ? " · контроль" : ""}${it.confirm ? " · проверка" : ""}</div><div>${layText(st.layers, st.coil) || esc(st.name || "")}</div>${res}</div>`;
+    }).join("");
+  }
+  head += `<span class="sp"></span><button class="btn sm" data-act="qadd" title="Один шаг из первых отмеченных вариантов на каждом колесе">＋ шаг</button>
+    <button class="btn sm" data-act="qmatrix" title="Все сочетания отмеченных вариантов${P.idleStep ? " и контрольный шаг «все стоят»" : ""}">⇊ вся матрица (${nm})</button>
+    <button class="btn sm" data-act="seq">шаги…</button></h2>`;
+  const el = $("ribbon"), html = head + `<div class="steps">${body}</div>`;
+  if (el._h !== html) { el._h = html; el.innerHTML = html; const c = el.querySelector(".step.cur"); if (c) c.scrollIntoView({ inline: "center", block: "nearest" }); }
+}
+
+// ---------- всплывающие окна ----------
+function openDlg(kind, arg) {
+  if (dlg) dlg.bg.remove();
+  const el = sheet(`<div class="dlg-h"><b id="dlgT"></b><span class="sp"></span><button class="btn" data-close>✕ закрыть</button></div><div id="dlgB"></div>`, () => { dlg = null; });
+  dlg = { kind, arg, el, bg: el.parentNode, built: false };
+  renderDlg();
+}
+function closeDlg() { if (dlg) { dlg.bg.remove(); dlg = null; } }
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDlg(); });
+function renderDlg() {
+  if (!dlg) return;
+  const T = dlg.el.querySelector("#dlgT"), B = dlg.el.querySelector("#dlgB");
+  if (dlg.kind === "exper") {                       // форма: строится раз, иначе перерисовка сбивала бы ввод
+    if (!dlg.built) { T.textContent = "Опыт: шаг, температура, порядок"; B.innerHTML = experForm(); bindExper(B); dlg.built = true; }
+    syncExper(B);
+    return;
+  }
+  if (!D) return;
+  const r = DLG[dlg.kind](D, dlg.arg);
+  T.textContent = r.title;
+  setHTML(B, r.html);
+}
+const DLG = {
+  agent: (d, m) => {
+    const a = agentById(d, m), v = a.values || {}, g = d.gen[m] || {}, st = stateOf(d, a), w = (d.compose.wheels || {})[m] || "";
+    const sens = sensBadges(a).map(b => b === "А" ? "акселерометр ICM-42688-P" : "магнитометр MLX90393").join(", ") || "нет";
+    return { title: `Агент ${nameOf(d, m)}`, html: `<div class="kv2">
+      <span>состояние</span><b class="${st.cls}">${st.icon} ${esc(st.word)}</b>
+      <span>колесо</span><span class="seg">${["", "1", "2"].map(x => `<button class="${w === x ? "sel" : ""}" data-act="wheel" data-mac="${m}" data-w="${x}">${x ? "колесо " + x : "нет"}</button>`).join("")}</span>
+      ${w && !isStatic(d, a) ? `<span>подгруппа</span><span class="seg">${[...LETTERS].map(l => `<button class="${subOf(d, m) === l ? "sel" : ""}" data-act="sub" data-mac="${m}" data-s="${l}">${l}</button>`).join("")}</span>` : ""}
+      <span>температура</span><b>${v.temp != null ? fmt(v.temp, 1) + " °C" : "—"} · предел ${v.tmax || "—"} °C · работа ${v.work != null ? fmt(v.work, 0) + " %" : "—"}</b>
+      <span>счёт</span><b>${g.run ? `${g.role === 1 ? "поглощает" : g.mode === 1 ? "сообща" : "сам"} · простых ${fmt(g.pr)} · ${fmt((g.rate || {}).g_pr_s, 1)}/с` : g.done && g.done === g.cid ? `стоит, шаг ${g.done} сдан` : "стоит"}${g.dur ? ` · шаг на агенте ${g.dur} с${g.ro ? ", радио выкл" : ""}` : ""}${g.roff ? ` · радио молчало ${g.roff} с` : ""}</b>
+      <span>связь</span><b>${v.rssi != null ? v.rssi + " дБм" : "—"} · потери ${fmt(a.loss_pct || 0, 1)} % · перезагрузок ${a.reboots || 0}</b>
+      <span>память</span><b>${v.heap != null ? fmt(v.heap / 1000, 0) + " КБ свободно" : "—"}</b>
+      <span>датчики</span><b>${esc(sens)}</b>
+      <span>прошивка</span><b>${esc(a.fw || "—")}</b>
+      <span>MAC</span><b>${esc(m)}</b></div>
+      <div class="row" style="margin-top:10px"><button class="btn go" data-act="ident" data-mac="${m}">◉ найти — светодиод мигнёт 20 с</button>
+      <span class="small mut">роль (генератор / измеритель) — на пульте, «Агенты»</span></div>` };
+  },
+  compose: d => {
+    const ags = d.agents.filter(a => !isStatic(d, a)).sort((p, q) => (p.id || 0) - (q.id || 0));
+    const rows = ags.map(a => {
+      const st = stateOf(d, a), w = (d.compose.wheels || {})[a.mac] || "", v = a.values || {};
+      return `<tr><td><b>${nameOf(d, a.mac)}</b></td><td><span class="${st.cls}">${st.icon}</span> ${esc(st.word)}</td><td class="num">${v.temp != null ? fmt(v.temp, 0) + "°" : "—"}</td>
+        <td><span class="seg">${["", "1", "2"].map(x => `<button class="${w === x ? "sel" : ""}" data-act="wheel" data-mac="${a.mac}" data-w="${x}">${x || "—"}</button>`).join("")}</span></td>
+        <td>${w ? `<span class="seg">${[...LETTERS].map(l => `<button class="${subOf(d, a.mac) === l ? "sel" : ""}" data-act="sub" data-mac="${a.mac}" data-s="${l}">${l}</button>`).join("")}</span>` : `<span class="mut">—</span>`}</td>
+        <td><button class="btn tiny" data-act="ident" data-mac="${a.mac}">◉ найти</button></td></tr>`;
+    }).join("");
+    const split = w => `колесо ${w}: ${[1, 2, 3, 4].map(n => `<button class="btn sm" data-act="split" data-w="${w}" data-n="${n}">${n === 1 ? "одна группа" : "на " + n}</button>`).join(" ")}`;
+    const st = staticList(d);
+    return { title: "Состав колёс и подгруппы", html: `<div class="small mut" style="margin-bottom:6px">Колесо — где агент стоит. Буква — его подгруппа: на шаге каждая подгруппа считает своей группой (по 1, по 2 … до ${MAX_GROUP}, можно разное число); поглотители другого колеса идут к группе с той же буквой.</div>
+      <div class="row" style="margin-bottom:6px">разбить поровну по номерам — ${split("1")} · ${split("2")}</div>
+      <table class="t"><tr><th>агент</th><th>сейчас</th><th>°C</th><th>колесо</th><th>подгруппа</th><th></th></tr>${rows}</table>
+      <div class="small" style="margin-top:8px"><span class="mut">◆ измерители (статика):</span> ${st.length ? st.map(a => `${nameOf(d, a.mac)} ${stateOf(d, a).icon}`).join(", ") : "нет"}</div>` };
+  },
+  seq: d => {
+    const rows = P.seq.map((s, i) => `<tr class="${s.control ? "ctl" : ""}"><td>${i + 1}</td><td>${esc(s.name)}<div class="small mut">${s.groups.map(g => `${esc(g.label)} — ${g.targets.map(m => nameOf(d, m)).join(" ")}`).join("; ")}</div></td>
+      <td><label class="inl"><input type="checkbox" data-act="ctl" data-i="${i}" ${s.control ? "checked" : ""}> контроль</label></td>
+      <td><button class="btn tiny" data-act="mv" data-i="${i}" data-d="-1" title="выше">▲</button> <button class="btn tiny" data-act="mv" data-i="${i}" data-d="1" title="ниже">▼</button> <button class="btn tiny" data-act="rm" data-i="${i}" title="убрать">✗</button></td></tr>`).join("");
+    return { title: `Шаги программы · ${P.seq.length ? `${P.seq.length} × повторов ${P.repeat} ≈ ${fmtDur(seqEstimate())}` : "пусто"}`, html: `<div class="row" style="margin-bottom:6px">
+        <button class="btn" data-act="qadd">＋ шаг из текущих настроек</button><button class="btn" data-act="qmatrix">⇊ вся матрица (${combos(d, false).length + (P.idleStep ? 1 : 0)})</button>
+        <button class="btn" data-act="qclear">очистить</button><span class="small mut">контрольные шаги (штриховка) — для сравнения; «все стоят» меряет только статику</span></div>
+      ${P.seq.length ? `<table class="t"><tr><th>№</th><th>шаг · группы и агенты</th><th></th><th></th></tr>${rows}</table>` : `<div class="mut">шагов нет</div>`}` };
+  },
+  diag: d => ({ title: "Диагностика установки", html: diagHTML(d) }),
+  fw: d => {
+    const boards = ((d.usb || {}).boards || []).filter(b => b.status !== "online");
+    const vers = [...new Set(d.agents.filter(a => a.fw).map(a => a.fw))];
+    return { title: "Прошивка агентов", html: `<div class="kv2"><span>сборка на сервере</span><b>${esc((d.fw || {}).version || "—")}</b>
+      <span>на платах</span><b>${d.agents.filter(a => a.fw).map(a => `${nameOf(d, a.mac)} ${esc(a.fw)}`).join(" · ") || "—"}</b>
+      <span>платы на USB</span><b>${((d.usb || {}).boards || []).map(b => `${esc(b.port)} ${b.id ? "№" + b.id : "новая"} (${b.status === "online" ? "✓ на связи" : b.status === "new" ? "★ новая" : "✗ не на связи"})`).join(" · ") || "нет"}</b></div>
+      <div class="row" style="margin-top:10px"><button class="btn" data-act="ota">обновить всех на связи по Wi-Fi</button>
+      ${boards.length ? `<button class="btn" data-act="usb">прошить по USB: ${boards.map(b => esc(b.port)).join(", ")}</button>` : ""}
+      ${vers.length > 1 ? `<span class="warn">◐ на платах разные сборки</span>` : ""}</div>
+      <div class="small mut" style="margin-top:8px">Роли (генератор / измеритель), свои параметры агентов — на <a href="/pult" target="pult">пульте</a>; оси статических — в <a href="/watch" target="watch">наблюдении</a>.</div>` };
+  },
+  noises: () => ({ title: "Откуда берётся каждый шум", html: NOISES.map(n => `<div style="margin:5px 0">${n[3] ? "✗ " : "✓ "}<b>${esc(n[1])}</b>${n[3] ? ` <span class="mut">(пока нельзя)</span>` : ""} — ${esc(n[2])}</div>`).join("")
+    + `<div class="small mut" style="margin-top:8px">Несколько источников смешиваются хешем SHA-256: в каждый блок каждый отмеченный источник кладёт не меньше 256 зачтённых бит. Подробно — docs/randomness.md.</div>` }),
+};
+function experForm() {
+  return `<fieldset class="fs"><legend>5 · шаг</legend>
+      <label class="inl">длительность, мин <input data-k="minutes" type="number" step="0.5" min="0.5" max="60" style="width:4.5em"></label>
+      <label class="inl"><input data-k="quiet" data-t="b" type="checkbox"> молчание телеметрии во время шага</label><br>
+      <label class="inl" title="длительность уходит агенту: он сам останавливает счёт, возвращает телеметрию и сдаёт итоги; сервер ждёт «сдали все»"><input data-k="agentStep" data-t="b" type="checkbox"> шаг на агенте: сам останавливается и сдаёт итоги</label>
+      <label class="inl" title="Wi-Fi выключается на всё время шага, если эфир шагу не нужен: каждый сам, без поглощения, шум не из эфира"><input data-k="radioOff" data-t="b" type="checkbox"> Wi-Fi выкл на шаге, если эфир не нужен <span class="mut small">(только эгоистичный без поглощения; ГСЧ без радио слабее)</span></label></fieldset>
+    <fieldset class="fs"><legend>температура</legend>
+      <label class="inl">греться до <input data-k="tmax" type="number" min="40" max="70" style="width:3.5em"> °C <span class="mut small">(регулятор агента держит на 1° ниже)</span></label><br>
+      <label class="inl">отдых перед шагом <select data-k="restMode" data-t="s"><option value="none">без отдыха</option><option value="fixed">столько минут</option><option value="stable">до стабилизации температуры</option><option value="below">пока не остынут до …</option></select></label>
+      <label class="inl" data-show="fixed"><input data-k="restMin" type="number" min="0.5" max="60" step="0.5" style="width:3.5em"> мин</label>
+      <label class="inl" data-show="below"><input data-k="restBelow" type="number" min="20" max="80" style="width:3.5em"> °C</label>
+      <label class="inl" data-show="stable below">не дольше <input data-k="restMax" type="number" min="1" max="60" style="width:3.5em"> мин</label></fieldset>
+    <fieldset class="fs"><legend>порядок и контроль</legend>
+      <label class="inl">повторов <input data-k="repeat" type="number" min="1" max="50" style="width:3.5em"></label>
+      <label class="inl"><input data-k="shuffle" data-t="b" type="checkbox"> случайный порядок</label>
+      <label class="inl"><input data-k="merge" data-t="b" type="checkbox"> оба колеса генерируют — одна группа</label><br>
+      <label class="inl"><input data-k="idleStep" data-t="b" type="checkbox"> в матрицу — контрольный шаг «все стоят» (только статика)</label><br>
+      <label class="inl">эталон шума статических перед началом, мин <input data-k="baseline" type="number" min="0" max="60" style="width:3.5em"></label>
+      <label class="inl">проверочных пар на аномалию <input data-k="confirm" type="number" min="0" max="10" style="width:3em"></label></fieldset>
+    <div class="small mut">Изменения сохраняются сразу и действуют на шаги, которые запускаются после этого; поле катушек — в середине главного окна.</div>`;
+}
+function bindExper(B) {
+  B.querySelectorAll("[data-k]").forEach(i => i.addEventListener("change", () => {
+    const k = i.dataset.k, t = i.dataset.t;
+    P[k] = t === "b" ? i.checked : t === "s" ? i.value : +i.value;
+    if (k === "agentStep" && !P.agentStep) P.radioOff = false;
+    save(); renderAll();
+  }));
+}
+function syncExper(B) {
+  B.querySelectorAll("[data-k]").forEach(i => {
+    if (document.activeElement === i) return;
+    if (i.dataset.t === "b") i.checked = !!P[i.dataset.k]; else i.value = P[i.dataset.k];
+  });
+  B.querySelector('[data-k="radioOff"]').disabled = !P.agentStep;
+  B.querySelectorAll("[data-show]").forEach(l => { l.hidden = !l.dataset.show.split(" ").includes(P.restMode); });
+}
+
+// ---------- диагностика установки ----------
+// Один шаг: все агенты колёс считают сообща в своих подгруппах (каскад, ГСЧ), потом по каждому: связь,
+// кого из своей группы слышит по пульсу, скорость против своей группы, температура, память, датчики.
+function diagSteps(d) {
+  const groups = [];
+  for (const w of ["1", "2"]) for (const g of wheelGroups(d, w)) {
+    const own = {}; g.macs.forEach(m => own[m] = { role: 0 });
+    groups.push({ targets: g.macs.slice(), cfg: { ...GEN_CFG[g.macs.length > 1 ? "cascade" : "solo"], src: 1, pl: 0, tmax: P.tmax, hb: 5 }, own, label: `колесо ${w} · группа ${g.letter}` });
+  }
+  return groups.length ? [{ name: "диагностика", minutes: P.diagMin, quiet: false, control: false, groups,
+                            layers: { w1: { role: "gen", way: "cascade", noise: "ГСЧ чипа" }, w2: { role: "gen", way: "cascade", noise: "ГСЧ чипа" }, field: { "1": "выкл", "2": "выкл" } },
+                            coil: { "1": "выкл", "2": "выкл" } }] : [];
+}
+async function diagStart() {
+  const steps = diagSteps(D);
+  if (!steps.length) { note("✗ на колёсах нет агентов", "bad"); return; }
+  const bad = checkSteps(steps); if (bad) { note("✗ " + bad, "bad"); return; }
+  if (!confirm(`Диагностика: все агенты колёс считают ${P.diagMin} мин в своих подгруппах (${steps[0].groups.map(g => g.label + " — " + g.targets.length).join("; ")}). Начать?`)) return;
+  try {
+    const r = await postJSON("/api/program/start", { program: { name: "диагностика", baseline_min: 0, repeat: 1, shuffle: false, settle_s: 10, rest: 0, z: 4, confirm: 0, redo: 0,
+                                                              metrics: ["pr_s"], targets: "all", steps } });
+    P.diagId = r.id; save(); diag = null; diagT = 0; progT = 0;
+    note(`✓ диагностика №${r.id} началась`, "ok"); await refresh();
+  } catch (e) { note("✗ " + e.message, "bad"); }
+}
+async function loadDiag() {
+  if (!P.diagId) return;
+  if (diag && diag.id === P.diagId && diag.state !== "running" && Date.now() - diagT < 60000) return;
+  if (Date.now() - diagT < 4000) return;
+  diagT = Date.now();
+  try { diag = await getJSON(`/api/program?id=${P.diagId}`); } catch (e) { /* дальше */ }
+}
+function diagRows(d) {
+  const run = diag && (diag.runs || [])[0], gen = run && run.gen || {}, groups = (diag.program.steps[0] || {}).groups || [];
+  const rows = [];
+  for (const g of groups) {
+    const ids = g.targets.map(m => agentById(d, m).id).filter(Boolean);
+    const rates = g.targets.map(m => (gen[nameOf(d, m)] || {}).pr_s).filter(x => x != null).sort((a, b) => a - b);
+    const med = rates.length ? rates[Math.floor(rates.length / 2)] : null;
+    for (const m of g.targets) {
+      const a = agentById(d, m), v = a.values || {}, st = stateOf(d, a), gm = gen[nameOf(d, m)] || {};
+      const bad = [], warn = [];
+      if (!alive(a.status)) bad.push("нет связи");
+      if ((run.not_confirmed || []).includes(m)) bad.push("не принял настройку");
+      if ((run.not_seen || []).includes(m)) bad.push("не отдал итоги");
+      // слышимость в своей группе — по пульсу ESP-NOW: кого из группы слышал за последние полминуты и с каким сигналом
+      const nb = a.nbr && a.nbr.nb || [], mates = ids.filter(i => i !== a.id);
+      const heard = mates.filter(i => nb.some(x => x[0] === i && x[2] <= 30)), weak = nb.filter(x => mates.includes(x[0]) && x[2] <= 30 && x[1] < -80).length;
+      let hear = mates.length ? `${heard.length} из ${mates.length}` : "один в группе";
+      if (mates.length && !a.nbr) hear = "нет данных";
+      else if (mates.length && heard.length < mates.length) (heard.length ? warn : bad).push(`слышит ${heard.length} из ${mates.length}`);
+      if (weak) warn.push(`слабый сигнал от ${weak}`);
+      if (v.rssi != null && v.rssi < -80) warn.push(`роутер слабо (${v.rssi} дБм)`);
+      if (a.loss_pct > 5) warn.push(`потери ${fmt(a.loss_pct, 1)} %`);
+      if (gm.pr_s != null) { if (gm.pr_s === 0) bad.push("простых нет"); else if (med && gm.pr_s < 0.6 * med) warn.push("медленнее группы"); }
+      else if (run && run.t1 && alive(a.status)) warn.push("нет итогов");
+      if (v.temp != null && v.temp >= (v.tmax || P.tmax) - 1 && v.work != null && v.work < 90) warn.push(`греется, работа ${fmt(v.work, 0)} %`);
+      const hm = v.heapmin != null ? v.heapmin : v.heap;
+      if (hm != null && hm < 40000) (hm < 30000 ? bad : warn).push(`память ${fmt(hm / 1000, 0)} КБ`);
+      if (a.reboots) warn.push(`перезагрузок ${a.reboots}`);
+      const verdict = bad.length ? { icon: "✗", cls: "bad", word: bad.join(", ") } : warn.length ? { icon: "◐", cls: "warn", word: warn.join(", ") } : { icon: "✓", cls: "ok", word: "в порядке" };
+      rows.push({ m, a, v, st, gm, g, hear, med, verdict });
+    }
+  }
+  return rows;
+}
+function diagHTML(d) {
+  const running = diag && diag.state === "running", p = d.program;
+  let body = "";
+  if (!diag || !P.diagId) body = `<div class="small mut">Ещё не запускалась. Запускать, когда агенты поставлены на колёса и разбиты на подгруппы.</div>`;
+  else if (running) {
+    const now = p && p.now, t0 = now && (now.t_meas || now.t0), tot = now ? (now.minutes || 0) * 60 : 0, el2 = t0 ? Math.max(0, Date.now() / 1000 - t0) : 0;
+    body = `<div><b>▶ идёт диагностика №${diag.id}</b> · ${now && now.t_meas ? `осталось ${fmtDur(Math.max(0, tot - el2))}` : "агенты принимают настройку"}</div>`;
+  } else {
+    const run = (diag.runs || [])[0];
+    if (!run) body = `<div class="warn">◐ диагностика №${diag.id} ${esc(stateWord(diag.state))} — итогов нет</div>`;
+    else {
+      const rows = diagRows(d), nBad = rows.filter(r => r.verdict.icon === "✗").length, nWarn = rows.filter(r => r.verdict.icon === "◐").length;
+      body = `<div class="small">№${diag.id} · ${new Date(run.t0 * 1000).toLocaleString("ru-RU")} · ${fmt((run.t1 - run.t0) / 60, 1)} мин · всего ${fmt(((run.gen || {})["все"] || {}).pr_s, 1)} пр/с ·
+        <b class="${nBad ? "bad" : nWarn ? "warn" : "ok"}">${nBad ? `✗ ${nBad} с неполадками` : ""}${nBad && nWarn ? ", " : ""}${nWarn ? `◐ ${nWarn} с замечаниями` : ""}${!nBad && !nWarn ? "✓ все в порядке" : ""}</b>
+        ${run.spoiled ? ` · <span class="bad">шаг испорчен: ${esc(run.spoiled_why || "")}</span>` : ""}</div>
+        <div style="overflow:auto"><table class="t"><tr><th>агент</th><th>группа</th><th>сейчас</th><th>связь с сервером</th><th>слышит группу</th><th>пр/с</th><th>°C · работа</th><th>память</th><th>датчики</th><th>итог</th><th></th></tr>
+        ${rows.map(r => `<tr><td><b>${nameOf(d, r.m)}</b></td><td>${esc(r.g.label)}</td><td><span class="${r.st.cls}">${r.st.icon}</span> ${esc(r.st.word)}</td>
+          <td>${r.v.rssi != null ? `${r.v.rssi} дБм` : "—"}${r.a.loss_pct ? ` · потери ${fmt(r.a.loss_pct, 1)} %` : ""}</td>
+          <td>${r.hear}</td><td class="num">${r.gm.pr_s != null ? fmt(r.gm.pr_s, 2) : "—"}${r.med ? ` <span class="small mut">(группа ${fmt(r.med, 2)})</span>` : ""}</td>
+          <td>${r.v.temp != null ? fmt(r.v.temp, 0) + "°" : "—"}${r.v.work != null ? ` · ${fmt(r.v.work, 0)} %` : ""}</td>
+          <td class="num">${r.v.heapmin != null ? fmt(r.v.heapmin / 1000, 0) + " КБ" : r.v.heap != null ? fmt(r.v.heap / 1000, 0) + " КБ" : "—"}</td>
+          <td>${sensBadges(r.a).map(b => b === "А" ? "акселерометр" : "магнитометр").join(", ") || "<span class='mut'>нет</span>"}</td>
+          <td><span class="${r.verdict.cls}">${r.verdict.icon} ${esc(r.verdict.word)}</span></td><td><button class="btn tiny" data-act="ident" data-mac="${r.m}">◉ найти</button></td></tr>`).join("")}</table></div>`;
+    }
+  }
+  return `<div class="small mut" style="margin-bottom:6px">Каждая подгруппа считает сообща (каскад, ГСЧ чипа), одиночный агент — сам; потом по каждому агенту: связь, кого из своей группы слышит по пульсу, скорость против своей группы, температура, память, датчики.</div>
+    <div class="row" style="margin-bottom:8px"><button class="btn go" data-act="diagrun" ${running || (p && p.state === "running") ? "disabled" : ""}>▶ Проверить установку</button>
+      <label class="inl">длительность <input data-act="diagmin" type="number" min="0.5" max="10" step="0.5" style="width:3.5em" value="${P.diagMin}"> мин</label></div>${body}`;
+}
+
+// ---------- действия ----------
+async function ident(mac) {
+  try { await postJSON("/api/ident", { mac, secs: 20 }); note(`◉ ${nameOf(D, mac)}: светодиод мигает 20 с`, "ok"); }
+  catch (er) { note("✗ " + er.message, "bad"); }
+}
+async function compose(body, what) {
+  try { await postJSON("/api/compose", body); await refresh(); if (what) note("✓ " + what, "ok"); } catch (er) { note("✗ " + er.message, "bad"); }
+}
+document.addEventListener("click", async e => {
+  const o = e.target.closest(".opt");
+  if (o) {                                              // слой: отметить / снять вариант
+    if (o.classList.contains("dis")) return;
+    const box = o.closest(".opts"), sc = box.dataset.scope, key = box.dataset.key, v = o.dataset.v;
+    const S = sc === "P" ? P : P[sc], arr = S[key] || [];
+    S[key] = arr.includes(v) ? arr.filter(x => x !== v) : arr.concat([v]);
+    save(); renderAll();
+    return;
+  }
+  const t = e.target.closest("[data-act]");
+  if (!t) return;
+  const act = t.dataset.act, mac = t.dataset.mac;
+  if (act === "agent") { if (identMode) ident(mac); else openDlg("agent", mac); }
+  else if (["compose", "seq", "exper", "diag", "fw", "noises"].includes(act)) openDlg(act);
+  else if (act === "report") { const w = window.open("/report", "report", "width=1400,height=900"); if (!w) location.href = "/report"; }
+  else if (act === "identmode") { identMode = !identMode; $("bIdent").classList.toggle("sel", identMode); note(identMode ? "◉ режим «найти плату»: нажмите на агента — его светодиод замигает" : "режим «найти плату» выключен", "ok"); }
+  else if (act === "ident") ident(mac);
+  else if (act === "wheel") compose({ wheels: { [mac]: t.dataset.w } }, `${nameOf(D, mac)}: ${t.dataset.w ? "колесо " + t.dataset.w : "без колеса"}`);
+  else if (act === "sub") compose({ sub: { [mac]: t.dataset.s } }, `${nameOf(D, mac)}: группа ${t.dataset.s}`);
+  else if (act === "split") {                           // разбить колесо на n групп поровну, по порядку номеров
+    const n = +t.dataset.n, macs = wheelMacs(D, t.dataset.w).sort(byId(D)), sub = {}, per = Math.ceil(macs.length / n);
+    macs.forEach((m, i) => sub[m] = LETTERS[Math.min(Math.floor(i / per), LETTERS.length - 1)]);
+    compose({ sub }, `колесо ${t.dataset.w}: ${n === 1 ? "одна группа" : n + " группы"}`);
+  }
+  else if (act === "qadd") addCurrent();
+  else if (act === "qmatrix") addMatrix();
+  else if (act === "qclear") { if (confirm("Убрать все шаги из плана?")) { P.seq = []; save(); renderAll(); } }
+  else if (act === "rm") { P.seq.splice(+t.dataset.i, 1); save(); renderAll(); }
+  else if (act === "mv") { const i = +t.dataset.i, j = i + (+t.dataset.d); if (j >= 0 && j < P.seq.length) { [P.seq[i], P.seq[j]] = [P.seq[j], P.seq[i]]; save(); renderAll(); } }
+  else if (act === "ctl") { P.seq[+t.dataset.i].control = t.checked; save(); renderAll(); }
+  else if (act === "rmode") { ribbonMode = t.dataset.m; renderRibbon(D); }
+  else if (act === "diagrun") diagStart();
+  else if (act === "ota") {
+    if (!confirm("Обновить прошивку всех агентов на связи по Wi-Fi? Счёт остановится.")) return;
+    try { const r = await postJSON("/api/ota", { targets: "all" }); note(`✓ команда ушла ${r.sent.length} агентам`, "ok"); } catch (er) { note("✗ " + er.message, "bad"); }
+  } else if (act === "usb") {
+    const ports = ((D.usb || {}).boards || []).filter(b => b.status !== "online").map(b => b.port);
+    if (!confirm("Прошить новые платы по USB (сборка 1–3 мин, кабели не отключать)?")) return;
+    try { await postJSON("/api/usb", { ports }); note("✓ прошивка по USB началась", "ok"); } catch (er) { note("✗ " + er.message, "bad"); }
+  }
+});
+document.addEventListener("change", e => {
+  const t = e.target;
+  if (t.dataset && t.dataset.act === "diagmin") { P.diagMin = Math.max(0.5, Math.min(10, +t.value || 1)); save(); }
+});
+
+// ---------- запуск ----------
+function restJSON() {
+  const r = { rest: P.restMode === "fixed" ? P.restMin * 60 : P.restMode === "none" ? 0 : P.restMode, rest_max_s: P.restMax * 60 };
+  if (P.restMode === "below") r.rest_below = P.restBelow;
+  return r;
+}
+function programJSON(steps) {
+  return { name: `планшетка ${new Date().toLocaleString("ru-RU")}`, baseline_min: P.baseline, repeat: P.repeat, shuffle: P.shuffle,
+           settle_s: 10, ...restJSON(), z: 4, confirm: P.confirm, redo: 2, metrics: ["pr_s", "cand_s"], targets: "all",
+           steps: steps.map(s => ({ ...s, minutes: P.minutes, quiet: P.quiet, agent: !!P.agentStep,
+                                    groups: s.groups.map(g => ({ ...g, cfg: { ...g.cfg, ...(g.cfg.run === 0 ? {} : { tmax: P.tmax, ro: P.agentStep && P.radioOff ? 1 : 0 }) } })) })) };
+}
+$("bRun").onclick = async () => {
+  if (!P.seq.length) { note("✗ план пуст — добавьте шаги (＋ шаг или ⇊ вся матрица)", "bad"); return; }
+  if (P.confirm && !P.seq.some(s => s.control)) { note("✗ для проверочных пар нужен хотя бы один контрольный шаг", "bad"); return; }
+  const bad = checkSteps(P.seq); if (bad) { note("✗ " + bad, "bad"); return; }
+  const n = P.seq.length * P.repeat;
+  if (!confirm(`Запустить ${P.seq.length} шагов × ${P.repeat} повторов (${n} шагов по ${P.minutes} мин)${P.shuffle ? ", случайный порядок" : ""}, греться до ${P.tmax} °C${P.agentStep ? ", шаг на агенте" : ""}${P.agentStep && P.radioOff ? ", Wi-Fi выкл где эфир не нужен" : ""}?`)) return;
+  try { const r = await postJSON("/api/program/start", { program: programJSON(P.seq) }); note(`✓ программа №${r.id} запущена: ${n} шагов`, "ok"); progT = 0; ribbonMode = "auto"; await refresh(); }
+  catch (er) { note("✗ " + er.message, "bad"); }
+};
+$("bStop").onclick = async () => { try { await postJSON("/api/program/stop", {}); note("✓ программа остановится после шага", "ok"); } catch (e) { note("✗ " + e.message, "bad"); } };
+$("bHalt").onclick = async () => {
+  if (!confirm("Всё стоп: остановить программу, остановить счёт у всех агентов, катушки выключить?")) return;
+  try { await postJSON("/api/program/stop", {}); } catch (e) { /* программы может не быть */ }
+  try { const r = await postJSON("/api/compose", { action: "stop", force: true }); note(`■ всё стоп: ${(r.applied || []).map(x => `${x.label} (${x.n})`).join(", ")} · катушки: управляющего агента ещё нет`, "warn"); }
+  catch (e) { note("✗ " + e.message, "bad"); }
+  progT = 0; await refresh();
+};
+
+// ---------- сообщения, верх, опрос ----------
+const notes = [];
+function note(text, cls) { notes.unshift({ t: Date.now(), text, cls }); notes.length = Math.min(notes.length, 5); renderFoot(); }
+function renderFoot() {
+  const items = notes.filter(n => Date.now() - n.t < 20000).map(n => `<span class="${n.cls}">${esc(n.text)}</span>`);
+  if (D) {
+    for (const a of D.agents) { const v = a.values || {}; if (alive(a.status) && v.work != null && v.work < 50 && v.temp >= (v.tmax || 70) - 2) items.push(`<span class="warn">◐ ${nameOf(D, a.mac)} у предела ${fmt(v.temp, 1)} °C (работа ${fmt(v.work, 0)} %)</span>`); }
+    const sv = D.static_verdict; if (sv && STATIC_VERDICT[sv.verdict] && !["ok", "nodata", "nobase"].includes(sv.verdict)) { const vv = STATIC_VERDICT[sv.verdict]; items.push(`<span class="${vv.cls}">${vv.icon} статика: ${vv.word}</span>`); }
+  }
+  setHTML($("foot"), (items.slice(0, 5).join("") || `<span class="mut">сообщений нет</span>`)
+    + `<span class="sp"></span><span class="mut">▶ считает · ▼ поглощает · ⏸ стоит · ◇ молчит · ◌ без радио · ✔ сдал итоги · ✗ нет связи · А/М — акселерометр/магнитометр</span>`
+    + `<a href="/pult" target="pult">пульт</a><a href="/watch" target="watch">наблюдение</a>`);
+}
+function renderTop(d) {
+  const on = d.agents.filter(a => alive(a.status)).length, quiet = d.agents.filter(a => a.status === "quiet").length;
+  $("conn").innerHTML = `<span class="${on ? "ok" : "bad"}">● ${on} на связи</span>${quiet ? `<span class="mut"> · ◇ молчат ${quiet}</span>` : ""}`;
+  const p = d.program, n = p && p.now;
+  $("exp").innerHTML = p && p.state === "running" && n
+    ? `<b>${p.id === P.diagId ? "диагностика" : "программа №" + p.id}</b> · шаг ${n.n}/${n.of}${n.rest ? " · ⏸ отдых" : ` · ${fmtDur(Math.max(0, (n.minutes || 0) * 60 - Math.max(0, Date.now() / 1000 - (n.t_meas || n.t0))))}`}`
+    : `<span class="mut">программа не идёт</span>`;
+}
+function renderAll() {
+  if (!D) return;
+  renderWheel(D, "1"); renderWheel(D, "2"); renderPic(D); renderNow(D); renderMidRows(); renderRibbon(D); renderTop(D); renderFoot(); renderDlg();
+}
+async function refresh() {
+  D = await getJSON("/api/dash?window=10");
+  await loadProg(D);
+  await loadDiag();
+  renderAll();
+}
+poll(refresh, 2000);
+setInterval(() => { if (D && ((prog && prog.state === "running") || (diag && diag.state === "running"))) { renderNow(D); renderRibbon(D); renderTop(D); if (dlg && dlg.kind === "diag") renderDlg(); } }, 1000);   // таймеры — каждую секунду
+</script>
+</body>
+</html>
