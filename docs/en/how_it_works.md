@@ -45,7 +45,11 @@ with a translation.
    5 fast blinks, the board number from the registry, 5 slow blinks.
 2. **Wi-Fi.** Connects to the router network from `secrets/wifi.ini` (802.11b/g only — that way
    CSI arrives for every packet); radio sleep is off: receiver noise flows into the generator
-   continuously and the link has no delays.
+   continuously and the link has no delays. **Fallback network** (`ssid2`/`password2` in
+   `secrets/wifi.ini`): if the main network refuses the board for 40 s, it moves to the fallback
+   and stays online (a typo in the new network's password does not cut the board off); on the
+   fallback it tries the main network after 2 min and then every 10 min while standing; telemetry field `net`
+   (0 — main, 1 — fallback).
 3. **Finding the server.** Every 2 s the server broadcasts the beacon `W2SRV 5005` on UDP 5006;
    the agent learns the server address by itself.
 4. **Self-test.** Miller–Rabin on known primes and on "liars" (up to 2048 bits). The result is
@@ -599,6 +603,7 @@ sensors against their baseline, a statistical guard over the primes, experiment 
 | `tools/runs_from_raw.py [date] [--force]` | rebuild the experiment log of a day from raw data |
 | `tools/build_docs.py` | documentation in HTML: `docs/*.md` and `README.md` → `docs/html/`; `--static` — a set for showing outside the network in `build/site/` |
 | `tools/sim_gen.py [agents] [--port 5016]` | simulated generator agents — test the pages without boards; with a separate server: `python server/monitor.py --http 8092 --udp 5016 --data data/test/gen --no-beacon` |
+| `tools/video.py info\|frames\|hear\|voice\|build <clip>` | YouTube clips (`media/`, not in git): frame sheets with timestamps, speech transcription (Whisper), voice-over of `script_ru.txt` with Vosk-TTS speaker 4 checking that each line fits before the next, final assembly (original sound lowered and ducked under the voice) and ru/en `.srt` subtitles; needs ffmpeg and a local Vosk-TTS / faster-whisper environment |
 | `tools/gen_secrets.py` | Wi-Fi credentials and the OTA key (`secrets/`) → header for the firmware; called by the build |
 | `tools/publish.py [--push]` | public copy: a snapshot of `main` as one commit on the `public` branch, after a leak check (network name and password, key, local addresses, e-mail) |
 | `tools/gen_sweep.py` | sweep over sources and lengths |

@@ -101,7 +101,7 @@ function renderSens(d) {
   for (const s of list) {
     const box = $("s-" + s.mac.replace(/:/g, ""));
     if (!box) continue;
-    const x = (sv.sensors || {})[s.mac], v = STATIC_VERDICT[x ? x.verdict : (s.status === "none" ? "nodata" : "ok")] || STATIC_VERDICT.nodata;
+    const x = (sv.sensors || {})[s.mac], v = STATIC_VERDICT[x ? x.verdict : "nodata"] || STATIC_VERDICT.nodata;   // датчика нет в отрезке — «нет данных», а не «спокойно»
     box.querySelector(".v").innerHTML = `<span class="${v.cls}">${v.icon} ${v.word}</span>`;
     box.querySelector(".why").innerHTML = x && (x.reasons || []).length ? esc(x.reasons[0]) : `<span class="mut">${esc(s.text || "")}</span>`;
     drawSpec(box.querySelector("canvas"), spec[s.mac]);

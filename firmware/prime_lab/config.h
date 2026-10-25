@@ -21,9 +21,15 @@ enum : uint8_t {
   // --- петля ---
   SRC_BC   = 16,  // эфир сета B: содержимое услышанных кадров рассеяния (и фона) сета B;
                   // засчитываем 4 бита на байт
+  // --- датчики на ободе (если запаяны; rim_sensors) ---
+  SRC_ACC  = 32,  // ICM-42688: младшие байты осей ускорения и гироскопа, 200 отсчётов/с; 1 бит на байт
+  SRC_MAG  = 64,  // MLX90393: младшие байты осей поля, 20 замеров/с; 2 бита на байт
+  // Вместе с другими источниками датчик подмешивает в блок то, что накопил (не ждёт — счёт не
+  // медленнее); один (или только датчики) — блок ждёт 256 зачтённых бит; датчика нет — вместо него ГСЧ.
+  SRC_SENSORS = SRC_ACC | SRC_MAG,
   SRC_INTERNAL = SRC_RNG | SRC_JIT,
   SRC_EXTERNAL = SRC_CSI | SRC_ADC,
-  SRC_MASK = 31,
+  SRC_MASK = 127,
 };
 
 const int MAX_BASES = 12;
@@ -36,7 +42,7 @@ enum : uint8_t { MODE_SOLO = 0, MODE_GROUP = 1 };
 // S — статический акселерометр: только меряет и шлёт оси, ничего не генерирует,
 // в группах не участвует, по ESP-NOW не говорит (static_role.h). Роль S агент
 // помнит в своей памяти и сразу с неё стартует; смена S ↔ A/B — перезапуск.
-enum : uint8_t { ROLE_A = 0, ROLE_B = 1, ROLE_S = 2 };
+enum : uint8_t { ROLE_A = 0, ROLE_B = 1, ROLE_S = 2, ROLE_M = 3 };   // M — агент моторов (motor.h)
 // Как сет B рассеивает: тишина — только слушает; каждый сам — каждый агент B
 // всё число; россыпь — каждый свой кусок числа; эстафета — по цепочке B1 → B2 → …,
 // последний выпускает; пустышка — столько же кадров из одного шума, без числа.
@@ -136,5 +142,5 @@ inline bool keep_stats(const GenConfig& n, const GenConfig& old) {
 // Незаданные поля берутся из cur. При ошибке — false и причина в err.
 bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* err, size_t errlen);
 
-// Маска шума для entropy_fill: источники и, в битах 5–6, как брать шум.
-inline uint8_t noise_mask(const GenConfig& c) { return (uint8_t)(c.src | (c.raw << 5)); }
+// Маска шума для entropy_fill: источники и, в битах 8–9, как брать шум.
+inline uint16_t noise_mask(const GenConfig& c) { return (uint16_t)(c.src | (c.raw << 8)); }

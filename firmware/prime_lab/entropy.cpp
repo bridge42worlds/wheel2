@@ -67,7 +67,12 @@ static bool s_ping_on = false;              // пинг роутера идёт 
 // Разбор «зомби» (07.10.2026): с CSI платы теряли буферы передачи. Чтобы развести сбор CSI и
 // пинг роутера, есть два опытных положения: cf = 3 — пинг идёт, а CSI не включается (при любом
 // источнике шума); ping = 0 — CSI включён, пинга нет (CSI только с маяков и чужих кадров).
+static volatile uint8_t s_want = 0;            // источники, выбранные сейчас (для датчиков на ободе)
+
+bool entropy_wants(int si) { return s_want & (si == SI_ACC ? SRC_ACC : si == SI_MAG ? SRC_MAG : 0); }
+
 void entropy_select(uint8_t mask) {
+  s_want = mask;
   const bool csi = (mask & SRC_CSI) && s_csi_mode != 3;
   const bool ping = mask && ((mask & SRC_CSI) || s_csi_mode == 3);   // mask 0 — агент стоит: ни CSI, ни пинга
   if (csi != s_csi_on) {
@@ -139,6 +144,45 @@ static size_t bc_take(uint8_t* out, size_t want) {
   return n;
 }
 
+// ---------- датчики на ободе: запас младших байт показаний (пишет задача датчиков, читает ядро 1) ----------
+struct SensRing {
+  uint8_t           b[1024];
+  volatile uint32_t w = 0, r = 0, lost = 0;
+  volatile bool     present = false;
+};
+static SensRing     s_sr[2];                         // 0 — акселерометр, 1 — магнитометр
+static portMUX_TYPE s_sr_mux = portMUX_INITIALIZER_UNLOCKED;
+static const uint32_t SENS_BITS_PER_BYTE[2] = {1, 2};   // зачёт: ICM — 1 бит на байт, MLX — 2
+
+static inline int sr_idx(int si) { return si == SI_MAG ? 1 : 0; }
+
+void entropy_sensor_present(int si, bool present) { s_sr[sr_idx(si)].present = present; }
+
+void entropy_feed_sensor(int si, const uint8_t* d, size_t n) {
+  SensRing& q = s_sr[sr_idx(si)];
+  portENTER_CRITICAL(&s_sr_mux);
+  for (size_t i = 0; i < n; ++i) {
+    if (q.w - q.r >= sizeof q.b) {                   // запас полон: счёт не успевает брать
+      q.lost += n - i;
+      break;
+    }
+    q.b[q.w++ % sizeof q.b] = d[i];
+  }
+  portEXIT_CRITICAL(&s_sr_mux);
+}
+
+uint32_t sensor_lost(int si) { return s_sr[sr_idx(si)].lost; }
+
+static size_t sr_take(int si, uint8_t* out, size_t want) {
+  SensRing& q = s_sr[sr_idx(si)];
+  portENTER_CRITICAL(&s_sr_mux);
+  size_t n = q.w - q.r;
+  if (n > want) n = want;
+  for (size_t i = 0; i < n; ++i) out[i] = q.b[q.r++ % sizeof q.b];
+  portEXIT_CRITICAL(&s_sr_mux);
+  return n;
+}
+
 void entropy_set_ping(uint8_t per_s) {
   if (per_s == 0) {                    // без пинга: CSI только с маяков и чужих кадров (опыт)
     s_ping_period_us = 0;
@@ -206,6 +250,9 @@ void entropy_reset() {
   s_bc_r = s_bc_w;                                   // потери считать заново
   s_bc_lost = 0;
   portEXIT_CRITICAL(&s_bc_mux);
+  portENTER_CRITICAL(&s_sr_mux);                     // показания датчиков прошлой настройки не брать, потери — с настройки
+  for (auto& q : s_sr) { q.r = q.w; q.lost = 0; }
+  portEXIT_CRITICAL(&s_sr_mux);
   memset(s_have_prev, 0, sizeof s_have_prev);
   memset(s_csi_prev, 0, sizeof s_csi_prev);
   s_rng_cyc_rest = 0;
@@ -342,7 +389,41 @@ static bool add_bc(mbedtls_sha256_context& ctx, EntropyStats& st, volatile bool*
   return ok;
 }
 
-static bool make_block(uint8_t mask, EntropyStats& st, volatile bool* abort, void (*tick)()) {
+// Датчик на ободе в блок. need — блок ждёт 256 зачтённых бит (датчик — единственный источник блока);
+// иначе — подмешать накопленное (не больше 256 бит). Датчика нет и ждать нечего — вместо него ГСЧ.
+static bool add_sensor(int si, bool need, mbedtls_sha256_context& ctx, EntropyStats& st, volatile bool* abort,
+                       void (*tick)()) {
+  if (need && !s_sr[sr_idx(si)].present) {
+    add_rng(ctx, st);
+    return true;
+  }
+  SourceStats& s = st.s[si];
+  const uint32_t bpb = SENS_BITS_PER_BYTE[sr_idx(si)];
+  const int64_t t0 = esp_timer_get_time();
+  uint32_t got = 0;
+  uint8_t b[64];
+  bool ok = true;
+  while (got < BLOCK_BITS) {
+    const size_t want = (BLOCK_BITS - got + bpb - 1) / bpb;
+    const size_t n = sr_take(si, b, want < sizeof b ? want : sizeof b);
+    if (!n) {
+      if (!need) break;                              // подмешать — сколько есть
+      vTaskDelay(pdMS_TO_TICKS(5));                   // единственный — ждать
+      if (tick) tick();
+      if (*abort) { ok = false; break; }
+      continue;
+    }
+    mbedtls_sha256_update(&ctx, b, n);
+    for (size_t i = 0; i < n; ++i) lsb(s, si, b[i]);
+    s.units += n;
+    got += n * bpb;
+  }
+  if (ok) s.bits += got < BLOCK_BITS ? got : BLOCK_BITS;
+  s.us += esp_timer_get_time() - t0;
+  return ok;
+}
+
+static bool make_block(uint16_t mask, EntropyStats& st, volatile bool* abort, void (*tick)()) {
   mbedtls_sha256_context ctx;
   mbedtls_sha256_init(&ctx);
   mbedtls_sha256_starts(&ctx, 0);
@@ -352,6 +433,9 @@ static bool make_block(uint8_t mask, EntropyStats& st, volatile bool* abort, voi
   if (ok && (mask & SRC_ADC)) { add_adc(ctx, st); if (tick) tick(); }
   if (ok && (mask & SRC_JIT)) { add_jit(ctx, st); if (tick) tick(); }
   if (ok && (mask & SRC_BC)) ok = add_bc(ctx, st, abort, tick);
+  const bool alone = !(mask & (SRC_RNG | SRC_CSI | SRC_ADC | SRC_JIT | SRC_BC));   // только датчики
+  if (ok && (mask & SRC_ACC)) ok = add_sensor(SI_ACC, alone, ctx, st, abort, tick);
+  if (ok && (mask & SRC_MAG)) ok = add_sensor(SI_MAG, alone, ctx, st, abort, tick);
   if (ok) {
     mbedtls_sha256_finish(&ctx, s_pool);
     s_pool_left = sizeof s_pool;
@@ -432,6 +516,31 @@ static bool raw_refill(int si, EntropyStats& st, volatile bool* abort, void (*ti
       s.units += 64;
       break;
     }
+    case SI_ACC:
+    case SI_MAG: {
+      if (!s_sr[sr_idx(si)].present) {               // датчика нет — вместо него ГСЧ
+        const uint32_t w = esp_random();
+        lsb(s, si, w);
+        bq_push(si, w, 32);
+        ++s.units;
+        break;
+      }
+      uint8_t b[16];
+      size_t n;
+      while (!(n = sr_take(si, b, sizeof b))) {      // ждём показаний
+        vTaskDelay(pdMS_TO_TICKS(5));
+        if (tick) tick();
+        if (*abort) { ok = false; break; }
+      }
+      if (!ok) break;
+      const int bits = (int)SENS_BITS_PER_BYTE[sr_idx(si)];
+      for (size_t i = 0; i < n; ++i) {
+        lsb(s, si, b[i]);
+        bq_push(si, b[i], bits);
+      }
+      s.units += n;
+      break;
+    }
     case SI_BC: {
       uint8_t b[16];
       size_t n;
@@ -454,6 +563,7 @@ static bool raw_refill(int si, EntropyStats& st, volatile bool* abort, void (*ti
 }
 
 static bool raw_bit(int si, bool vn, EntropyStats& st, volatile bool* abort, void (*tick)(), uint8_t& bit) {
+  uint32_t dropped = 0;                              // пар 00/11 подряд: источник с застывшим младшим битом
   for (;;) {
     BitQ& q = s_rq[si];
     if (q.n < (vn ? 2 : 1)) {
@@ -468,12 +578,18 @@ static bool raw_bit(int si, bool vn, EntropyStats& st, volatile bool* abort, voi
     q.r = (q.r + 1) & 255;
     --q.n;
     if (a != b) { bit = a; return true; }            // 10 → 1, 01 → 0; 00 и 11 — мимо
+    // фон Нейман на источнике без разброса (D0 замкнут на землю или питание) крутился бы вечно,
+    // и новая настройка — даже «стоп» — не применялась: раз в 4096 пустых пар слушаем команды
+    if ((++dropped & 4095) == 0) {
+      if (tick) tick();
+      if (*abort) return false;
+    }
   }
 }
 
-static bool raw_fill(uint8_t* out, size_t n, uint8_t mask, bool vn, EntropyStats& st,
+static bool raw_fill(uint8_t* out, size_t n, uint16_t mask, bool vn, EntropyStats& st,
                      volatile bool* abort, void (*tick)()) {
-  static const uint8_t BIT_OF[SI_N] = {SRC_RNG, SRC_CSI, SRC_ADC, SRC_JIT, SRC_BC};
+  static const uint8_t BIT_OF[SI_N] = {SRC_RNG, SRC_CSI, SRC_ADC, SRC_JIT, SRC_BC, SRC_ACC, SRC_MAG};
   memset(out, 0, n);
   for (int si = 0; si < SI_N; ++si) {
     if (!(mask & BIT_OF[si])) continue;
@@ -491,9 +607,9 @@ static bool raw_fill(uint8_t* out, size_t n, uint8_t mask, bool vn, EntropyStats
   return true;
 }
 
-bool entropy_fill(uint8_t* out, size_t n, uint8_t mask, EntropyStats& st,
+bool entropy_fill(uint8_t* out, size_t n, uint16_t mask, EntropyStats& st,
                   volatile bool* abort, void (*tick)()) {
-  const uint8_t raw = (mask >> 5) & 3;               // как брать шум — в старших битах маски (noise_mask)
+  const uint8_t raw = (mask >> 8) & 3;               // как брать шум — в старших битах маски (noise_mask)
   mask &= SRC_MASK;
   if (raw && !(raw == 1 && mask == SRC_RNG))         // без хеша (один ГСЧ без выравнивания — и так как есть)
     return raw_fill(out, n, mask, raw == 2, st, abort, tick);

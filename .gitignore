@@ -10,3 +10,5 @@ __pycache__/
 secrets/
 **/secrets_gen.h
 data/
+# видео, звук и пробы голосов для роликов — большие файлы, не в git
+media/

@@ -27,7 +27,7 @@
     --data DIR     другая папка данных (проверка на имитации: tools/sim_agents.py)
     --no-beacon    без маяка — настоящие агенты такой сервер не найдут
 """
-import argparse, hashlib, hmac, math, csv, json, os, queue, random, re, shutil, socket, threading, time
+import argparse, hashlib, hmac, math, csv, json, os, queue, random, re, shutil, socket, subprocess, sys, threading, time
 from collections import deque
 from datetime import datetime
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -36,6 +36,9 @@ from urllib.parse import urlparse, parse_qs
 from program import Runner, TEMPLATE as PROGRAM_TEMPLATE
 from runlog import RunLog
 from agent_rating import Ratings
+from motors import Motors
+from coils import Coils
+from primecheck import BASES, is_probable_prime, Pool as PrimePool
 try:
     from static_watch import Watch
 except ImportError as e:                       # нет numpy — всё работает, кроме статических
@@ -99,9 +102,13 @@ SOURCES = [
     {"bit": 16, "key": "bc", "group": "loop", "name": "Эфир сета B",
      "note": "содержимое услышанных кадров рассеяния и фона сета B; 4 бита на байт; "
              "без фона сета B петля не запустится — рассеивать будет нечего"},
+    {"bit": 32, "key": "acc", "group": "ext", "name": "Акселерометр на ободе",
+     "note": "ICM-42688: младшие байты осей ускорения и гироскопа, 200 отсчётов/с, 1 бит на байт; с другими шумами — "
+             "подмешивается накопленное, один — ждёт; датчика нет — вместо него ГСЧ"},
+    {"bit": 64, "key": "mag", "group": "ext", "name": "Магнитометр",
+     "note": "MLX90393: младшие байты осей поля, 20 замеров/с, 2 бита на байт; с другими шумами — подмешивается"},
 ]
-SRC_INDEX = {"rng": 0, "csi": 1, "adc": 2, "jit": 3, "bc": 4}     # порядок в массиве "e" телеметрии
-BASES = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37]
+SRC_INDEX = {"rng": 0, "csi": 1, "adc": 2, "jit": 3, "bc": 4, "acc": 5, "mag": 6}     # порядок в массиве "e" телеметрии
 OPTIONS = {"bits": [32, 64, 128, 256, 512, 1024, 2048], "nb_max": len(BASES), "bases": BASES,
            "td": [0, 100, 1000, 10000, 20000], "sources": SOURCES, "source_groups": SOURCE_GROUPS,
            "tmax": [50, 55, 60, 65, 70],
@@ -199,40 +206,7 @@ def raw_path(t):
 
 
 # ---------------- проверка простых ----------------
-SMALL_PRIMES = [p for p in range(3, 1000) if all(p % q for q in range(2, int(p ** 0.5) + 1))]
-
-
-def is_probable_prime(n, quick=False):
-    """Миллер — Рабин: 12 известных баз и 8 случайных. quick — одна база (при перечитывании
-    сырья на старте: эти простые уже проверены живьём, ответ записан в data/primes; полная
-    проверка стоила 2/3 времени перечитывания)."""
-    if n < 2 or n % 2 == 0:
-        return n == 2
-    for p in SMALL_PRIMES:
-        if n % p == 0:
-            return n == p
-    d, s = n - 1, 0
-    while d % 2 == 0:
-        d //= 2
-        s += 1
-    if quick:
-        bases = [2]
-    else:
-        bases = BASES + [random.randrange(2, n - 1) for _ in range(8)] if n > 40 else BASES
-    for a in bases:
-        a %= n
-        if a < 2:
-            continue
-        x = pow(a, d, n)
-        if x in (1, n - 1):
-            continue
-        for _ in range(s - 1):
-            x = x * x % n
-            if x == n - 1:
-                break
-        else:
-            return False
-    return True
+# is_probable_prime и помощники проверки (PrimePool) — в primecheck.py
 
 
 def verify_prime(a, hexstr, bits):
@@ -308,7 +282,7 @@ GEN_KEYS = ("cid", "src", "bits", "nb", "all", "td", "age", "cand", "tdr", "mri"
             "e", "sha", "csi", "rf", "st", "lp", "tmax", "work", "ts", "mode", "grp", "jobs",
             "udpf", "wdisc", "wrsn", "nr", "run", "k", "pre", "cpu", "txp", "txr", "ping", "led", "tp",
             "tl", "tq", "tls", "rmm", "sens", "imu", "mag", "etx", "pl", "pln", "pll", "dc", "dcq",
-            "gv", "rk", "pw", "raw", "dur", "ro", "roff", "done") + SCAT_KEYS
+            "gv", "rk", "pw", "raw", "dur", "ro", "roff", "done", "net", "i2c") + SCAT_KEYS
 
 
 def derive_grp(a, p):
@@ -461,7 +435,8 @@ def ingest(t, ip, text, live=False):
         if ratings:
             ratings.on_tel(t, mac, a["id"], p, live, rebooted)
         static = p.get("role") == 2                   # статический акселерометр: только меряет
-        gen = "cid" in p and not static
+        motor = p.get("role") == 3                    # агент моторов: крутит колёса
+        gen = "cid" in p and not static and not motor
         tt = round(t, 3)
         for k, v in p.items():
             if k in META or not isinstance(v, (int, float)) or isinstance(v, bool):
@@ -478,6 +453,7 @@ def ingest(t, ip, text, live=False):
             a["gen"] = g
             a["kind"] = "B" if p.get("role") == 1 else "A"
             a.pop("stel", None)                       # был статическим — теперь генератор
+            a.pop("mtel", None)
             if p.get("mode", 0) == 0 and p.get("role", 0) == 0 and "g_pr_s" in der and (p.get("age") or 0) > 10:
                 # опора для сравнения: «каждый сам» при тех же настройках, сглаженно
                 b = a["baseline"].setdefault(baseline_key(p), {"pr_s": der["g_pr_s"], "cand_s": der["g_cand_s"]})
@@ -495,13 +471,22 @@ def ingest(t, ip, text, live=False):
                 if want and (want["cid"] != p.get("cid") or soft_mismatch(want, p)) and t - a["cfg_sent"] >= RESEND_S:
                     a["cfg_sent"] = t
                     resend = (cfg_line(want), ip)
+        if motor:                                     # агент моторов: что велено и что на мостах
+            a["kind"], a["gen"], a["gstat"] = "M", None, None
+            a.pop("stel", None)
+            a["mtel"] = {k: p.get(k) for k in ("cid", "role", "run", "mot", "temp", "rssi", "heap", "net", "tl")}
+            want = control["desired"].get(mac)
+            if live and want and want["cid"] != p.get("cid") and t - a["cfg_sent"] >= RESEND_S:
+                a["cfg_sent"] = t
+                resend = (cfg_line(want), ip)
         if static:                                    # статический акселерометр: состояние, своя настройка
             a["kind"], a["gen"], a["gstat"] = "S", None, None
+            a.pop("mtel", None)
             a["stel"] = {k: p.get(k) for k in STATIC_TEL_KEYS}
             if live:
                 adopt_static(mac)
             want = control["desired"].get(mac)
-            if live and want and (want["cid"] != p.get("cid") or soft_mismatch(want, p)) \
+            if live and want and p.get("dev") != "phone" and (want["cid"] != p.get("cid") or soft_mismatch(want, p)) \
                     and t - a["cfg_sent"] >= RESEND_S:
                 a["cfg_sent"] = t
                 resend = (cfg_line(want), ip)
@@ -513,7 +498,7 @@ def ingest(t, ip, text, live=False):
 # ---------------- датчики: колесо (imu), поле (mag); статические — static_watch ----------------
 SENSOR_LEN = 12000                  # точек: 10 мин показаний 20 Гц
 STATIC_TEL_KEYS = ("cid", "role", "run", "cpu", "tp", "txp", "txr", "led", "tl", "tq", "tls", "afs", "avg", "sens",
-                   "imu", "acc", "temp", "rssi", "heap", "cpu0", "cpu1", "udpf")
+                   "dev", "adxl", "ph", "imu", "acc", "temp", "rssi", "heap", "cpu0", "cpu1", "udpf", "net")
 AXES = "xyz"
 
 
@@ -551,9 +536,12 @@ def ingest_imr(a, mac, p, tt):
 
 
 def ingest_mag(a, mac, p, tt):
-    """Поле: среднее за пакет по осям и модуль; отдельные замеры 20 Гц — модуль."""
-    a["mag"] = {k: p.get(k) for k in ("n", "gain", "err", "b", "babs", "bmin", "bmax", "t")}
-    a["mag"]["t_rx"] = tt
+    """Поле: среднее за пакет по осям и модуль; отдельные замеры (MLX90393 — 20 Гц, мкТл × 10; телефон шлёт
+    свою частоту hz, множитель div и ступень step) — в кольцо за 15 мин, модуль — в ряд не чаще 20 Гц."""
+    hz = float(p.get("hz") or 20.0)
+    div = float(p.get("div") or 10.0)
+    a["mag"] = {k: p.get(k) for k in ("n", "gain", "err", "b", "babs", "bmin", "bmax", "t", "step")}
+    a["mag"]["t_rx"], a["mag"]["hz"] = tt, hz
     b = p.get("b") or [None] * 3
     for i, ax in enumerate(AXES):
         if b[i] is not None:
@@ -561,10 +549,95 @@ def ingest_mag(a, mac, p, tt):
     for key in ("babs", "bmin", "bmax", "gain"):
         if p.get(key) is not None:
             put(mac, "m_" + key, tt, p[key])
-    s_ = p.get("s") or []                # мкТл × 10
+    s_ = p.get("s") or []                # мкТл × div
+    keep = int(hz * MAG_KEEP_S)
+    ring = a.get("mag_s")
+    if ring is None or ring.maxlen != keep:   # замеры за 15 мин — окно «поле вживую»
+        ring = a["mag_s"] = deque(ring or (), maxlen=keep)
+    thin = max(1, int(round(hz / 20.0)))
     for i, v in enumerate(s_):
-        ts = round(tt - (len(s_) - 1 - i) * 0.05, 3)
-        put(mac, "m_sabs", ts, round(math.sqrt(sum(x * x for x in v)) / 10.0, 2), SENSOR_LEN)
+        ts = round(tt - (len(s_) - 1 - i) / hz, 4)
+        if i % thin == 0:
+            put(mac, "m_sabs", ts, round(math.sqrt(sum(x * x for x in v)) / div, 2), SENSOR_LEN)
+        if len(v) >= 3:
+            ring.append((ts, v[0] / div, v[1] / div, v[2] / div))
+
+
+MAG_KEEP_S = 900                          # замеры поля в памяти на агента: 15 мин
+
+
+def field_step(t0, t1):
+    """Магнитометры за шаг опыта: у каждого агента с замерами поля (MLX90393, телефон) — по x, y, z и |B|
+    среднее, СКО, размах, асимметрия, эксцесс (static_watch.axes_stats). Замеры держатся 15 мин — у шага
+    длиннее берутся последние 15 мин (part: 1)."""
+    import numpy as np
+    from static_watch import axes_stats
+    with lock:
+        got = {m: ([r for r in a["mag_s"] if t0 <= r[0] <= t1], a.get("id"), (a.get("mag") or {}).get("hz"),
+                   a["mag_s"][0][0] if a["mag_s"] else None)
+               for m, a in agents.items() if a.get("mag_s")}
+    out = {}
+    for m, (rows, aid, hz, first) in got.items():
+        if len(rows) < 10:
+            continue
+        v = np.array(rows, dtype=float)[:, 1:4]
+        out[m] = {"id": aid, "n": len(v), "hz": hz, "part": int(first is not None and first > t0 + 1),
+                  "stats": axes_stats(v, ("x", "y", "z", "|B|"))}
+    return out
+MLX_STEP_XY = (0.751, 0.601, 0.451, 0.376, 0.300, 0.250, 0.200, 0.150)   # мкТл на отсчёт по усилению (HALLCONF 0xC)
+
+
+def field_live(mac, sec=60.0, since=None):
+    """Магнитометр вживую (планшетка, окно агента): за последние sec секунд по x, y, z и |B| — то же, что у статики
+    (static_watch.axes_live): сейчас, сводка, гистограммы, спектр (нТл/√Гц), волна последних 30 с; колебания по
+    секундам; ступеньки поля — средние двух соседних двухсекундных отрезков разошлись больше чем на 0,5 мкТл
+    (переключили катушку, поднесли железо)."""
+    import numpy as np
+    from static_watch import axes_live, axes_stats
+    with lock:
+        a = agents.get(mac)
+        if not a or not a.get("mag_s"):
+            return {"ok": False, "error": "замеров поля нет: у агента нет MLX90393 или он не шлёт"}
+        arr = np.array(list(a["mag_s"]), dtype=float)
+        m = dict(a.get("mag") or {})
+        ph = (a.get("stel") or {}).get("ph") or {}
+        sensor, mavg = ph.get("mag"), ph.get("ma")      # телефон: какой у него магнитометр и по скольким замерам он сам усредняет
+    now = time.time()
+    w = arr[arr[:, 0] >= now - sec]
+    names = ("x", "y", "z", "|B|")
+    gain = int(m.get("gain") or 7)
+    hz = float(m.get("hz") or 20.0)
+    step = float(m.get("step") or MLX_STEP_XY[max(0, min(7, gain))])
+    L = axes_live(w[:, 1:4], hz, step, names, wave_s=30.0, wave_pts=600) if len(w) >= 2 else None
+    if not L:
+        return {"ok": False, "error": "в окне нет замеров"}
+    res = {"ok": True, "kind": "mag", "unit": "мкТл", "spec_unit": "нТл/√Гц", "hz": hz, "gain": gain, "err": m.get("err"), "sensor": sensor, "mavg": mavg,
+           "temp": m.get("t"), "age": round(now - m["t_rx"], 1) if m.get("t_rx") else None, **L, "sec": sec,
+           "gap": max(0, int(round(min(sec, now - arr[0, 0]) * hz)) - len(w)), "knocks": [], "spikes": [], "conds": [], "done": []}
+    sec_t, sds, peaks = [], {ax: [] for ax in "xyz"}, []
+    for t0 in np.unique(np.floor(w[:, 0])):              # колебания по секундам: разброс за секунду
+        q = w[np.floor(w[:, 0]) == t0, 1:4]
+        if len(q) < hz / 2:
+            continue
+        d = q - q.mean(0)
+        sec_t.append(round(float(t0 + 0.5 - now), 2))
+        for i, ax in enumerate("xyz"):
+            sds[ax].append(round(float(d[:, i].std()), 4))
+        peaks.append(round(float(np.abs(d).max()), 3))
+    res["secs"] = {"t": sec_t, **sds, "peak": peaks}
+    jumps, blk = [], np.floor((w[:, 0] - w[0, 0]) / 2.0)
+    means = [(float(w[blk == k, 0].mean()), w[blk == k, 1:4].mean(0)) for k in np.unique(blk) if (blk == k).sum() >= hz]
+    for (t1, m1), (t2, m2) in zip(means, means[1:]):
+        d = m2 - m1
+        db = float(np.linalg.norm(m2) - np.linalg.norm(m1))
+        if np.abs(d).max() > 0.5:
+            jumps.append({"t": round(t2 - now, 1), "db": round(db, 2), "d": [round(float(x), 2) for x in d]})
+    res["jumps"] = jumps[-10:]
+    if since:
+        q = arr[arr[:, 0] >= since]
+        res["since"] = axes_stats(q[:, 1:4], names)
+        res["since_n"] = int(len(q))
+    return res
 
 
 SENSOR_INGEST = {"imu": ingest_imu, "imr": ingest_imr, "mag": ingest_mag}
@@ -596,25 +669,55 @@ def put_locked(mac, key, t, v):
 
 
 prm_queue = queue.Queue()      # (функция, аргументы): проверка простых — в своей задаче (prm_worker)
+prime_pool = PrimePool(log=lambda text: print(text, flush=True))
+
+
+def prm_numbers(p):
+    out = []
+    for rec in p.get("p") or []:
+        try:
+            out.append(int(str(rec[1]), 16))
+        except (TypeError, ValueError, IndexError):
+            pass
+    return out
 
 
 def prm_worker():
     """Проверка живых простых (пакеты prm и последнее простое из tel/grp): полный Миллер — Рабин
     стоит ~1,5 мс на 256-битное число и 0,3 с на 2048-битное; в приёмнике UDP или под общим замком
-    это теряло бы пакеты. Очередь разбирается по порядку."""
+    это теряло бы пакеты. Очередь разбирается по порядку, пачками: числа журналов всей пачки проверяют
+    процессы-помощники (primecheck.Pool, по ядрам) — одному ядру 12 плат не по силам; помощники
+    не отвечают — пачка проверяется здесь же."""
     while True:
-        fn, args = prm_queue.get()
-        try:
-            fn(*args)
-        except Exception as e:                         # noqa: BLE001 — одна плохая строка не должна остановить проверку
-            print(f"[prm] {e!r}", flush=True)
+        batch = [prm_queue.get()]
+        while len(batch) < 200:
+            try:
+                batch.append(prm_queue.get_nowait())
+            except queue.Empty:
+                break
+        nums = [n for fn, args in batch if fn is ingest_prm for n in prm_numbers(args[3])]
+        known = {}
+        if nums:
+            try:
+                known = dict(zip(nums, prime_pool.check(nums)))
+            except Exception as e:                     # noqa: BLE001
+                print(f"[prm] помощники проверки: {e!r} — проверяю сам", flush=True)
+        for fn, args in batch:
+            try:
+                if fn is ingest_prm:
+                    fn(*args, known=known)
+                else:
+                    fn(*args)
+            except Exception as e:                     # noqa: BLE001 — одна плохая строка не должна остановить проверку
+                print(f"[prm] {e!r}", flush=True)
 
 
-def ingest_prm(t, ip, mac, p, live):
+def ingest_prm(t, ip, mac, p, live, known=None):
     """Журнал простых (пакет prm): каждое число проверяется своим Миллером — Рабином и, если пакет
     живой, дописывается в data/primes/<дата>/<mac>.txt строкой: время сервера, часы агента (мс),
     номер настройки, бит, откуда (0 — каждый сам, 1 — сообща), число, проверка (1/0).
-    При перечитывании сырья (live=False) проверка короткая — одной базой."""
+    При перечитывании сырья (live=False) проверка короткая — одной базой. known — {число: проверка}
+    от помощников (prm_worker)."""
     rows, fails = [], []
     for rec in p.get("p") or []:
         try:
@@ -623,7 +726,8 @@ def ingest_prm(t, ip, mac, p, live):
         except (TypeError, ValueError, IndexError):
             continue
         bits = len(hx) * 4
-        ok = n.bit_length() == bits and n % 2 == 1 and is_probable_prime(n, quick=not live)
+        ok = n.bit_length() == bits and n % 2 == 1 and (known[n] if known and n in known
+                                                         else is_probable_prime(n, quick=not live))
         if not ok:
             fails.append(hx)
         rows.append(f"{t:.3f} {ms} {p.get('cid', 0)} {bits} {src} {hx} {1 if ok else 0}\n")
@@ -631,7 +735,7 @@ def ingest_prm(t, ip, mac, p, live):
     with lock:
         stats["rx"] += 1
         a = agent_entry(mac, REG)
-        a["ip"], a["last"] = ip, t
+        a["ip"], a["last"] = ip, max(a["last"] or 0, t)   # журнал разбирается с опозданием — «последний пакет» не отодвигать назад
         pl = a["plog"]
         pl["n"] += len(rows)
         pl["fail"] += len(fails)
@@ -665,6 +769,7 @@ def known_lines():
     """Известные источники линий в спектре статических: частота, название, сколько гармоник."""
     out = [{"f": 50.0, "name": "сеть 50 Гц", "harm": 20},
            {"f": 1 / 0.1024, "name": "маяки роутера (102,4 мс)", "harm": 25}]
+    now = time.time()
     with lock:
         pings, tps, rpms = set(), set(), []
         for a in agents.values():
@@ -675,7 +780,9 @@ def known_lines():
                 tps.add(g["tp"])
             if a.get("stel") and a["stel"].get("tp"):
                 tps.add(a["stel"]["tp"])
-            if a.get("imu") and abs(a["imu"].get("w") or 0) > 0.3:
+            # обороты — только по свежему пакету обода: иначе после остановки или пропажи агента «оборотная»
+            # линия с гармониками оставалась известной навсегда и прятала настоящие линии
+            if a.get("imu") and abs(a["imu"].get("w") or 0) > 0.3 and now - (a["imu"].get("t_rx") or 0) < 3:
                 rpms.append(abs(a["imu"]["w"]) / (2 * math.pi))
     out += [{"f": float(p), "name": f"пинг CSI агентов ({p}/с)", "harm": 5} for p in sorted(pings)]
     out += [{"f": 1000.0 / tp, "name": f"телеметрия раз в {tp} мс", "harm": 5} for tp in sorted(tps)]
@@ -775,6 +882,22 @@ def _replay_task(upto):
           f"живых за это время: {k}", flush=True)
 
 
+def handle_datagram(t, ip, text):
+    """Один пакет: от агента по UDP или от телефона (POST /api/ingest — те же пакеты строками)."""
+    if '"type":"acc"' in text[:40]:                  # отсчёты статических — свои файлы и свой разбор
+        ingest_acc(t, ip, text)
+        return
+    # 1. сырьё — на диск, до любого разбора
+    with open(raw_path(t), "a", encoding="utf-8") as f:
+        f.write(json.dumps({"rx": round(t, 3), "ip": ip, "raw": text}, ensure_ascii=False) + "\n")
+    # 2. разбор — в память (пока перечитывается хвост с диска — в очередь, после него)
+    with _replay["lock"]:
+        if _replay["on"]:
+            _replay["pending"].append((t, ip, text))
+            return
+    ingest(t, ip, text, live=True)
+
+
 def udp_receiver(port):
     global REG
     REG = load_registry()
@@ -799,19 +922,7 @@ def udp_receiver(port):
         t = time.time()
         stats["udp_t"] = t
         try:                                           # один плохой пакет (или занятый файл) не должен убить приёмник
-            text = data.decode("utf-8", "replace").strip()
-            if '"type":"acc"' in text[:40]:          # отсчёты статических — свои файлы и свой разбор
-                ingest_acc(t, ip, text)
-                continue
-            # 1. сырьё — на диск, до любого разбора
-            with open(raw_path(t), "a", encoding="utf-8") as f:
-                f.write(json.dumps({"rx": round(t, 3), "ip": ip, "raw": text}, ensure_ascii=False) + "\n")
-            # 2. разбор — в память (пока перечитывается хвост с диска — в очередь, после него)
-            with _replay["lock"]:
-                if _replay["on"]:
-                    _replay["pending"].append((t, ip, text))
-                    continue
-            ingest(t, ip, text, live=True)
+            handle_datagram(t, ip, data.decode("utf-8", "replace").strip())
         except Exception as e:                         # noqa: BLE001
             stats["err"] += 1
             stats["err_last"] = f"{time.strftime('%H:%M:%S')} {e!r}"
@@ -904,7 +1015,7 @@ def validate_cfg(c):
         raise ValueError("режим 0 или 1")
     if out["nr"] not in (0, 1, 2):
         raise ValueError("скорость ESP-NOW: 1 (24 Мбит/с), 2 (6 Мбит/с) или 0 (1 Мбит/с)")
-    if out["src"] <= 0 or out["src"] & ~31:
+    if out["src"] <= 0 or out["src"] & ~127:
         raise ValueError("отметьте хотя бы один источник")
     if out["bits"] not in OPTIONS["bits"]:
         raise ValueError(f"длина должна быть одной из {OPTIONS['bits']}")
@@ -939,8 +1050,8 @@ def validate_cfg(c):
         raise ValueError("пинг для CSI от 10 до 200 в секунду")
     if not 500 <= out["tp"] <= 5000:
         raise ValueError("период телеметрии от 500 до 5000 мс")
-    if out["role"] not in (0, 1, 2):
-        raise ValueError("роль: 0 — генерация (A), 1 — рассеяние (B), 2 — статический акселерометр")
+    if out["role"] not in (0, 1, 2, 3):
+        raise ValueError("роль: 0 — генерация (A), 1 — рассеяние (B), 2 — статический акселерометр, 3 — агент моторов")
     if not 0 <= out["sm"] <= 4:
         raise ValueError("режим рассеяния от 0 до 4")
     if not 0 <= out["sf"] <= 3:
@@ -996,9 +1107,12 @@ def apply_control(targets, cfg, own=None, force=False, remember=True, label=None
     with lock:
         if own is None:
             own = control.get("own") or {}
-        else:
-            own = validate_own(own)
-            control["own"] = own
+        else:                                      # свои параметры дополняют прежние (не стирают остальных агентов);
+            cleared = [m.lower() for m, d in own.items() if not d]   # пустые {} — снять свои у этого агента
+            merged = {**(control.get("own") or {}), **validate_own(own)}
+            for m in cleared:
+                merged.pop(m, None)
+            control["own"] = own = merged
         if remember:
             control["common"] = {k: v for k, v in cfg.items() if k != "run"}
         if targets == "all":
@@ -1097,7 +1211,7 @@ PRESETS = [
 PRESET_BY_KEY = {p["key"]: p for p in PRESETS}
 QUENCH_CFG = {"mode": 0, "gv": 0, "dc": 0, "sm": 1, "sh": 1, "bgr": 50, "run": 1}   # все — рассеяние: свой шум в эфир
 STANDBY_CFG = {"run": 0, "cpu": 80, "led": 0}                                         # стоять и остывать
-SLOTS = ["idle"] + [f"{g}{r}" for g in "1234" for r in "AB"] + ["S"]
+SLOTS = ["idle"] + [f"{g}{r}" for g in "1234" for r in "AB"] + ["S", "coil"]   # coil — агент M катушки колеса (wheels)
 # Свои параметры группы поверх набора (пульт, docs/ui_concept.md): что ищем, шум, проверка, связь, тепло, журнал.
 GROUP_CFG_KEYS = ("bits", "nb", "all", "td", "src", "raw", "dc", "rk", "pw", "k", "pre", "nr", "txp", "cpu", "tmax", "pl",
                   "sm", "sh", "bgr", "sf", "cf")
@@ -1149,7 +1263,7 @@ def compose_save(body):
                 raise ValueError(f"подгруппа «{s}»: буква а–з или пусто")
         for mac, sl in (body.get("slot") or {}).items():
             if sl not in SLOTS:
-                raise ValueError(f"место «{sl}»: стоит, группа 1–4 (генерация A или рассеяние B), статический")
+                raise ValueError(f"место «{sl}»: стоит, группа 1–4 (генерация A или рассеяние B), статический, катушка")
             c["slot"][mac.lower()] = sl
         for k, gr in (body.get("groups") or {}).items():
             if k not in GROUP_KEYS:
@@ -1593,7 +1707,9 @@ def telemetry_set(tl):
     with lock:
         own = control.setdefault("own", {})
         for m, a in agents.items():
-            if a.get("kind") == "S" or a.get("stel") or not a["ip"]:
+            # измерители и агенты моторов/катушек говорят всегда: в «молчании» агент M жил бы только на ack'ах команд,
+            # и первый разрыв связи дольше 10 с выводил бы моторы и катушки из управления насовсем
+            if a.get("kind") in ("S", "M") or a.get("stel") or a.get("mtel") or not a["ip"] or own.get(m, {}).get("role") in (2, 3):
                 continue
             own.setdefault(m, {})["tl"] = tl
             want = control["desired"].get(m)
@@ -1780,6 +1896,8 @@ def state():
                 status = "late"
             else:
                 status = "offline"
+            if REG.get(a["mac"], {}).get("role") == "retired" and status in ("never", "offline"):
+                continue                               # выбывшие платы (реестр: role retired) — не показывать, пока молчат
             last_min = [x for x in a["recent_rx"] if x >= now - 60]
             span = (last_min[-1] - last_min[0]) if len(last_min) > 1 else 0
             expected = a["run_packets"] + a["run_lost"]
@@ -1794,6 +1912,9 @@ def state():
                 "rate": round((len(last_min) - 1) / span, 2) if span > 0 else 0,
                 "values": a["values"], "kind": a.get("kind"),
                 "sens": ((a["gen"] or {}).get("sens") or (a.get("stel") or {}).get("sens") or 0),
+                "dev": (a.get("stel") or {}).get("dev") or "",   # статический: adxl355 / icm42688 / phone
+                "ph": (a.get("stel") or {}).get("ph"),           # телефон: фон 50 Гц, радио, батарея
+                "mot": (a.get("mtel") or {}).get("mot"),         # агент моторов: цель, ШИМ, состояние
                 "plog": plog_brief(a, now), "ota": a.get("ota"), "ota_cmd": a.get("ota_cmd"), "rbt": a.get("rbt"),
                 "nbr": a.get("nbr"),                  # кого слышит по пульсу ESP-NOW и с каким сигналом
                 "rating": rb.get(a["mac"]) or {"score": 100, "cat": "ok", "sys": [], "n": 0, "recent": []},
@@ -1804,6 +1925,132 @@ def state():
                 "bad": stats["bad"], "err": stats["err"], "err_last": stats["err_last"],
                 "udp_age": round(now - stats["udp_t"], 1) if stats["udp_t"] else None,   # давность последнего пакета
                 "replaying": _replay["on"], "agents": out, "metrics": metrics}
+
+
+ADB = shutil.which("adb") or r"C:\Android\Sdk\platform-tools\adb.exe"
+phone_usb = {}              # серийный номер телефона -> состояние adb (device / unauthorized / …)
+
+
+def phone_link():
+    """Телефон по USB: раз в 15 с — adb reverse tcp:8090, чтобы приложение на телефоне слало пакеты
+    на 127.0.0.1:8090 и без Wi-Fi. Телефон, не разрешивший отладку, — в журнал (разрешить на его экране)."""
+    nowin = 0x08000000 if os.name == "nt" else 0          # без мелькающих окон консоли
+    def run(*args):
+        return subprocess.run([ADB, *args], capture_output=True, text=True, timeout=15, creationflags=nowin).stdout
+    while True:
+        try:
+            seen = {}
+            for ln in run("devices").splitlines()[1:]:
+                parts = ln.split()
+                if len(parts) >= 2:
+                    seen[parts[0]] = parts[1]
+            for serial, st in seen.items():
+                if st == "device" and f"tcp:{HTTP_PORT}" not in run("-s", serial, "reverse", "--list"):
+                    run("-s", serial, "reverse", f"tcp:{HTTP_PORT}", f"tcp:{HTTP_PORT}")
+                    print(f"[phone] {serial}: USB-мост tcp:{HTTP_PORT} включён", flush=True)
+                if phone_usb.get(serial) != st:
+                    print(f"[phone] {serial}: {st}" + (" — разрешите отладку по USB на экране телефона"
+                                                       if st == "unauthorized" else ""), flush=True)
+            phone_usb.clear()
+            phone_usb.update(seen)
+        except Exception as e:                         # noqa: BLE001
+            phone_usb["err"] = repr(e)
+        time.sleep(15)
+
+
+def wheel_rpm(wheel):
+    """Обороты колеса ("1"/"2") сейчас — по ICM-42688 агентов на его ободе (пакет imu не старше 3 с); нет — None."""
+    now = time.time()
+    with lock:
+        wheels = compose_state()["wheels"]
+        ws = [abs(a["imu"].get("w") or 0) * 60 / (2 * math.pi) for m, a in agents.items()
+              if wheels.get(m) == wheel and a.get("imu") and now - (a["imu"].get("t_rx") or 0) < 3]
+    return sum(ws) / len(ws) if ws else None
+
+
+def is_m_agent(m, a, c):
+    """Агент моторов или катушки: по телеметрии (kind M) или по назначению — место «coil» в составе либо своя роль 3.
+    По назначению — чтобы после перезапуска сервера плата, ещё не вышедшая на связь, не считалась несуществующей
+    (планшетка писала «агента нет», хотя он назначен). Под lock."""
+    return a.get("kind") == "M" or c["slot"].get(m) == "coil" or (control.get("own") or {}).get(m, {}).get("role") == 3
+
+
+def motor_agents():
+    """Агенты моторов: роль M, не назначенные катушкой."""
+    now = time.time()
+    with lock:
+        c = compose_state()
+        return [(m, a["ip"], bool(a["last"] and now - a["last"] < 10)) for m, a in agents.items()
+                if is_m_agent(m, a, c) and c["slot"].get(m) != "coil"]
+
+
+def coil_agents():
+    """Агенты катушек: роль M, место «coil» и колесо в составе → {колесо: [(mac, ip, на связи), …]} — на колесе их
+    может быть несколько (катушка из двух плат): команда уходит каждому, иначе второго останавливал бы его сторож."""
+    now = time.time()
+    out = {}
+    with lock:
+        c = compose_state()
+        for m, a in sorted(agents.items(), key=lambda x: x[1]["id"] or 999):
+            if is_m_agent(m, a, c) and c["slot"].get(m) == "coil" and c["wheels"].get(m) in ("1", "2"):
+                out.setdefault(c["wheels"][m], []).append((m, a["ip"], bool(a["last"] and now - a["last"] < 10)))
+    return out
+
+
+coils = Coils(coil_agents, lambda line, ip: send_line(line, ip), log=lambda text: print(text, flush=True))
+
+
+def coils_state():
+    st = coils.brief()
+    now = time.time()
+    with lock:
+        c = compose_state()
+        st["agents"] = {}                             # колесо → первый агент катушки; остальные — в его "more"
+        for m, a in sorted(agents.items(), key=lambda x: x[1]["id"] or 999):
+            if not (is_m_agent(m, a, c) and c["slot"].get(m) == "coil"):
+                continue
+            mt = a.get("mtel") or {}
+            row = {"mac": m, "id": a["id"], "alive": bool(a["last"] and now - a["last"] < 10),
+                   "age": round(now - a["last"], 1) if a["last"] else None, "mot": mt.get("mot"), "temp": mt.get("temp")}
+            w = c["wheels"].get(m, "")
+            if w in st["agents"]:
+                st["agents"][w].setdefault("more", []).append(row)
+            else:
+                st["agents"][w] = row
+    return st
+
+
+def wheel_radius(wheel):
+    """Радиус, который меряет датчик на ободе колеса (медиана последних 5 оборотов не старше 15 с), и k последнего
+    оборота (по этому радиусу): (мм, k) или (None, None)."""
+    now = time.time()
+    with lock:
+        wheels = compose_state()["wheels"]
+        revs = [r for m, a in agents.items() if wheels.get(m) == wheel for r in list(a.get("wrevs") or [])[-5:]
+                if now - r["ts"] < 15 and r.get("r_mm")]
+    if not revs:
+        return None, None
+    rs = sorted(r["r_mm"] for r in revs)
+    last = max(revs, key=lambda r: r["ts"])
+    # k — измеренный (|среднее f| за оборот), а не k_r по радиусу из настроек: невесомость держится по измеренному
+    # радиусу, и k_r при ней равен rmm/r_изм — значок «✓ невесомость наверху» у моторов врал бы при любом другом rmm
+    return rs[len(rs) // 2], last.get("k")
+
+
+motors = Motors(motor_agents, lambda line, ip: send_line(line, ip), wheel_rpm, radius_fn=wheel_radius,
+                rmm_fn=lambda: (control.get("common") or DEFAULT_CFG).get("rmm", 450), log=lambda text: print(text, flush=True))
+
+
+def motors_state():
+    st = motors.brief()
+    now = time.time()
+    with lock:
+        c = compose_state()
+        st["agents"] = [{"mac": m, "id": a["id"], "alive": bool(a["last"] and now - a["last"] < 10),
+                         "age": round(now - a["last"], 1) if a["last"] else None, "fw": a["fw"],
+                         "mot": (a.get("mtel") or {}).get("mot"), "temp": (a.get("mtel") or {}).get("temp")}
+                        for m, a in agents.items() if is_m_agent(m, a, c) and c["slot"].get(m) != "coil"]
+    return st
 
 
 threads = {}                # имя -> задача сервера (приём, проверка простых, маяк, статика, отдых, журнал)
@@ -2409,6 +2656,18 @@ class Handler(BaseHTTPRequestHandler):
             if not watch:
                 return self.send_json({"f": [], "axes": []})
             return self.send_json(watch.spectrum(q.get("mac", "").lower(), int(q.get("n", 6))))
+        if u.path == "/api/motors":                    # моторы колёс: режимы, что шлём, что на мостах
+            return self.send_json(motors_state())
+        if u.path == "/api/coils":                     # катушки колёс: поле, кто задал, агенты катушек
+            return self.send_json(coils_state())
+        if u.path == "/api/field/live":                # магнитометр вживую (планшетка, окно агента)
+            return self.send_json(field_live(q.get("mac", "").lower(), max(5.0, min(900.0, float(q.get("sec", 60)))),
+                                             float(q["since"]) if q.get("since") else None))
+        if u.path == "/api/static/live":               # живой показ статического датчика (планшетка, окно «вживую»)
+            if not watch:
+                return self.send_json({"ok": False, "error": WATCH_ERR})
+            return self.send_json(watch.live(q.get("mac", "").lower(), max(5.0, min(900.0, float(q.get("sec", 60)))),
+                                             float(q["since"]) if q.get("since") else None))
         if u.path == "/api/static/verdict":
             if not watch:
                 return self.send_json({"verdict": "nodata", "sensors": {}})
@@ -2462,6 +2721,19 @@ class Handler(BaseHTTPRequestHandler):
                 for n in sorted(os.listdir(RAW_DIR), reverse=True):
                     files.append({"name": n, "bytes": os.path.getsize(os.path.join(RAW_DIR, n))})
             return self.send_json(files)
+        if u.path == "/api/sensor_noise":              # шум и точность акселерометра агента: tools/imu_noise.py → картинка и сводка
+            aid = int(q.get("id", "0") or 0)
+            minutes = max(1.0, min(120.0, float(q.get("min", "10") or 10)))
+            r = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "imu_noise.py"), str(aid), str(minutes)],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
+                               env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+            out = (r.stdout or "").strip()
+            if r.returncode or "картинка:" not in out:
+                return self.send_json({"ok": False, "error": (out or r.stderr or "ошибка анализа").strip().splitlines()[-1]})
+            text, _, png = out.rpartition("картинка:")
+            return self.send_json({"ok": True, "text": text.strip(), "png": "/sensor/" + os.path.basename(png.strip())})
+        if u.path.startswith("/sensor/") and u.path.endswith(".png"):
+            return self.send_file(os.path.join(ROOT, "data", "sensor", os.path.basename(u.path)), "image/png")
         if u.path.startswith("/data/raw/"):
             name = os.path.basename(u.path)
             return self.send_file(os.path.join(RAW_DIR, name), "application/x-ndjson; charset=utf-8")
@@ -2469,9 +2741,23 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         u = urlparse(self.path)
+        if u.path == "/api/ingest":                    # телефон: пакеты строками — как агенты шлют по UDP
+            n, t, k, bad = int(self.headers.get("Content-Length", 0)), time.time(), 0, 0
+            for line in self.rfile.read(n).decode("utf-8", "replace").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    handle_datagram(t, self.client_address[0], line)
+                    k += 1
+                except Exception as e:                 # noqa: BLE001
+                    bad += 1
+                    stats["err"] += 1
+                    stats["err_last"] = f"{time.strftime('%H:%M:%S')} ingest {e!r}"
+            return self.send_json({"ok": True, "n": k, "bad": bad, "t": round(t, 3)})
         if u.path not in ("/api/control", "/api/session/start", "/api/session/stop", "/api/compose",
                           "/api/program/start", "/api/program/stop", "/api/static/baseline", "/api/ota",
-                          "/api/usb", "/api/rest_rot", "/api/telemetry", "/api/ident"):
+                          "/api/usb", "/api/rest_rot", "/api/telemetry", "/api/ident", "/api/motors", "/api/coils"):
             return self.send_error(404)
         try:
             n = int(self.headers.get("Content-Length", 0))
@@ -2490,6 +2776,15 @@ class Handler(BaseHTTPRequestHandler):
                     watch.rec_clear(body.get("macs", "all"))
                     return self.send_json({"ok": True})
                 raise ValueError("action: start, stop или clear")
+            if u.path == "/api/coils":                  # катушки: {wheel, state: off|+|-, level} или {off: true}
+                if body.get("off"):
+                    coils.all_off(body.get("src") or "вручную")
+                else:
+                    coils.set(str(body.get("wheel")), body.get("state", "off"), body.get("level"), src="вручную")
+                return self.send_json({"ok": True, **coils_state()})
+            if u.path == "/api/motors":                 # моторы: {wheel, mode, dir, pwm, rpm, flip, ramp, wd} или {stop}
+                motors.set(body)
+                return self.send_json({"ok": True, **motors_state()})
             if u.path == "/api/ota":
                 return self.send_json({"ok": True, **ota_start(body.get("targets", "all"), bool(body.get("force")))})
             if u.path == "/api/telemetry":              # телеметрия всей установки: 0 обычная, 1 редкая, 2 молчание
@@ -2627,6 +2922,9 @@ runner = Runner({"apply": lambda t, c, o, f: apply_all(t, c, o, f), "confirmed":
                  "targets": _prog_targets, "snapshot": lambda macs: snapshot_results(macs),
                  "verdict": lambda t0, t1: watch.verdict(t0, t1) if watch else None,
                  "metrics": lambda t0, t1: watch.metrics(t0, t1) if watch else {},
+                 "field": field_step,
+                 "coil": lambda field, src: coils.set_field(field, src),
+                 "coil_off": lambda src: coils.all_off(src),
                  "static_macs": _prog_static, "baseline": _prog_baseline,
                  "base_cfg": lambda: dict(control.get("common") or DEFAULT_CFG),
                  "base_own": lambda: dict(control.get("own") or {}),
@@ -2720,6 +3018,10 @@ def main():
         print(f"[static] {WATCH_ERR}", flush=True)
     spawn("primes", prm_worker)
     spawn("udp", udp_receiver, a.udp)
+    spawn("motors", motors.run)
+    spawn("coils", coils.run)
+    if os.path.exists(ADB):
+        spawn("phone", phone_link)
     if a.no_beacon:
         print("[srv] без маяка", flush=True)
     else:

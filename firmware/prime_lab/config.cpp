@@ -156,7 +156,7 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
   else if (dur < 0 || dur > 7200)          snprintf(err, errlen, "bad dur=%ld", dur);
   else if (ro && !dur)                     snprintf(err, errlen, "ro needs dur");   // без срока агент не вернулся бы в эфир
   else if (tp < 500 || tp > 5000)          snprintf(err, errlen, "bad tp=%ld", tp);
-  else if (role < ROLE_A || role > ROLE_S) snprintf(err, errlen, "bad role=%ld", role);
+  else if (role < ROLE_A || role > ROLE_M) snprintf(err, errlen, "bad role=%ld", role);
   else if (afs != 2 && afs != 4 && afs != 8 && afs != 16) snprintf(err, errlen, "bad afs=%ld", afs);
   else if (avg != 1 && avg != 2 && avg != 4 && avg != 8) snprintf(err, errlen, "bad avg=%ld", avg);
   else if (sm < SM_SILENT || sm > SM_SHAM) snprintf(err, errlen, "bad sm=%ld", sm);

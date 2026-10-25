@@ -1359,7 +1359,7 @@ function renderSensors(d) {
   }
   if (S.length) {
     const v = d.static_verdict;
-    const VN = { ok: "✓ продолжать", repeat: "↻ повторить", check: "⚠ проверить", nobase: "◌ нет эталона", nodata: "✗ нет данных" };
+    const VN = { ok: "✓ как эталон — продолжать", repeat: "↻ помеха или прибор — повторить", check: "⚠ отклонение — проверить", nobase: "◌ нет эталона", nodata: "○ нет данных" };
     const why = v ? Object.entries(v.sensors || {}).flatMap(([m, p]) => (p.reasons || []).slice(0, 2)
       .map(r => `${esc(agentName(m))}: ${esc(r)}`)).slice(0, 3).join("; ") : "";
     $("statVerdict").innerHTML = v ? `<div class="sverdict ${v.verdict}"><span class="big">${VN[v.verdict] || "—"}</span>
@@ -1591,8 +1591,8 @@ async function loadPrograms() {
   } catch (e) { /* сервер недоступен — покажет общая строка */ }
 }
 
-const WATCH_NAMES = { ok: '<span class="ok">✓ продолжать</span>', repeat: '<span class="warn">↻ повторить</span>',
-  check: '<span class="bad">⚠ проверить</span>', nobase: '<span class="mut">◌ нет эталона</span>', nodata: '<span class="mut">✗ нет данных</span>' };
+const WATCH_NAMES = { ok: '<span class="ok">✓ как эталон — продолжать</span>', repeat: '<span class="warn">↻ помеха или прибор — повторить</span>',
+  check: '<span class="bad">⚠ отклонение — проверить</span>', nobase: '<span class="mut">◌ нет эталона</span>', nodata: '<span class="mut">○ нет данных</span>' };
 function watchText(r) {                  // вывод слежения за статическими по шагу программы
   const w = r.watch;
   if (!w) return "—";

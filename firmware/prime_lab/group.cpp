@@ -184,10 +184,14 @@ static Res       s_last_res;
 static uint32_t  s_last_res_cycle = 0;
 
 // кусочки шума заранее: наборы по K кусочков (в «все на одном числе» — один, в эстафете
-// и каскаде — запас на свой ход) и просьбы, которые их ждут, по очереди
-static const int PRE_MAX = 4;
+// и каскаде — запас на свой ход) и просьбы, которые их ждут, по очереди. Обычно запас — до 4
+// наборов (pre_cap); круг, которому не хватает кусочков соседей, заменяет их своими — тогда
+// запас растёт до числа недостающих (s_hold), до MAX_GROUP − 1. Был предел 4: в каскаде из 6
+// недостающих до 5, все держали наборы себе, соседям не отдавали — группа вставала (24.10.2026).
+static const int PRE_MAX = MAX_GROUP;
 static uint8_t   s_prep[PRE_MAX][MSG_MAX];
 static int       s_pre_n = 0;
+static int       s_hold = 0;                    // эстафета, каскад: столько наборов держать для своего круга (замена недостающих)
 struct PReq { uint32_t cycle; uint8_t round, to; bool job; };   // job — заготовки не было, набирали по просьбе
 static PReq      s_rq[MAX_GROUP];
 static int       s_rq_n = 0;
@@ -237,7 +241,7 @@ static bool relay() { return s_cfg.gv != 0; }                         // эст�
 // Два ядра в эстафете и каскаде: шум кусочков набирает производитель на ядре связи,
 // ядро счёта шум не трогает (шум берёт одно ядро — prime_lab.ino).
 static bool prod_noise() { return relay() && s_cfg.dc; }
-static int pre_cap() { return relay() && (pre_auto() || s_cfg.dc) ? PRE_MAX : 1; }
+static int pre_cap() { return min(PRE_MAX, max(relay() && (pre_auto() || s_cfg.dc) ? 4 : 1, s_hold)); }
 
 static uint32_t tag_of(const uint8_t* n) {      // метка числа в ответе: младшие 4 байта
   uint32_t t;
@@ -654,8 +658,6 @@ static bool rq_has(uint32_t cycle, uint8_t round, uint8_t to) {   // эта пр
     if (s_rq[i].cycle == cycle && s_rq[i].round == round && s_rq[i].to == to) return true;
   return false;
 }
-
-static int s_hold = 0;               // эстафета, каскад: столько наборов держать для своего круга (замена недостающих)
 
 static void serve_pcs() {            // заготовки — тем, кто просил, по очереди; свой круг — первым
   while (s_pre_n > 0 && s_rq_n > 0) {
@@ -1600,7 +1602,7 @@ static void r_on_timer() {
 // Наборы кусочков от производителя (два ядра) — в свой запас наборов.
 static void r_drain_prod() {
   static ProdSet it;
-  while (s_pre_n < PRE_MAX && xQueueReceive(s_prodq, &it, 0) == pdTRUE) {
+  while (s_pre_n < pre_cap() && xQueueReceive(s_prodq, &it, 0) == pdTRUE) {
     if (it.gs != s_gs || it.len != pcs_len()) continue;   // набор прошлой настройки
     memcpy(s_prep[s_pre_n++], it.data, pcs_len());
   }

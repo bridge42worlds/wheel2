@@ -68,11 +68,38 @@ const ROLES = {
   A: { icon: "▲", name: "генерация", cls: "A" }, B: { icon: "▼", name: "поглощение", cls: "B" },
   S: { icon: "◆", name: "статический", cls: "S" }, idle: { icon: "○", name: "стоит", cls: "" },
 };
+// Вывод статики за отрезок (static_watch.verdict) — один словарь на все страницы (docs/static_watch.md):
+// ↻ повторить — данные отрезка испорчены помехой или прибором (программа повторит шаг сама);
+// ⚠ проверить — отклонение от эталона без известной причины держится: нужен взгляд человека.
 const STATIC_VERDICT = {
-  ok: { cls: "ok", icon: "✓", word: "спокойно" }, check: { cls: "warn", icon: "◐", word: "отклонение — проверить" },
-  repeat: { cls: "bad", icon: "✗", word: "помеха — повторить" }, nobase: { cls: "mut", icon: "·", word: "нет эталона" },
-  nodata: { cls: "mut", icon: "·", word: "нет данных" },
+  ok: { cls: "ok", icon: "✓", word: "как эталон — продолжать", short: "продолжать" },
+  check: { cls: "bad", icon: "⚠", word: "отклонение — проверить", short: "проверить" },
+  repeat: { cls: "warn", icon: "↻", word: "помеха или прибор — повторить", short: "повторить" },
+  nobase: { cls: "mut", icon: "◌", word: "нет эталона", short: "нет эталона" },
+  nodata: { cls: "mut", icon: "○", word: "нет данных", short: "нет данных" },
 };
+// Состояние измерителя в эту минуту (static_watch.status → d.static[].status, text, age, base)
+function staticStatus(s) {
+  if (!s) return { cls: "mut", icon: "○", word: "отсчётов ещё нет" };
+  const age = s.age;
+  switch (s.status) {
+    case "none": return age != null && age > 10 ? { cls: "bad", icon: "✗", word: `датчик молчит ${fmtDur(age)}` } : { cls: "mut", icon: "○", word: "копится первое окно (10 с)" };
+    case "dist": return { cls: "warn", icon: "↻", word: "помеха — повторить" };
+    case "inst": return { cls: "warn", icon: "↻", word: "прибор — повторить" };
+    case "nobase": return { cls: "mut", icon: "◌", word: s.base && s.base.fits === false ? "эталон для другого режима" : "нет эталона" };
+    case "dev": return { cls: "bad", icon: "⚠", word: "отклонение — проверить" };
+    case "maybe": return { cls: "warn", icon: "◐", word: "разовое отклонение" };
+    case "known": return { cls: "ok", icon: "✓", word: "как эталон (кроме известных линий)" };
+    case "ok": return { cls: "ok", icon: "✓", word: "как эталон" };
+  }
+  return { cls: "mut", icon: "○", word: s.status || "—" };
+}
+// Виды находок статики — значок и слово (ключи — static_watch.KIND_NAMES)
+const KIND = { knock: "↻ толчок", spikes: "↻ выбросы", moved: "⇅ сдвиг", quant: "⚙ квантование", gap: "⚙ пропуск отсчётов", sat: "⚙ зашкал",
+  mode: "⚙ режим датчика", line: "│ линия", gone: "│ линия пропала", band: "≋ полоса", gauss: "∿ форма шума" };
+const CLS_WORD = { dist: "помеха — повторить", inst: "прибор — повторить", dev: "отклонение — проверить" };
+// Значки состояний агента и ролей — одни на все страницы: план и факт одним языком
+const ICONS = { gen: "▶", abs: "▼", idle: "⏸", meas: "◆", quiet: "◇", radio: "◌", done: "☑", off: "✗", restart: "⟳", late: "⋯", hot: "♨", rest: "⏸" };
 // Пиктограммы режимов: рисуются цветом текста, 28×18
 const PICT = {
   solo: `<svg viewBox="0 0 28 18" width="28" height="18" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1" y="5" width="5" height="8"/><rect x="8" y="5" width="5" height="8"/><rect x="15" y="5" width="5" height="8"/><rect x="22" y="5" width="5" height="8"/></g></svg>`,

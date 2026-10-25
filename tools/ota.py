@@ -49,6 +49,10 @@ def main():
           "; пропущены:", {names.get(m, m): w for m, w in r["skipped"].items()} or "—", flush=True)
     if not r["sent"]:
         return
+    # Перезапуск с новым образом виден по разделу: OTA пишет в свободный (app0 ↔ app1). Так «готово» не
+    # наступает раньше времени, когда заливается сборка с тем же номером версии (--force).
+    part0 = {x["mac"]: (x.get("ota") or [0, 0, ""])[2] for x in d["agents"]}
+    ver0 = {x["mac"]: x["fw"] for x in d["agents"]}
     t0 = time.time()
     seen = {}
     sent_t = {m: t0 for m in r["sent"]}                # когда команда ушла этому агенту
@@ -76,7 +80,8 @@ def main():
             if x["status"] != "online":
                 st = "перезапускается" if x["status"] in ("late", "offline") else st
             line.append(f"{names.get(x['mac'])}: {x['fw']} ({o[2] or '?'}) {st}")
-            if x["fw"] == fw["version"] and x["status"] == "online" and not o[1]:
+            moved = (o[2] and part0.get(x["mac"]) and o[2] != part0[x["mac"]]) or x["fw"] != ver0.get(x["mac"])
+            if x["fw"] == fw["version"] and x["status"] == "online" and not o[1] and moved:
                 done += 1
         key = " | ".join(line)
         if key != seen.get("k"):

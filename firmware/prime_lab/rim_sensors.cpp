@@ -3,6 +3,7 @@
 #include <icm42688.h>
 #include <mlx90393.h>
 #include "esp_timer.h"
+#include "entropy.h"
 
 namespace rim {
 
@@ -64,6 +65,11 @@ static void task(void*) {
     if (s_present & HAS_IMU) {
       Icm42688::Sample smp;
       if (s_imu.read(smp)) {
+        if (entropy_wants(SI_ACC)) {           // шум с акселерометра выбран: младшие байты шести осей — в запас
+          uint8_t lo[6];
+          for (int j = 0; j < 6; ++j) lo[j] = (uint8_t)smp.raw[j];
+          entropy_feed_sensor(SI_ACC, lo, sizeof lo);
+        }
         const float dt = (now - t_prev) / 1e6f;
         t_prev = now;
         if (s_radius != r_used) {
@@ -103,13 +109,20 @@ static void task(void*) {
         portEXIT_CRITICAL(&s_mux);
       }
     }
-    if (s_present & HAS_MAG) {                  // 20 Гц: начать, через 10 мс забрать
+    // MLX90393, 20 Гц: начать, через 30 мс забрать. Замер x, y, z и температуры при OSR 0 и DIG_FILT 5 идёт
+    // ~21 мс (на ось 0,067 + 0,192·(2 + 2^5) ≈ 6,6 мс); 21.10.2026 забирали через 10 мс — получали прошлый
+    // замер, а около 4 % раз ошибку «не готово» (err в tel рос на ~0,8 в секунду).
+    if (s_present & HAS_MAG) {
       const uint32_t ph = k % 10;
       if (ph == 0) {
         s_mag.start();
-      } else if (ph == 2) {
+      } else if (ph == 6) {
         Mlx90393::Sample m;
         if (s_mag.fetch(m)) {
+          if (entropy_wants(SI_MAG)) {         // шум с магнитометра выбран: младшие байты трёх осей
+            uint8_t lo[3] = {(uint8_t)m.raw[0], (uint8_t)m.raw[1], (uint8_t)m.raw[2]};
+            entropy_feed_sensor(SI_MAG, lo, sizeof lo);
+          }
           const float a = sqrtf(m.b[0] * m.b[0] + m.b[1] * m.b[1] + m.b[2] * m.b[2]);
           portENTER_CRITICAL(&s_mux);
           if (s_ma.n == 0 || a < s_ma.bmin) s_ma.bmin = a;
@@ -128,8 +141,22 @@ static void task(void*) {
   }
 }
 
-void begin() {
-  Wire.begin(SDA_PIN, SCL_PIN, 400000);
+// Кто вообще отвечает на шине (до 8 адресов) — в журнал и в tel "i2c": «никто» — питание или провода
+// (SDA/SCL перепутаны, CS не на 3V3), «отвечает другой адрес» — подключено верно, датчик не тот или не узнан.
+static uint8_t s_i2c[8];
+static int     s_i2c_n = 0;
+
+// Чтение WHO_AM_I (0x75) напрямую: коды ошибок шины — для разбора, когда адрес отвечает, а чтение нет
+static uint8_t who_at(uint8_t a, int& e, int& n) {
+  Wire.beginTransmission(a);
+  Wire.write(0x75);
+  e = Wire.endTransmission(false);
+  n = e == 0 ? Wire.requestFrom(a, (uint8_t)1) : 0;
+  return n == 1 ? Wire.read() : 0xff;
+}
+
+// Найти ICM-42688 и MLX90393 на шине (на текущей скорости)
+static void detect() {
   for (uint8_t a : {(uint8_t)0x68, (uint8_t)0x69})
     if (s_imu.begin(Wire, a)) {
       // ±16 g, ±2000 °/с, 200 Гц, полоса max(400, ODR)/10 = 40 Гц, гироскоп включён
@@ -145,10 +172,46 @@ void begin() {
       Serial.printf("RIM MLX90393 at 0x%02x\n", a);
       break;
     }
+}
+
+void begin() {
+  Wire.begin(SDA_PIN, SCL_PIN, 400000);
+  for (uint8_t a = 1; a < 127; ++a) {
+    Wire.beginTransmission(a);
+    if (Wire.endTransmission() == 0 && s_i2c_n < 8) s_i2c[s_i2c_n++] = a;
+  }
+  Serial.print("RIM i2c:");
+  for (int i = 0; i < s_i2c_n; ++i) Serial.printf(" 0x%02x", s_i2c[i]);
+  Serial.println(s_i2c_n ? "" : " nothing answers (check 3V3, GND, SDA=D4, SCL=D5, CS=3V3)");
+  for (int i = 0; i < s_i2c_n; ++i)                 // кто-то на адресе ICM: читается ли его номер и на какой скорости
+    if (s_i2c[i] == 0x68 || s_i2c[i] == 0x69)
+      for (uint32_t clk : {400000u, 100000u, 50000u}) {
+        Wire.setClock(clk);
+        Serial.printf("RIM who 0x%02x @%lu kHz:", s_i2c[i], (unsigned long)(clk / 1000));
+        for (int k = 0; k < 3; ++k) {
+          int e = 0, n = 0;
+          const uint8_t w = who_at(s_i2c[i], e, n);
+          Serial.printf(" 0x%02x(e%d n%d)", w, e, n);
+        }
+        Serial.println();
+      }
+  // Поиск датчиков: сначала на 400 кГц; не нашлись — на 100 кГц (слабые подтяжки шины: адрес отвечает, чтение нет)
+  for (uint32_t clk : {400000u, 100000u}) {
+    Wire.setClock(clk);
+    detect();
+    if (s_present) {
+      Serial.printf("RIM bus %lu kHz\n", (unsigned long)(clk / 1000));
+      break;
+    }
+  }
   if (!s_present) {
+    for (int i = 0; i < s_i2c_n; ++i)               // точный акселерометр меряет только в роли S
+      if (s_i2c[i] == 0x1D || s_i2c[i] == 0x53) Serial.printf("RIM 0x%02x: ADXL355? measures in role S only\n", s_i2c[i]);
     Serial.println("RIM no sensors");
     return;
   }
+  entropy_sensor_present(SI_ACC, s_present & HAS_IMU);
+  entropy_sensor_present(SI_MAG, s_present & HAS_MAG);
   s_imu_take_t = esp_timer_get_time();
   xTaskCreatePinnedToCore(task, "rim", 4096, nullptr, 1, nullptr, 0);   // ядро связи, ниже протокола
 }
@@ -158,7 +221,9 @@ void set_radius(float r_mm) { s_radius = r_mm; }
 uint8_t present() { return s_present; }
 
 void add_tel(Out& o) {
-  add(o, ",\"sens\":%u", s_present);
+  add(o, ",\"sens\":%u,\"i2c\":[", s_present);
+  for (int i = 0; i < s_i2c_n; ++i) add(o, "%s%u", i ? "," : "", s_i2c[i]);
+  add(o, "]");
   if (s_present & HAS_IMU)
     add(o, ",\"imu\":{\"addr\":%u,\"who\":%u,\"cfg\":[%u,%u,%u,%u],\"err\":%lu}", s_imu.addr(), s_imu.who(),
         s_imu_cfg[0], s_imu_cfg[1], s_imu_cfg[2], s_imu_cfg[3], (unsigned long)s_imu.errors());

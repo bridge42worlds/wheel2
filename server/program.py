@@ -532,6 +532,8 @@ class Runner:
                 self.h["apply"](macs, {**x["base"]["cfg"], "run": 0}, x["base"]["own"], False)
             except Exception:
                 pass
+            if self.h.get("coil_off"):                        # программа кончилась — поле выкл
+                self.h["coil_off"]("конец программы")
             x["t_stop"] = round(time.time(), 3)
             x["now"] = None
             try:
@@ -566,6 +568,8 @@ class Runner:
             plan.append((list(macs), {**base["cfg"], **st["cfg"], "run": 1, **dur}, own, None))
             idle = []
         applied = []
+        if self.h.get("coil"):                                 # поле катушек шага: «+», «−», «выкл» (агенты катушек)
+            self.h["coil"](st.get("coil") or {}, f"шаг «{st['name']}»")
         for tg, cfg, own, label in plan:
             cid = self.h["apply"](tg, cfg, own, True)          # новый номер: счётчики — с нуля
             applied.append({"targets": tg, "cid": cid, "cfg": cfg, "own": own, "label": label})
@@ -619,9 +623,12 @@ class Runner:
         snap = self.h["snapshot"](macs)
         return {**head, "t0": round(t0, 3), "t1": round(t1, 3), "not_confirmed": bad, "not_seen": not_seen, "not_done": not_done,
                 "agents": snap, "gen": gen_metrics(snap, t1 - t0, snap0),
-                "static": self.h["metrics"](t0, t1), "watch": self.h["verdict"](t0, t1)}
+                "static": self.h["metrics"](t0, t1), "watch": self.h["verdict"](t0, t1),
+                "field": self.h["field"](t0, t1) if self.h.get("field") else {}}
 
     def _rest(self, x, macs):
+        if self.h.get("coil_off"):                             # на отдыхе катушки выключены — не греются
+            self.h["coil_off"]("отдых")
         """Отдых перед шагом: генераторы стоят на 80 МГц, пока температура не установится (или сколько велено).
         Каждый режим начинается из одинакового состояния; начальная температура — в итогах шага."""
         prog = x["program"]

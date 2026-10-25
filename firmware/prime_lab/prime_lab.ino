@@ -31,6 +31,7 @@
 #include <agent_common.h>
 #include "config.h"
 #include "static_role.h"
+#include "motor.h"
 #include "entropy.h"
 #include "primes.h"
 #include "thermal.h"
@@ -88,6 +89,12 @@ static volatile bool     s_radio_off = false; // Wi-Fi выключен на в�
 static uint32_t          s_radio_t0 = 0;      // когда выключен, мс
 static uint32_t          s_radio_off_s = 0;   // сколько секунд радио было выключено на последнем шаге
 static uint32_t          g_last_try = 0;      // когда последний раз пробовали переподключить Wi-Fi
+// Запасная сеть (ssid2 в secrets/wifi.ini): основная не пускает 40 с — плата уходит на запасную и остаётся на
+// связи (опечатка в пароле новой сети не отрезает плату — её не надо перешивать по USB). На запасной через 2 мин,
+// потом раз в 10 мин, когда стоит, пробует основную. В телеметрии "net": 0 — основная, 1 — запасная.
+static uint8_t           g_net = 0;
+static uint32_t          g_net_down = 0;      // с какого момента нет связи (мс); 0 — связь есть
+static uint32_t          g_net_try = 0;       // когда последний раз пробовали вернуться на основную
 static uint32_t          g_bcn_n = 0, g_bcn_t = 0;      // маяков сервера принято, когда последний (мс)
 static uint32_t          g_bcn_rst = 0;                 // переподключений из-за тишины маяка
 static volatile uint32_t g_pending_t = 0;   // когда ядру 1 отданы новые настройки (мс): в телеметрии — сколько не принимает
@@ -139,8 +146,11 @@ static uint8_t nvs_role() {
     r = p.getUChar("role", ROLE_A);
     p.end();
   }
-  return r <= ROLE_S ? r : ROLE_A;
+  return r <= ROLE_M ? r : ROLE_A;
 }
+
+// Роли без счёта: статический акселерометр (S) и агент моторов (M) — свой короткий tel, с другой ролью — перезапуск.
+static bool fixed_role(uint8_t r) { return r == ROLE_S || r == ROLE_M; }
 
 static void nvs_set_role(uint8_t r) {
   Preferences p;
@@ -530,6 +540,7 @@ static void build_tel(Out& o, const GenStats& g, const group::Stats& gs, uint32_
   // не принимает новые настройки, наименьшая свободная память с запуска
   add(o, ",\"udpe\":%d,\"cmd\":[%lu,%lu],\"pend\":%lu,\"heapmin\":%lu", g_udp_err, (unsigned long)g_cmd_rx,
       (unsigned long)g_cmd_rej, (unsigned long)(g_pending ? now - g_pending_t : 0), (unsigned long)ESP.getMinFreeHeap());
+  add(o, ",\"net\":%u", g_net);                    // 0 — основная сеть, 1 — запасная
   add(o, ",\"bcn\":[%lu,%lu,%lu]", (unsigned long)g_bcn_n, (unsigned long)(g_bcn_t ? (now - g_bcn_t) / 1000 : 0),
       (unsigned long)g_bcn_rst);                       // маяков сервера, с давности последнего, переподключений из-за тишины
   int8_t txq = 0;
@@ -543,9 +554,10 @@ static void build_tel(Out& o, const GenStats& g, const group::Stats& gs, uint32_
   rim::add_tel(o);                                   // датчики на ободе: что найдено, режимы из регистров
   // рассеяние: роль, режим, функция, фильтр CSI; счётчики A (объявлено) и B (получено, выпущено…)
   add(o, ",\"role\":%u,\"sm\":%u,\"sf\":%u,\"cf\":%u,\"sh\":%u,\"bgr\":%u,\"ann\":%lu,\"adrop\":%lu,"
-         "\"heard\":%lu,\"bclost\":%lu,\"rxdrop\":%lu",
+         "\"heard\":%lu,\"bclost\":%lu,\"rxdrop\":%lu,\"slost\":[%lu,%lu]",
       c.role, c.sm, c.sf, c.cf, c.sh, c.bgr, (unsigned long)gs.ann, (unsigned long)gs.ann_drop,
-      (unsigned long)gs.heard, (unsigned long)bcast_lost(), (unsigned long)gs.rx_drop);
+      (unsigned long)gs.heard, (unsigned long)bcast_lost(), (unsigned long)gs.rx_drop,
+      (unsigned long)sensor_lost(SI_ACC), (unsigned long)sensor_lost(SI_MAG));   // показания датчиков, не взятые в шум (запас полон)
   // ESP-NOW этого агента: кадров в очередь, выброшено (очередь полна), не принято радио, без подтверждения
   add(o, ",\"etx\":[%lu,%lu,%lu,%lu]", (unsigned long)gs.tx, (unsigned long)gs.tx_drop, (unsigned long)gs.tx_err,
       (unsigned long)gs.tx_fail);
@@ -766,15 +778,16 @@ static void build_tel_static(Out& o, uint32_t seq, uint32_t now, float temp, con
          "\"wrst\":%lu",
       WiFi.RSSI(), temp_json(temp), (unsigned long)ESP.getFreeHeap(), load.busy0, load.busy1, (unsigned long)g_udp_fail,
       (unsigned long)g_wifi_disc, g_wifi_reason, (unsigned long)g_wifi_rst);
-  add(o, ",\"rbt\":[%d,%lu,%lu]", g_boot_rst, (unsigned long)g_boot_why, (unsigned long)g_rbt_n);
+  add(o, ",\"rbt\":[%d,%lu,%lu],\"net\":%u", g_boot_rst, (unsigned long)g_boot_why, (unsigned long)g_rbt_n, g_net);
   add(o, ",\"udpe\":%d,\"cmd\":[%lu,%lu],\"heapmin\":%lu,\"bcn\":[%lu,%lu,%lu]", g_udp_err, (unsigned long)g_cmd_rx,
       (unsigned long)g_cmd_rej, (unsigned long)ESP.getMinFreeHeap(), (unsigned long)g_bcn_n,
       (unsigned long)(g_bcn_t ? (now - g_bcn_t) / 1000 : 0), (unsigned long)g_bcn_rst);
   add(o, ",\"role\":%u,\"cid\":%lu,\"run\":%u,\"cpu\":%u,\"txp\":%u,\"txr\":%.2f,\"led\":%u,\"tp\":%u,\"tl\":%u,"
          "\"tq\":%u,\"tls\":%u,\"afs\":%u,\"avg\":%u",
-      ROLE_S, (unsigned long)c.cid, c.run, c.cpu, c.txp, txq / 4.0f, c.led, c.tp, c.tl, c.tq, tl_now(), c.afs, c.avg);
+      g_boot_role, (unsigned long)c.cid, c.run, c.cpu, c.txp, txq / 4.0f, c.led, c.tp, c.tl, c.tq, tl_now(), c.afs, c.avg);
   add(o, ",\"ota\":[%d,%d,\"%s\"]", ota::state(), ota::pending_verify() ? 1 : 0, ota::slot());
-  sacc::add_tel(o);
+  if (g_boot_role == ROLE_M) motor::add_tel(o);
+  else sacc::add_tel(o);
   add(o, "}");
 }
 
@@ -797,12 +810,12 @@ static void apply_config(const GenConfig& c) {
     setCpuFrequencyMhz(c.cpu);
     Serial.printf("CPU %lu MHz\n", (unsigned long)getCpuFrequencyMhz());
   }
-  if (g_boot_role == ROLE_S) {                 // статический: только мощность, телеметрия, режим датчика
+  if (fixed_role(g_boot_role)) {               // статический или моторы: только мощность, телеметрия, режим датчика
     apply_txp(c.txp);
-    sacc::set(c.afs, c.avg);
+    if (g_boot_role == ROLE_S) sacc::set(c.afs, c.avg);
     if (c.tl == TL_QUIET && (s_cur.tl != TL_QUIET || c.tq != s_cur.tq)) s_quiet_t0 = millis();
     s_cur = c;
-    s_cur.role = ROLE_S;
+    s_cur.role = g_boot_role;
     return;
   }
   portENTER_CRITICAL(&g_mux);
@@ -832,8 +845,35 @@ static void wifi_begin() {
   WiFi.mode(WIFI_STA);
   esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G);
   WiFi.setMinSecurity(WIFI_AUTH_WPA_PSK);
-  WiFi.begin(agent::wifi_ssid(), agent::wifi_pass());
+  if (g_net && strlen(agent::wifi_ssid2())) WiFi.begin(agent::wifi_ssid2(), agent::wifi_pass2());
+  else WiFi.begin(agent::wifi_ssid(), agent::wifi_pass());
   WiFi.setSleep(false);
+}
+
+static void net_switch(uint8_t to, const char* why) {
+  g_net = to;
+  Serial.printf("WIFI -> %s network (%s)\n", to ? "fallback" : "main", why);
+  WiFi.disconnect();
+  delay(100);
+  wifi_begin();
+  g_last_try = g_net_down = millis();
+  g_bcn_t = millis();                           // тишина маяка на время переезда — не повод переподключаться
+  if (to == 1) g_net_try = millis() - 8u * 60 * 1000;   // первая попытка вернуться на основную — через 2 мин
+}
+
+// Раз в секунду: нет связи 40 с — на другую сеть; на запасной через 2 мин, потом раз в 10 мин, стоя, — попробовать основную.
+static void net_tick(uint32_t now) {
+  if (s_radio_off || !strlen(agent::wifi_ssid2())) return;
+  if (WiFi.status() == WL_CONNECTED) {
+    g_net_down = 0;
+    if (g_net == 1 && !s_cur.run && now - g_net_try > 10u * 60 * 1000) {
+      g_net_try = now;
+      net_switch(0, "retry main");
+    }
+    return;
+  }
+  if (!g_net_down) g_net_down = now;
+  else if (now - g_net_down > 40000) net_switch(g_net ^ 1, "no connection 40 s");
 }
 
 // Эфир шагу нужен: группа или сет B (ESP-NOW), шум из эфира (CSI, обратный) или пинг роутера без CSI (cf 3).
@@ -899,6 +939,15 @@ static void handle_cmd(char* line, IPAddress from, WiFiUDP& udp) {
     send_ack(udp, s_cur.cid, true, "ident");
     return;
   }
+  if (strncmp(line, "MOT", 3) == 0) {                // моторы: MOT a=‰ b=‰ r=разгон w=сторож (только роль M)
+    if (g_boot_role != ROLE_M) {
+      send_ack(udp, s_cur.cid, false, "not motor");
+      return;
+    }
+    motor::command(line + 3);
+    send_ack(udp, s_cur.cid, true, "mot");
+    return;
+  }
   if (strncmp(line, "REST", 4) == 0 || strncmp(line, "BACK", 4) == 0) {   // отдых по очереди: REST s=секунд / BACK
     const char* sp = strstr(line, "s=");
     const unsigned long secs = line[0] == 'R' && sp ? strtoul(sp + 2, nullptr, 10) : 0;
@@ -934,7 +983,8 @@ static void handle_cmd(char* line, IPAddress from, WiFiUDP& udp) {
   char err[48];
   GenConfig c;
   bool ok = parse_config(line, s_cur, c, err, sizeof err);
-  if (ok && (c.role == ROLE_S) != (g_boot_role == ROLE_S)) {   // статический ↔ генератор: с новой ролью заново
+  if (ok && c.role != g_boot_role && (fixed_role(c.role) || fixed_role(g_boot_role))) {   // в/из S или M: с новой ролью заново
+    if (g_boot_role == ROLE_M) motor::stop();
     nvs_set_role(c.role);
     Serial.printf("CMD %s -> role %u, restart\n", line, c.role);
     send_ack(udp, cid, true, "restart");
@@ -968,7 +1018,7 @@ static void comms_task(void*) {
   uint32_t led_off_at = 0;                              // когда погасить вспышку телеметрии (мс)
   float temp = agent::chip_temp();
   uint64_t last_cand = 0, last_pr = 0;
-  const bool fixed = g_boot_role == ROLE_S;            // статический акселерометр: только меряет
+  const bool fixed = fixed_role(g_boot_role);          // статический акселерометр или моторы: счёта нет
 
   for (;;) {
     int n = beacon.parsePacket();
@@ -1041,6 +1091,7 @@ static void comms_task(void*) {
       beacon_watchdog(now);                                  // связь «есть», а маяка сервера нет — переподключиться
       radio_watchdog(up1 || s_radio_off);                    // радио не передаёт вовсе — перезапуск (выключенное — не в счёт)
       if (!fixed) step_tick(now);                            // шаг на агенте: радио выкл / шаг кончился
+      net_tick(now);                                         // основная сеть не пускает — запасная
       if (!s_cur.run && now > 90000 && ESP.getFreeHeap() < HEAP_RESTART_BELOW && ota::state() != 1) {
         Serial.printf("HEAP low while idle: %lu free (min %lu)\n", (unsigned long)ESP.getFreeHeap(),
                       (unsigned long)ESP.getMinFreeHeap());
@@ -1206,9 +1257,15 @@ void setup() {
   }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
   wifi_begin();            // 802.11b/g, WPA (наша сеть — WPA), радио без сна — см. wifi_begin
   uint32_t t0 = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 20000) delay(100);
-  Serial.printf("WIFI %s ip=%s rssi=%d ch=%d t=%lu ms\n",
-                WiFi.status() == WL_CONNECTED ? "ok" : "fail",
+  // основную ждём 30 с: после быстрого перезапуска роутер какое-то время помнит прежнее подключение платы
+  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 30000) delay(100);
+  if (WiFi.status() != WL_CONNECTED && strlen(agent::wifi_ssid2())) {   // основная не пустила — запасная
+    net_switch(1, "main failed at boot");
+    t0 = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - t0 < 20000) delay(100);
+  }
+  Serial.printf("WIFI %s net=%s ip=%s rssi=%d ch=%d t=%lu ms\n",
+                WiFi.status() == WL_CONNECTED ? "ok" : "fail", g_net ? "fallback" : "main",
                 WiFi.localIP().toString().c_str(), WiFi.RSSI(), WiFi.channel(), millis() - t0);
 
   if (strlen(agent::server_host())) {
@@ -1218,9 +1275,10 @@ void setup() {
   }
 
   GenConfig def;           // заводские настройки до первой команды сервера
-  if (g_boot_role == ROLE_S) {                   // статический акселерометр: только меряет
-    def.role = ROLE_S;
-    sacc::begin(def.afs, def.avg);               // измерение — на ядре 1
+  if (fixed_role(g_boot_role)) {                 // статический акселерометр (меряет на ядре 1) или моторы
+    def.role = g_boot_role;
+    if (g_boot_role == ROLE_S) sacc::begin(def.afs, def.avg);
+    else motor::begin();
     apply_config(def);
     xTaskCreatePinnedToCore(comms_task, "comms", 8192, nullptr, 2, nullptr, 0);
     return;

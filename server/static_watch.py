@@ -2,7 +2,8 @@
 """Статические акселерометры: эталон шума и слежение за спектром.
 
 Агент со статическим акселерометром (роль S) только меряет: ICM-42688 1000 Гц,
-среднее по avg отсчётам — на сервер идут оси x, y, z (при avg = 2 — 500 Гц)
+среднее по avg отсчётам, или ADXL355 сразу на 1000/avg Гц со своим фильтром —
+на сервер идут оси x, y, z (при avg = 2 — 500 Гц)
 пакетами "acc". Всё остальное считается здесь.
 
 Окно — 10 с. По каждому окну и оси:
@@ -95,6 +96,11 @@ def runmed(a, h):
     """Скользящая медиана по ±h соседям."""
     a = np.asarray(a, dtype=np.float64)
     return np.array([np.median(a[max(0, i - h):i + h + 1]) for i in range(len(a))])
+
+
+def is_adxl(lsb):
+    """Отсчётов на g: у ADXL355 (20 разрядов, сдвинутые в int16) — 16000, 8000, 4000; у ICM-42688 — 16384 … 2048."""
+    return round(float(lsb or 0)) in (16000, 8000, 4000)
 
 
 def quant_check(q, sd_lsb, n, e_base=None):
@@ -353,7 +359,7 @@ class Watch:
     def _base(self, s):
         """Эталон, если он для того же режима датчика."""
         b = s.base
-        if b is None or tuple(b["mode"]) != tuple(s.mode):
+        if b is None or s.mode is None or tuple(b["mode"]) != tuple(s.mode):
             return None
         return b
 
@@ -673,8 +679,9 @@ class Watch:
         f = np.arange(len(b["db_mean"][0])) * b["df"]
         sel = (f >= 10) & (f <= min(100, b["hz"] / 2 * 0.8))
         dens = [math.sqrt(10 ** (np.median(np.array(b["db_mean"][ax])[sel]) / 10)) * 1e6 for ax in range(3)]
+        adxl = is_adxl(b["mode"][2])
         q.append({"ok": True, "text": "шум " + " · ".join(f"{a} {fnum(d, 0)}" for a, d in zip(AXES, dens)) +
-                  " мкg/√Гц (10–100 Гц; у ICM-42688 по паспорту 70)"})
+                  (" мкg/√Гц (10–100 Гц; у ADXL355 по паспорту 25)" if adxl else " мкg/√Гц (10–100 Гц; у ICM-42688 по паспорту 70)")})
         ku = [b["kurt"][ax][0] for ax in range(3)]
         sk = [b["skew"][ax][0] for ax in range(3)]
         g_ok = max(abs(x) for x in ku) < 0.2 and max(abs(x) for x in sk) < 0.1
@@ -820,17 +827,21 @@ class Watch:
 
     # ---------------- для панели ----------------
     def status(self, s, now):
+        # датчик, известный только по эталону с диска (после перезапуска сервера пакетов ещё не было): режим
+        # неизвестен — сравнивать с эталоном нельзя, и _base на s.mode = None падал бы (25.10.2026)
+        if s.last_rx is None:
+            return "none", "✗ отсчётов не было"
+        if now - s.last_rx > 10:
+            return "none", f"✗ датчик молчит {fnum(now - s.last_rx, 0)} с"
         b = self._base(s)
         active = list(s.conds.values())
         held = [c for c in active if c["cls"] == "dev" and not c.get("known") and c["n"] >= PERSIST]
-        if s.last_rx is None or now - s.last_rx > 10:
-            return "none", "✗ нет данных"
         if not s.windows:
-            return "none", f"◌ ждём первое окно ({WIN_S} с)"
+            return "none", f"○ копится первое окно ({WIN_S} с)"
         if any(c["cls"] == "dist" for c in active):
             return "dist", "↻ помеха: " + "; ".join(c["text"] for c in active if c["cls"] == "dist")[:160]
         if any(c["cls"] == "inst" for c in active):
-            return "inst", "⚠ прибор: " + "; ".join(c["text"] for c in active if c["cls"] == "inst")[:160]
+            return "inst", "↻ прибор: " + "; ".join(c["text"] for c in active if c["cls"] == "inst")[:160]
         if s.base is not None and b is None:
             return "nobase", f"◌ эталон записан для другого режима (±{s.base['mode'][1]} g, " \
                              f"{fnum(1000 / s.base['mode'][0], 0)} Гц) — перепишите"
@@ -877,6 +888,50 @@ class Watch:
                     "thresholds": {"line": Z_LINE, "band": Z_BAND, "gauss": Z_GAUSS, "quant": Z_QUANT,
                                    "knock": KNOCK_X, "moved_mg": MOVED_UG / 1000, "persist": PERSIST, "win_s": WIN_S}}
 
+    def live(self, mac, sec=60.0, since=None, wave_s=10.0, wave_pts=600):
+        """Живой показ статического датчика (планшетка, окно «вживую»): за последние sec секунд по осям x, y, z и
+        модулю |a| — сейчас (последняя секунда), среднее, СКО, мин/макс, размах, асимметрия и эксцесс (у гаусса ≈ 0);
+        гистограмма отклонений; спектр (Уэлч, мкg/√Гц); колебания по секундам; толчки и отклонения; волна последних
+        wave_s секунд (среднее и размах по блокам). since — момент «сброса»: та же сводка с него (в пределах кольца)."""
+        with self.lock:
+            s = self.sensors.get(mac)
+            if not s or s.head is None or s.buf is None:
+                return {"ok": False, "error": "отсчётов нет: агент не в роли измерителя или не шлёт"}
+            hz, lsb, head, now = float(s.fs or s.hz), float(s.lsb), int(s.head), time.time()
+
+            def grab(n):
+                n = int(max(0, min(n, s.cap, head)))
+                idx = np.arange(head - n, head) % s.cap
+                return s.buf[idx].astype(np.float64), s.ok[idx].copy()
+            raw, ok = grab(sec * hz)
+            raw_s = grab((now - since) * hz) if since else None
+            meta = {"hz": round(hz, 2), "avg": s.mode[0], "afs": s.mode[1], "lsb": lsb, "step_mg": round(1000.0 / lsb, 4),
+                    "lost": int(s.lost), "restarts": int(s.restarts), "temp": s.temp,
+                    "age": round(now - s.last_rx, 1) if s.last_rx else None, "base": s.base is not None}
+            secs = [q for q in list(s.seconds) if q["t"] >= now - sec]
+            knocks = [k for w in list(s.windows) if w["t1"] >= now - sec for k in w.get("knocks", [])]
+            spikes = [w["spikes"] for w in list(s.windows) if w["t1"] >= now - sec and w.get("spikes")]
+            conds = [{"kind": c["kind"], "text": c.get("text"), "t0": c["t0"], "t1": c.get("t1"), "known": c.get("known")}
+                     for c in s.conds.values()]
+            done = [{"kind": c["kind"], "text": c.get("text"), "t0": c["t0"], "end": c.get("end")}
+                    for c in list(s.done)[-8:] if (c.get("end") or c["t0"]) >= now - max(sec, 300)]
+        cols = ("x", "y", "z", "|a|")
+        v = raw[ok] / lsb * 1000.0                      # мg
+        L = axes_live(v, hz, 1000.0 / lsb, cols, wave_s, wave_pts)
+        if not L:
+            return {"ok": False, "error": "в окне нет отсчётов", **meta}
+        res = {"ok": True, "kind": "acc", "unit": "мg", "spec_unit": "мкg/√Гц", **meta, **L, "sec": sec,
+               "gap": int(len(ok) - ok.sum()),
+               "secs": {"t": [round(q["t"] - now, 2) for q in secs], **{ax: [round(float(q["sd"][i]) / 1000.0, 4) for q in secs]
+                                                                        for i, ax in enumerate(AXES)},
+                        "peak": [round(float(np.max(q["peak"])) / 1000.0, 3) for q in secs]},
+               "knocks": [{"t": round(k["t"] - now, 1), "ax": AXES[k["ax"]], "x": round(k["x"], 1)} for k in knocks],
+               "spikes": spikes, "conds": conds, "done": done}
+        if raw_s is not None:
+            res["since"] = axes_stats(raw_s[0][raw_s[1]] / lsb * 1000.0, cols)
+            res["since_n"] = int(raw_s[1].sum())
+        return res
+
     def spectrum(self, mac, nwin=6):
         """Спектр для графика: среднее последних nwin окон и эталон (среднее, ±3 разброса)."""
         with self.lock:
@@ -920,3 +975,70 @@ def _cond(c):
         if out[k] is not None:
             out[k] = round(float(out[k]), 3)
     return out
+
+
+# ---------------- живой показ: общее для акселерометра и магнитометра ----------------
+def axes_stats(v, names):
+    """Сводка по осям x, y, z и модулю (последнее имя): среднее, СКО, мин/макс, размах, асимметрия, эксцесс."""
+    out = {}
+    if len(v) < 2:
+        return out
+    mag = np.linalg.norm(v, axis=1)
+    for i, c in enumerate(names):
+        a = mag if i == 3 else v[:, i]
+        d = a - a.mean()
+        m2 = max(float((d * d).mean()), 1e-12)
+        out[c] = {"mean": round(float(a.mean()), 3), "sd": round(float(np.sqrt(m2)), 4),
+                  "min": round(float(a.min()), 3), "max": round(float(a.max()), 3), "p2p": round(float(np.ptp(a)), 3),
+                  "skew": round(float((d ** 3).mean() / m2 ** 1.5), 3), "kurt": round(float((d ** 4).mean() / m2 ** 2 - 3), 3)}
+    return out
+
+
+def axes_live(v, hz, step, names, wave_s=10.0, wave_pts=600):
+    """Живая сводка по отсчётам v (n×3, в своих единицах — мg или мкТл) с частотой hz и ступенью датчика step:
+    сейчас (последняя секунда), сводка, гистограммы отклонений, спектр (плотность ×1000 на √Гц — мкg/√Гц или
+    нТл/√Гц), волна последних wave_s секунд (среднее и размах по блокам). Пусто — меньше двух отсчётов."""
+    st = axes_stats(v, names)
+    if not st:
+        return None
+    mag = np.linalg.norm(v, axis=1)
+    col = lambda i: mag if i == 3 else v[:, i]
+    n1 = min(len(v), max(1, int(hz)))
+    cur = {c: round(float(col(i)[-n1:].mean()), 3) for i, c in enumerate(names)}
+    hist = {}
+    for i, c in enumerate(names):
+        d = col(i) - col(i).mean()
+        sd = float(d.std()) or step
+        if sd / step < 25 and i != 3:                  # мелкий разброс — по ступеням датчика
+            lo, hi = np.floor(d.min() / step) - 0.5, np.ceil(d.max() / step) + 0.5
+            edges = np.arange(lo, hi + 1) * step
+        else:
+            edges = np.linspace(-4.5 * sd, 4.5 * sd, 46)
+        cnt, edges = np.histogram(np.clip(d, edges[0], edges[-1]), bins=edges)
+        hist[c] = {"edges": [round(float(e), 4) for e in edges], "n": cnt.tolist()}
+    spec = None
+    nper = 1024 if len(v) >= 2048 else max(32, 1 << int(np.log2(max(32, len(v) // 2))))
+    if len(v) >= nper:
+        win = 0.5 - 0.5 * np.cos(2 * np.pi * np.arange(nper) / nper)
+        seg_cols = np.column_stack([v, mag])
+        P, ns = np.zeros((4, nper // 2 + 1)), 0
+        for s0 in range(0, len(v) - nper + 1, nper // 2):
+            seg = seg_cols[s0:s0 + nper]
+            X = np.fft.rfft((seg - seg.mean(0)) * win[:, None], axis=0)
+            P += (np.abs(X) ** 2).T
+            ns += 1
+        psd = P / ns / (hz * (win ** 2).sum())
+        psd[:, 1:-1] *= 2
+        f = np.arange(psd.shape[1]) * hz / nper
+        spec = {"f": [round(float(x), 3) for x in f[1:]],
+                **{c: [round(float(x), 2) for x in np.sqrt(psd[i, 1:]) * 1000.0] for i, c in enumerate(names)}}
+    nw = min(len(v), int(wave_s * hz))
+    b = max(1, int(np.ceil(nw / wave_pts)))
+    nb = nw // b
+    wave = {"t": [round(-(nb - j) * b / hz, 3) for j in range(nb)]}
+    for i, c in enumerate(names):
+        a = col(i)[-nw:][nw - nb * b:].reshape(nb, b)
+        wave[c] = {"m": [round(float(x), 3) for x in a.mean(1)], "lo": [round(float(x), 3) for x in a.min(1)],
+                   "hi": [round(float(x), 3) for x in a.max(1)]}
+    return {"n": int(len(v)), "cols": list(names), "cur": cur, "stats": st, "hist": hist, "spec": spec, "wave": wave,
+            "step": round(float(step), 4)}

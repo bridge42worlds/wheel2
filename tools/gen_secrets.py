@@ -37,7 +37,7 @@ def ota_key():
 
 
 def main():
-    vals = {"ssid": "", "password": "", "server": ""}
+    vals = {"ssid": "", "password": "", "server": "", "ssid2": "", "password2": ""}
     if os.path.exists(SRC):
         for ln in open(SRC, encoding="utf-8"):
             ln = ln.strip()
@@ -51,9 +51,12 @@ def main():
         f.write("#pragma once\n")
         f.write(f'#define WIFI_SSID "{c_str(vals["ssid"])}"\n')
         f.write(f'#define WIFI_PASS "{c_str(vals["password"])}"\n')
+        f.write(f'#define WIFI_SSID2 "{c_str(vals["ssid2"])}"\n')       # запасная сеть: пусто — нет
+        f.write(f'#define WIFI_PASS2 "{c_str(vals["password2"])}"\n')
         f.write(f'#define SERVER_HOST "{c_str(vals["server"])}"\n')
         f.write(f'#define OTA_KEY "{key}"\n')
     print(f"wifi: сеть {vals['ssid']!r}, пароль {'задан' if vals['password'] else 'НЕ задан'}, "
+          f"запасная {repr(vals['ssid2']) + (', пароль задан' if vals['password2'] else ', пароль НЕ задан') if vals['ssid2'] else 'нет'}, "
           f"сервер {vals['server'] or 'по маяку'}; ключ OTA задан")
 
 

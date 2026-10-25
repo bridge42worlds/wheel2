@@ -17,8 +17,12 @@ static int      s_ntd = 0;           // сколько из них меньше 
 // верный остаток только для делителей меньше 2^16 (на этом 03.10.2026
 // терялось 84 % простых).
 struct Group { uint32_t prod; uint16_t first, count; };
-static Group s_gr[2300];
-static int   s_ngr = 0;
+// Таблица в двух экземплярах: новая настройка строится в свободном, потом переключается номер активного.
+// Отсев зовут два ядра (gen_task и задача группы в эстафете с двумя ядрами), и задачу группы при смене
+// настройки никто не останавливает — по полуперестроенной таблице она могла ложно отсеять кандидата (25.10.2026).
+struct Table { Group gr[1100]; int ngr; int ntd; };   // групп при td = 20000 — 1082 (по 2–3 простых в произведении)
+static Table        s_tab[2];
+static volatile int s_act = 0;       // номер активной таблицы
 
 void primes_init() {
   static uint8_t comp[PMAX / 8 + 1];   // бит = составное
@@ -32,15 +36,18 @@ void primes_init() {
 }
 
 void primes_configure(const GenConfig& c) {
-  s_ntd = 0;
-  while (s_ntd < s_npr && s_pr[s_ntd] < c.td) ++s_ntd;
-  s_ngr = 0;
-  for (int i = 0; i < s_ntd;) {
+  Table& t = s_tab[1 - s_act];        // строим в свободной, читатели пока ходят в активную
+  t.ntd = 0;
+  while (t.ntd < s_npr && s_pr[t.ntd] < c.td) ++t.ntd;
+  t.ngr = 0;
+  for (int i = 0; i < t.ntd && t.ngr < (int)(sizeof t.gr / sizeof t.gr[0]);) {
     uint64_t prod = 1;
     int first = i;
-    while (i < s_ntd && prod * s_pr[i] < (1ULL << 32)) prod *= s_pr[i++];
-    s_gr[s_ngr++] = {(uint32_t)prod, (uint16_t)first, (uint16_t)(i - first)};
+    while (i < t.ntd && prod * s_pr[i] < (1ULL << 32)) prod *= s_pr[i++];
+    t.gr[t.ngr++] = {(uint32_t)prod, (uint16_t)first, (uint16_t)(i - first)};
   }
+  s_ntd = t.ntd;
+  s_act = 1 - s_act;                  // переключение одним словом: читатель видит либо старую, либо новую таблицу целиком
 }
 
 // ---------- 32 бита: свой код ----------
@@ -117,20 +124,21 @@ static inline uint32_t be32(const uint8_t* b) {   // старший байт п�
 static inline bool native32(const GenConfig& c) { return c.bits == 32 && !s_selftest; }
 
 static bool divisible(const uint8_t* b, const GenConfig& c) {
+  const Table& t = s_tab[s_act];      // снимок активной таблицы на весь отсев одного кандидата
   if (native32(c)) {
     uint32_t n = be32(b);
-    for (int i = 0; i < s_ntd; ++i)
+    for (int i = 0; i < t.ntd; ++i)
       if (n % s_pr[i] == 0) return true;
     return false;
   }
-  if (!s_ngr) return false;
+  if (!t.ngr) return false;
   const int nw = c.bits / 32;
   uint32_t w[64];
   for (int i = 0; i < nw; ++i) w[i] = be32(b + 4 * i);
-  for (int g = 0; g < s_ngr; ++g) {
-    uint32_t r = mod32(w, nw, s_gr[g].prod);
-    for (int k = 0; k < s_gr[g].count; ++k)
-      if (r % s_pr[s_gr[g].first + k] == 0) return true;
+  for (int g = 0; g < t.ngr; ++g) {
+    uint32_t r = mod32(w, nw, t.gr[g].prod);
+    for (int k = 0; k < t.gr[g].count; ++k)
+      if (r % s_pr[t.gr[g].first + k] == 0) return true;
   }
   return false;
 }

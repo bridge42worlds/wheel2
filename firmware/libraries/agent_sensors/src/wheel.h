@@ -47,7 +47,10 @@ class WheelTracker {
   float axis_[3] = {0, 0, 0};
   float radial_[3] = {0, 0, 0};
   bool  has_radial_ = false;
-  float theta_ = 0, t_ = 0, t_rev0_ = -1, w_now_ = 0;
+  float theta_ = 0, w_now_ = 0;
+  // Время — double: во float32 шаг 5 мс тонет в округлении уже через час работы (ulp 0,5 мс при 4096 с),
+  // и период оборота уходил на проценты, а после 36 ч переставал расти (найдено 25.10.2026)
+  double t_ = 0, t_rev0_ = -1;
   float sum_f_[3];
   uint32_t n_;
   float fmin_, fmax_;

@@ -57,7 +57,7 @@ bool WheelTracker::add(const float f[3], const float w[3], float dt, WheelRev& o
   if (m > fmax_) fmax_ = m;
   if (fabsf(theta_) < 2.0f * (float)PI) return false;
 
-  const float period = t_ - t_rev0_;
+  const float period = (float)(t_ - t_rev0_);      // разность — секунды, во float точна; само время копится в double
   float mean[3] = {sum_f_[0] / n_, sum_f_[1] / n_, sum_f_[2] / n_};
   const float k = norm3(mean);
   if (k > 1e-6f) {
@@ -65,7 +65,7 @@ bool WheelTracker::add(const float f[3], const float w[3], float dt, WheelRev& o
     has_radial_ = true;
   }
   const float omega = 2.0f * (float)PI / period;
-  out.t = t_;
+  out.t = (float)t_;
   out.period = period;
   out.rpm = 60.0f / period;
   out.w = omega;

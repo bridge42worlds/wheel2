@@ -29,6 +29,8 @@ bool        device_mac(int id, uint8_t mac[6]);   // MAC платы по её н
 // ---------- сеть ----------
 const char* wifi_ssid();         // из secrets/wifi.ini, вшивается при сборке
 const char* wifi_pass();         // пустая строка — пароль не задан
+const char* wifi_ssid2();        // запасная сеть (ssid2 в wifi.ini): на неё плата уходит, если основная не пускает; пусто — нет
+const char* wifi_pass2();
 const char* server_host();       // адрес сервера из wifi.ini; пусто — искать по маяку
 const char* ota_key();           // ключ подписи команд OTA из secrets/ota.key (64 знака hex); пусто — OTA закрыта
 

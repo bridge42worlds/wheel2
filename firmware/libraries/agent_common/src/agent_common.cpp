@@ -21,6 +21,12 @@ static const int DEVICES_COUNT = 0;
 #ifndef WIFI_PASS
 #define WIFI_PASS ""
 #endif
+#ifndef WIFI_SSID2
+#define WIFI_SSID2 ""
+#endif
+#ifndef WIFI_PASS2
+#define WIFI_PASS2 ""
+#endif
 #ifndef SERVER_HOST
 #define SERVER_HOST ""
 #endif
@@ -38,6 +44,8 @@ void serial_begin(uint32_t baud) {
 
 const char* wifi_ssid()   { return WIFI_SSID; }
 const char* wifi_pass()   { return WIFI_PASS; }
+const char* wifi_ssid2()  { return WIFI_SSID2; }
+const char* wifi_pass2()  { return WIFI_PASS2; }
 const char* server_host() { return SERVER_HOST; }
 const char* ota_key()     { return OTA_KEY; }
 

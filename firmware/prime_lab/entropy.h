@@ -4,12 +4,13 @@
 // Любой другой набор — блоки SHA-256 по 32 байта; в каждый блок каждый
 // отмеченный источник кладёт не меньше 256 зачтённых бит. Так число
 // остаётся случайным, даже если все источники, кроме одного, плохие.
-// Остаток блока достаётся следующему кандидату.
+// Остаток блока достаётся следующему кандидату. Датчики на ободе (SRC_ACC,
+// SRC_MAG) вместе с другими источниками — добавка: кладут накопленное, не ждут.
 #pragma once
 #include <Arduino.h>
 #include "config.h"
 
-enum { SI_RNG = 0, SI_CSI = 1, SI_ADC = 2, SI_JIT = 3, SI_BC = 4, SI_N = 5 };
+enum { SI_RNG = 0, SI_CSI = 1, SI_ADC = 2, SI_JIT = 3, SI_BC = 4, SI_ACC = 5, SI_MAG = 6, SI_N = 7 };
 
 struct SourceStats {
   uint64_t units = 0;            // слов / пакетов / отсчётов
@@ -36,6 +37,12 @@ void     entropy_set_csi_filter(uint8_t mode, const uint8_t (*macs)[6], int n);
 // Эфир сета B: содержимое услышанного кадра рассеяния — в запас источника SRC_BC.
 void     entropy_feed_bcast(const uint8_t* d, size_t n);
 uint32_t bcast_lost();                 // байт эфира B не влезло в запас
+// Датчики на ободе (задача rim_sensors): младшие байты показаний — в запас источника SI_ACC / SI_MAG.
+// Кладёт, только если шум с этого датчика сейчас выбран (entropy_wants); present — датчик запаян.
+bool     entropy_wants(int si);
+void     entropy_sensor_present(int si, bool present);
+void     entropy_feed_sensor(int si, const uint8_t* d, size_t n);
+uint32_t sensor_lost(int si);          // байт не влезло в запас
 uint32_t csi_received();               // пакетов CSI с запуска
 uint32_t csi_dropped();                // выброшено: очередь полна, счёт не успевает
 uint32_t ping_replies();               // ответов роутера на пинг
@@ -45,7 +52,7 @@ void     csi_detail(uint32_t out[4]);  // вызовов CSI всего, кор�
 void entropy_reset();                  // забыть остаток блока (новые настройки)
 // Заполнить out n байтами (n кратно 4). false — ожидание CSI прервано флагом
 // abort (пришли новые настройки). tick вызывается во время долгого ожидания.
-// mask — источники (SRC_*), в битах 5–6 — как брать шум (GenConfig::raw): 0 — блоки
+// mask — источники (SRC_*), в битах 8–9 — как брать шум (GenConfig::raw): 0 — блоки
 // SHA-256, 1 — без хеша, младшие биты сырья, 2 — без хеша с выравниванием фон Неймана.
-bool entropy_fill(uint8_t* out, size_t n, uint8_t mask, EntropyStats& st,
+bool entropy_fill(uint8_t* out, size_t n, uint16_t mask, EntropyStats& st,
                   volatile bool* abort, void (*tick)());

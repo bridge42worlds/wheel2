@@ -33,11 +33,18 @@ details { margin-top:8px; }
 <script>
 "use strict";
 let list = [], cur = null, curId = null;
-const roleIcon = r => r === "gen" ? "▲" : r === "abs" ? "▼" : "○";
-const wayShort = w => ({ solo: "эго", cascade: "групп", same: "одинак.", all: "все", pair: "1:1" })[w] || w || "";
+const roleIcon = r => ICONS[r] || ICONS.idle;
+const wayShort = w => ({ solo: "эгоист.", cascade: "каскад", same: "одинак.", all: "все со всеми", pair: "1:1" })[w] || w || "";
 function layText(L, coil) {
   if (!L) return "";
   return `К1 ${roleIcon(L.w1.role)}${L.w1.way ? " " + wayShort(L.w1.way) : ""}${L.w1.noise ? " · " + esc(L.w1.noise) : ""} | К2 ${roleIcon(L.w2.role)}${L.w2.way ? " " + wayShort(L.w2.way) : ""}${L.w2.noise ? " · " + esc(L.w2.noise) : ""}${coil ? ` | поле ${esc(coil["1"])} ${esc(coil["2"])}` : ""}`;
+}
+// Статика за шаг: вердикт словом и главные причины по датчикам (r.watch — static_watch.verdict)
+function watchCell(r) {
+  const w = r.watch, sv = w && STATIC_VERDICT[w.verdict];
+  if (!sv) return "<span class='mut'>—</span>";
+  const why = Object.entries(w.sensors || {}).flatMap(([m, p]) => (p.reasons || []).slice(0, 1).map(x => `${esc(m.slice(-5))}: ${esc(x)}`));
+  return `<span class="${sv.cls}">${sv.icon} ${sv.word}</span>${why.length ? `<div class="small mut">${why.slice(0, 2).join("; ")}</div>` : ""}${(w.notes || []).map(n => `<div class="small warn">◐ ${esc(n)}</div>`).join("")}`;
 }
 async function loadList() {
   const r = await getJSON("/api/programs");
@@ -59,6 +66,13 @@ function agentsOf(x) {
   for (const r of x.runs || []) for (const k of Object.keys(r.gen || {})) if (k !== "все") ids.add(k);
   return [...ids].sort((a, b) => (parseInt(a.replace(/\D/g, "")) || 0) - (parseInt(b.replace(/\D/g, "")) || 0));
 }
+// Поле за шаг: по каждому магнитометру — |B| среднее ± СКО; эксцесс > 1 — «толчки поля» (переключения, железо рядом)
+function fieldText(f) {
+  return Object.values(f || {}).sort((a, b) => (a.id || 0) - (b.id || 0)).map(x => {
+    const b = (x.stats || {})["|B|"] || {};
+    return `№${x.id || "?"} ${fmt(b.mean, 1)} ± ${fmt(b.sd, 2)}${b.kurt > 1 ? " ◐ толчки" : ""}${x.part ? " (часть)" : ""}`;
+  }).join("<br>");
+}
 function render() {
   const x = cur, prog = x.program || {}, steps = prog.steps || [], runs = x.runs || [], plan = x.plan || [];
   const ags = agentsOf(x);
@@ -66,16 +80,18 @@ function render() {
   const ok = runs.filter(r => !r.spoiled);
   const ctl = ok.filter(r => r.control).length;
   $("sum").innerHTML = `выполнено <b>${runs.length}</b> · испорчено <b>${runs.filter(r => r.spoiled).length}</b> · контрольных <b>${ctl}</b> · аномалий <b>${Object.keys(x.anomalies || {}).length}</b> · подтвердилось <b>${Object.values(x.verdicts || {}).filter(v => v.confirmed).length}</b> · простых всего <b>${fmt(Math.round(ok.reduce((s, r) => s + ((((r.gen || {})["все"] || {}).pr_s || 0) * (r.t1 - r.t0)), 0)))}</b> за <b>${fmt(runs.reduce((s, r) => s + (r.t1 - r.t0), 0) / 60, 0)}</b> мин счёта${x.state === "running" ? ` · <span class="ok">идёт</span>` : ""}`;
-  const head = `<tr><th>№</th><th>шаг</th><th>начало</th><th>мин</th><th>простых</th><th>всего пр/с</th>${ags.map(a => `<th>${esc(a)}<br><span class="small mut">пр/с · °C</span></th>`).join("")}<th>статика</th><th>разведка (max |t|)</th><th>итог</th></tr>`;
+  const head = `<tr><th>№</th><th>шаг</th><th>начало</th><th>мин</th><th>простых</th><th>всего пр/с</th>${ags.map(a => `<th>${esc(a)}<br><span class="small mut">пр/с · °C</span></th>`).join("")}<th>статика</th><th>поле<br><span class="small mut">|B| мкТл ± СКО</span></th><th>разведка (max |t|)</th><th>итог</th></tr>`;
   const rows = runs.map((r, i) => {
-    const st = steps[r.step] || {}, g = r.gen || {}, all = g["все"] || {}, sv = r.watch && STATIC_VERDICT[r.watch.verdict];
+    const st = steps[r.step] || {}, g = r.gen || {}, all = g["все"] || {}, it = plan[i] || {};
     const sc = (r.scan || [])[0];
     const an = (x.anomalies || {})[String(i)], vd = (x.verdicts || {})[String(i)];
+    const marks = [r.control ? "контроль" : "", r.confirm ? "проверка аномалии" : "", it.redo ? `передел ${it.redo}` : "", it.repeat ? `повторение ${it.repeat}` : ""].filter(Boolean);
     return `<tr class="${r.control ? "ctl" : ""} ${r.spoiled ? "spoiled" : ""}"><td>${i + 1}</td>
-      <td>${esc(r.name)}${r.control ? " <span class='small mut'>(контроль)</span>" : ""}${r.confirm ? " <span class='small mut'>(проверка)</span>" : ""}<div class="lay">${layText(st.layers || r.layers, st.coil || r.coil)}</div>${(st.groups || []).length ? `<div class="lay">${st.groups.map(g => esc(g.label) + " (" + g.targets.length + ")").join("; ")}</div>` : ""}</td>
+      <td>${esc(r.name)}${marks.length ? ` <span class='small mut'>(${marks.join(" · ")})</span>` : ""}<div class="lay">${layText(st.layers || r.layers, st.coil || r.coil)}</div>${(st.groups || []).length ? `<div class="lay">${st.groups.map(g => esc(g.label) + " (" + g.targets.length + ")").join("; ")}</div>` : ""}</td>
       <td class="small">${new Date(r.t0 * 1000).toLocaleTimeString("ru-RU")}</td><td class="num">${fmt((r.t1 - r.t0) / 60, 1)}</td><td class="num">${all.pr_s != null ? fmt(Math.round(all.pr_s * (r.t1 - r.t0))) : "—"}</td><td class="num">${fmt(all.pr_s, 1)}</td>
       ${ags.map(a => { const m = g[a] || {}; return `<td class="num">${m.pr_s != null ? fmt(m.pr_s, 1) : "—"}${m.temp != null ? ` · ${fmt(m.temp, 0)}°` : ""}</td>`; }).join("")}
-      <td>${sv ? `<span class="${sv.cls}">${sv.icon} ${sv.word}</span>` : "<span class='mut'>—</span>"}</td>
+      <td>${watchCell(r)}</td>
+      <td class="small">${fieldText(r.field) || "<span class='mut'>—</span>"}</td>
       <td class="small">${sc ? `${esc(sc.mac)}/${esc(sc.metric)} t ${fmtZ(sc.z)} (p ${esc(sc.p)}, из ${sc.tests})` : "—"}</td>
       <td>${r.spoiled ? `<span class="bad">✗ испорчен: ${esc(r.spoiled_why || "")}</span>` : an ? `<span class="warn">◐ аномалия${vd ? (vd.confirmed ? " · <b>подтвердилась</b>" : " · не подтвердилась") : ""}</span>` : `<span class="ok">✓</span>`}</td></tr>`;
   }).join("");
@@ -89,12 +105,12 @@ $("bCsv").onclick = () => {
   if (!cur) return;
   const x = cur, steps = (x.program || {}).steps || [], ags = agentsOf(x);
   const esc2 = s => `"${String(s ?? "").replace(/"/g, '""')}"`;
-  const lines = [["№", "шаг", "контроль", "начало", "мин", "простых", "всего пр/с", ...ags.flatMap(a => [a + " пр/с", a + " °C"]), "статика", "испорчен", "слои"].map(esc2).join(";")];
+  const lines = [["№", "шаг", "контроль", "начало", "мин", "простых", "всего пр/с", ...ags.flatMap(a => [a + " пр/с", a + " °C"]), "статика", "поле", "испорчен", "слои"].map(esc2).join(";")];
   (x.runs || []).forEach((r, i) => {
     const st = steps[r.step] || {}, g = r.gen || {};
     lines.push([i + 1, r.name, r.control ? 1 : 0, new Date(r.t0 * 1000).toISOString(), ((r.t1 - r.t0) / 60).toFixed(2), (g["все"] || {}).pr_s != null ? Math.round(g["все"].pr_s * (r.t1 - r.t0)) : "", ((g["все"] || {}).pr_s ?? "").toString().replace(".", ","),
       ...ags.flatMap(a => [((g[a] || {}).pr_s ?? "").toString().replace(".", ","), ((g[a] || {}).temp ?? "").toString().replace(".", ",")]),
-      r.watch ? r.watch.verdict : "", r.spoiled ? r.spoiled_why : "", layText(st.layers || r.layers, st.coil || r.coil).replace(/<[^>]+>/g, "")].map(esc2).join(";"));
+      r.watch ? r.watch.verdict : "", fieldText(r.field).replace(/<br>/g, "; "), r.spoiled ? r.spoiled_why : "", layText(st.layers || r.layers, st.coil || r.coil).replace(/<[^>]+>/g, "")].map(esc2).join(";"));
   });
   const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `program_${x.id}.csv`; a.click();
