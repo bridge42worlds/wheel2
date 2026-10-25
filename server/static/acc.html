@@ -78,12 +78,11 @@ td.r, th.r { text-align:right; }
 </head>
 <body>
 <header>
-  <h1>Колесо-2 · статические акселерометры</h1>
+  <h1>Колесо-2 · статика</h1><span id="nav"></span>
   <span id="srv" class="mut">подключение…</span>
   <label class="small">графики за <select id="window">
     <option value="300">5 мин</option><option value="900" selected>15 мин</option>
     <option value="3600">1 час</option><option value="7200">2 часа</option></select></label>
-  <a href="/" class="small">← главный экран</a>
   <span id="err" class="bad"></span>
 </header>
 <main>
@@ -392,5 +391,6 @@ setInterval(tick, 2000);
 setInterval(tickSpectra, 5000);
 tick().then(tickSpectra);
 </script>
+<script src="/nav.js"></script>
 </body>
 </html>

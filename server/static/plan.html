@@ -87,16 +87,21 @@ label.inl { display:inline-flex; align-items:center; gap:4px; margin:2px 10px 2p
 <body>
 <div class="screen plan">
   <header class="panel topbar"><div class="row">
-    <b>Колесо-2 · планшетка</b>
+    <b>Колесо-2</b><span id="nav"></span>
+    <span class="sp"></span>
+    <span id="alarm"></span>
+    <button class="btn sm" id="bSound" data-act="sound" title="Звук тревоги статики: вкл / выкл (нажатие — проба звука)">🔔 звук</button>
+    <button type="button" class="tip" data-tip="alarm" aria-label="что такое тревога статики">ⓘ</button>
+  </div><div class="row">
     <span id="conn" class="small"></span>
     <span id="exp" class="small"></span>
     <span class="sp"></span>
     <button class="btn" id="bIdent" data-act="identmode" title="Режим «найти плату»: нажмите на агента — его светодиод замигает 20 с">◉ найти плату</button>
-    <button class="btn" data-act="exper" title="Длительность шага, температура, отдых, повторы, контроль">опыт…</button>
+    <button class="btn" data-act="exper" title="Длительность шага, температура, отдых, повторы, контроль, повтор при отклонении">опыт…</button>
     <button class="btn" data-act="motor" title="Моторы колёс: стоит / ШИМ / обороты, направление, смена направления по таймеру">⟳ вращение…</button>
     <button class="btn" data-act="diag" title="Проверить установку: связь, слышимость, скорость, температура, память, датчики">диагностика…</button>
     <button class="btn" data-act="fw" title="Прошивка агентов: по Wi-Fi и новых плат по USB">прошивка…</button>
-    <button class="btn" data-act="report" title="Отчёт по программам — отдельным окном">отчёт ↗</button>
+    <button type="button" class="tip" data-tip="run" aria-label="что делают кнопки запуска">ⓘ</button>
     <button class="btn big go" id="bRun" title="Запустить последовательность шагов (лента внизу)">▶ Запустить</button>
     <button class="btn big stop" id="bStop" title="Остановить программу после текущего шага (агенты доработают шаг)">⏹ Стоп после шага</button>
     <button class="btn big halt" id="bHalt" title="Всё стоп сразу: программа, счёт у всех агентов, моторы, катушки выкл">■ Всё стоп</button>
@@ -107,7 +112,7 @@ label.inl { display:inline-flex; align-items:center; gap:4px; margin:2px 10px 2p
       <div class="pic" id="pic"></div>
       <div id="stat"></div>
       <div id="now"></div>
-      <div class="row small"><span class="lh">4 · поле катушек (колесо 1, колесо 2)</span><span id="fields"></span></div>
+      <div class="row small"><span class="lh">4 · поле катушек (колесо 1, колесо 2) <button type="button" class="tip" data-tip="field" aria-label="что такое поле катушек">ⓘ</button></span><span id="fields"></span></div>
       <div class="row setline" id="setline"></div>
     </section>
     <section class="panel" id="w2"></section>
@@ -117,8 +122,27 @@ label.inl { display:inline-flex; align-items:center; gap:4px; margin:2px 10px 2p
 </div>
 
 <script src="/ui.js"></script>
+<script src="/nav.js"></script>
 <script>
 "use strict";
+// ---------- пояснения ⓘ: что это и зачем — по нажатию (на планшете подсказки title не видны) ----------
+const TIPS = {
+  nowplan: ["Сейчас и план", "«Сейчас» — что агенты колеса делают в эту секунду (по их телеметрии). «План опыта» — слои, отмеченные на планшетке: из них собираются шаги программы. Отмеченное в плане само ничего не запускает — только «▶ Запустить» или шаг программы."],
+  chips: ["Фишка агента", "Строка 1 — значок состояния и номер платы, буквы А / М — акселерометр / магнитометр на плате. Строка 2 — что делает словом. Строка 3 — простых в секунду, пока считает; иначе температура («!» — у предела); у платы без связи — сколько молчит. Полоска внизу — температура до предела (штриховка — у предела). Нажатие — окно агента."],
+  group: ["Подгруппа", "Сколько агентов в каком состоянии (▶ считают, ▼ поглощают, ⏸ стоят или отдыхают, ✗ нет связи) и что группа делает сообща: способ, простых в секунду, «круги из всех» — доля чисел, собранных из кусочков шума всех участников (остальное заменено своим шумом: кто-то не успел за срок ожидания)."],
+  roles: ["1 · роль колеса", "Генерация — агенты ищут простые из шума. Поглощение — получают простые другого колеса и выпускают в эфир, смешав со своим шумом (рассеяние). Стоит — ничего не считают, остывают. Можно отметить несколько — матрица переберёт все сочетания."],
+  ways: ["2 · способ генерации", "Эгоистичный — каждый агент сам набирает шум, складывает число и проверяет. Групповой (каскад) — числа складываются из кусочков шума всех агентов подгруппы, проверяют все сразу; это и есть «сообща». Срок ожидания кусочков — в «опыт…»."],
+  abs: ["2 · способ поглощения", "Все со всеми — каждый поглотитель получает все простые своей группы генераторов. «Один к одному» появится с прошивкой."],
+  field: ["4 · поле катушек", "Знаки — направление тока в катушке колеса 1 и колеса 2. Поле включают агенты катушек (⚙ в карточке колеса) в начале каждого шага; на отдыхе, в конце программы и по «Всё стоп» — выкл."],
+  step: ["5 · шаг", "Сколько длится шаг, до какой температуры греться (регулятор держит на градус ниже), отдых перед шагом, повторы, порядок, контрольный шаг «все стоят» и что делать при отклонении статики. Изменить — «изменить…»."],
+  static: ["Статика — главный измеритель", "Неподвижные акселерометры (№8 ADXL355, телефон) меряют вибрации и поле стола. Сервер сравнивает каждое окно 10 с с эталоном шума, записанным, пока все стоят. Вывод: ✓ как эталон — продолжать; ⚠ отклонение — проверить (держится без известной причины — то, что мы ищем); ↻ помеха или прибор — повторить (толчок, сдвиг, сбой — шаг испорчен, программа повторит сама); ◌ нет эталона; ○ нет данных."],
+  base: ["Эталон шума", "Запись спокойного фона статических датчиков, пока генераторы стоят: с ним сравнивается каждый шаг. «✓ годен» — шум ровный и гауссов; «✗ не чистый» — во время записи кто-то считал; «⇄ для другого режима» — датчик переключили на другой диапазон или частоту. Переписывать, если сдвинули датчик или изменилась обстановка."],
+  alarm: ["Тревога статики", "Когда статика показывает «⚠ отклонение — проверить» (отклонение от эталона держится несколько окон и не объясняется сетью, пингом, оборотами), планшетка звенит, в шапке загорается «❗», открывается окно: что за отклонение, на каком шаге, и кнопка «повторить этот шаг ещё раз» — те же настройки сразу после текущего, чтобы не пропустить эффект. В «опыт…» можно велеть повторять такой шаг автоматически (до 3 раз). Толчок в том же отрезке тревогу не гасит: отклонение, державшееся 2 окна подряд, звенит всё равно. Звук — кнопка «🔔»: браузер разрешает звук после первого нажатия на страницу."],
+  run: ["Запуск и остановка", "«▶ Запустить» — лента шагов (план внизу) уходит серверу как программа; на кнопке — сколько шагов и примерно сколько времени. «⏹ Стоп после шага» — программа доработает текущий шаг и остановится. «■ Всё стоп» — сразу: программа, счёт у всех агентов, моторы, катушки."],
+  spin: ["Вращение и невесомость", "По датчику на ободе: обороты сейчас и сколько нужно, чтобы наверху колеса была невесомость (k = ω²r/g = 1). Недобор — крутится медленнее, перебор — быстрее. Моторы — «⟳ вращение…»."],
+  ribbon: ["Лента шагов", "«План» — что уйдёт по «Запустить»; «программа» — идущая или последняя: у каждого шага простые, темп и вывод статики словом. Штриховка — контрольный шаг; синяя рамка — идёт сейчас; пунктир — испорчен (повторится); ❗ — отклонение статики; «повтор» — шаг повторён после отклонения или по просьбе."],
+};
+const tipBtn = (k, what) => `<button type="button" class="tip" data-tip="${k}" aria-label="что это: ${esc(what || "")}">ⓘ</button>`;
 // ---------- слои ----------
 const ROLES_W = [["gen", "генерация"], ["abs", "поглощение"], ["idle", "стоит"]];
 const WAYS_GEN = [["solo", "эгоистичный", "каждый из своего шума — своё простое"],
@@ -157,7 +181,8 @@ const DEF = { w1: { roles: ["gen"], ways: ["solo"], abs: ["all"], noise: ["rng"]
               w2: { roles: ["idle"], ways: ["solo"], abs: ["all"], noise: ["rng"], sens: [] },
               fields: ["off"], merge: false, minutes: 1, quiet: false, repeat: 2, shuffle: true,
               restMode: "stable", restMin: 2, restBelow: 45, restMax: 6, tmax: 70, agentStep: false, radioOff: false,
-              idleStep: true, baseline: 0, confirm: 0, seq: [], diagMin: 1, diagId: null };
+              idleStep: true, baseline: 0, confirm: 0, seq: [], diagMin: 1, diagId: null,
+              again: 0, sound: true };                  // ❗ отклонение статики: повторить шаг (раз), звук тревоги
 let P = (() => { try { return { ...DEF, ...JSON.parse(localStorage.getItem("plan.v2") || "{}") }; } catch (e) { return { ...DEF }; } })();
 P.w1 = { ...DEF.w1, ...(P.w1 || {}) }; P.w2 = { ...DEF.w2, ...(P.w2 || {}) }; P.seq = Array.isArray(P.seq) ? P.seq : [];
 function save() { try { localStorage.setItem("plan.v2", JSON.stringify(P)); } catch (e) { /* без памяти */ } }
@@ -375,7 +400,7 @@ function spinHTML(d, macs) {
     const rev = x.last_rev || {}, k = rev.k != null ? rev.k : (x.w != null ? x.w * x.w * r / 9.80665 : null);
     const word = k == null ? "" : Math.abs(k - 1) <= 0.05 ? "<span class='ok'>✓ невесомость наверху</span>" : k < 1 ? `<span class='warn'>◐ недобор, k ${fmt(k, 2)}</span>` : `<span class='warn'>◐ перебор, k ${fmt(k, 2)}</span>`;
     return `<div class="small">⟳ №${x.id}: <b>${fmt(rpm, 1)}</b> об/мин · нужно ${fmt(need, 1)} · ${word}</div>`;
-  }).join("");
+  }).join("").replace(/<\/div>$/, ` ${tipBtn("spin", "вращение и невесомость")}</div>`);
 }
 // Плашка идущего шага над слоями: что колесо делает прямо сейчас по программе
 function stepPlate(d, w) {
@@ -399,16 +424,16 @@ function renderWheel(d, w) {
   setHTML($("w" + w), `<h2>Колесо ${w} <span class="small mut">${plural(macs.length, "агент", "агента", "агентов")} · <span class="${on === macs.length ? "ok" : on ? "warn" : "bad"}">${on} на связи</span>${groups.length > 1 ? " · " + plural(groups.length, "группа", "группы", "групп") : ""}</span>
       <span class="sp"></span><button class="btn sm" data-act="compose" title="перенести агентов, разбить на подгруппы">состав…</button></h2>
     <div class="fill wbody">
-      <div class="sub">сейчас</div>
+      <div class="sub">сейчас ${tipBtn("nowplan", "сейчас и план")} ${tipBtn("chips", "фишка агента")} ${tipBtn("group", "подгруппа")}</div>
       ${gl}
       ${coilLine(d, String(w))}
       ${spinHTML(d, macs)}
       <div class="sub">план опыта${running ? " — для следующего запуска" : ""}</div>
       ${stepPlate(d, w)}
       <div class="layers">
-        <span class="lh">1 · роль</span>${optsHTML("w" + w, "roles", ROLES_W, S.roles)}
-        <span class="lh ${gen ? "" : "dim"}">2 · генерация</span><div class="${gen ? "" : "dim"}">${optsHTML("w" + w, "ways", WAYS_GEN, S.ways)}</div>
-        <span class="lh ${abs ? "" : "dim"}">2 · поглощение</span><div class="${abs ? "" : "dim"}">${optsHTML("w" + w, "abs", WAYS_ABS, S.abs)}</div>
+        <span class="lh">1 · роль ${tipBtn("roles", "роль колеса")}</span>${optsHTML("w" + w, "roles", ROLES_W, S.roles)}
+        <span class="lh ${gen ? "" : "dim"}">2 · генерация ${tipBtn("ways", "способ генерации")}</span><div class="${gen ? "" : "dim"}">${optsHTML("w" + w, "ways", WAYS_GEN, S.ways)}</div>
+        <span class="lh ${abs ? "" : "dim"}">2 · поглощение ${tipBtn("abs", "способ поглощения")}</span><div class="${abs ? "" : "dim"}">${optsHTML("w" + w, "abs", WAYS_ABS, S.abs)}</div>
         <span class="lh ${gen ? "" : "dim"}">3 · шум <button class="btn tiny" data-act="noises" title="откуда берётся каждый шум">ⓘ</button></span><div class="${gen ? "" : "dim"}">${optsHTML("w" + w, "noise", NOISES, S.noise)}${optsHTML("w" + w, "sens", SENS_ADD, S.sens || [])}</div>
       </div>
     </div>`);
@@ -537,10 +562,10 @@ function renderStatic(d) {
   if (rec) ctl = `<span class="small">⏺ пишется эталон ${fmtDur(Math.max(0, Date.now() / 1000 - rec.t0))} из ${fmtDur(rec.t1 - rec.t0)}</span><div class="bar" style="width:90px"><i style="width:${Math.min(100, 100 * (Date.now() / 1000 - rec.t0) / Math.max(1, rec.t1 - rec.t0))}%"></i></div><button class="btn sm" data-act="basestop">закончить</button>${(rec.busy || []).length ? `<span class="small warn">◐ считали ${esc(rec.busy.join(", "))} — эталон будет не чистый</span>` : ""}`;
   else if (baseAsk) ctl = `<span class="ask small">записать эталон ${baseAsk} мин? ${busy.length ? `<span class="bad">считают ${esc(busy.join(", "))} — он будет не чистый.</span>` : "все стоят."} <button class="btn sm go" data-act="baseyes">✓ да</button> <button class="btn sm" data-act="baseno">✗ нет</button></span>`;
   else ctl = `<span class="small mut">◆ эталон</span><span class="seg">${[1, 3, 5].map(n => `<button data-act="base" data-min="${n}" ${busy.length ? `title="сначала ■ Всё стоп: считают ${esc(busy.join(", "))}"` : ""}>${n} мин</button>`).join("")}</span>`;
-  setHTML($("stat"), `<div class="stat"><div class="row"><b class="tm2 ${V.cls}">${V.icon} ${V.word}</b><span class="small mut">${esc(sv.what || "")}</span><span class="sp"></span>
+  setHTML($("stat"), `<div class="stat"><div class="row"><b class="tm2 ${V.cls}">${V.icon} ${V.word}</b>${tipBtn("static", "вывод статики")}<span class="small mut">${esc(sv.what || "")}</span><span class="sp"></span>
       <button class="btn sm" data-act="live" data-mac="${first}" title="колебания, Гаусс, спектр — каждую секунду">∿ вживую</button><a class="btn sm" href="/acc" target="acc" title="спектры против коридора эталона, события">подробно ↗</a></div>
     ${rows}${notes}${warn}
-    <div class="row small"><span>${baseLine(s0)}</span><span class="sp"></span>${ctl}</div></div>`);
+    <div class="row small"><span>${baseLine(s0)} ${tipBtn("base", "эталон шума")}</span><span class="sp"></span>${ctl}</div></div>`);
 }
 
 // ---------- «сейчас»: таймер шага и живые итоги ----------
@@ -577,8 +602,9 @@ function renderNow(d) {
 function restWord() { return ({ none: "без отдыха", fixed: `отдых ${P.restMin} мин`, stable: "отдых до стабилизации", below: `отдых до ${P.restBelow} °C` })[P.restMode] || ""; }
 function renderMidRows() {
   setHTML($("fields"), optsHTML("P", "fields", FIELDS, P.fields) + `<span class="small mut">в шаге поле включают агенты катушек (⚙ в карточке колеса); на отдыхе и в конце — выкл</span>`);
-  setHTML($("setline"), `<span class="mut">5 · шаг:</span> <b>${fmt(P.minutes, 1)} мин</b>${P.agentStep ? " · на агенте" : ""}${P.agentStep && P.radioOff ? " · Wi-Fi выкл, где эфир не нужен" : ""}${P.quiet ? " · молчание" : ""}
+  setHTML($("setline"), `<span class="mut">5 · шаг ${tipBtn("step", "шаг")}:</span> <b>${fmt(P.minutes, 1)} мин</b>${P.agentStep ? " · на агенте" : ""}${P.agentStep && P.radioOff ? " · Wi-Fi выкл, где эфир не нужен" : ""}${P.quiet ? " · молчание" : ""}
     · греться до <b>${P.tmax} °C</b> · ${restWord()} · повторов ${P.repeat}${P.shuffle ? " · случайно" : ""}${P.idleStep ? " · контроль «все стоят»" : ""}${P.baseline ? ` · эталон ${P.baseline} мин` : ""}
+    · ${P.again ? `<b>❗ отклонение статики → повторить шаг ×${P.again}</b>` : "❗ отклонение статики → только тревога"}
     <span class="sp"></span><button class="btn sm" data-act="exper">изменить…</button>`);
 }
 
@@ -707,7 +733,7 @@ function renderRibbon(d) {
   const running = prog && prog.state === "running";
   const mode = ribbonMode === "auto" ? (running ? "prog" : P.seq.length ? "plan" : "prog") : ribbonMode;
   const nm = combos(d, false).length + (P.idleStep ? 1 : 0);
-  let head = `<h2>Лента шагов <span class="seg"><button class="${mode === "plan" ? "sel" : ""}" data-act="rmode" data-m="plan">план (${P.seq.length})</button><button class="${mode === "prog" ? "sel" : ""}" data-act="rmode" data-m="prog">${prog ? `программа №${prog.id}` : "программа"}</button></span>`;
+  let head = `<h2>Лента шагов ${tipBtn("ribbon", "лента шагов")} <span class="seg"><button class="${mode === "plan" ? "sel" : ""}" data-act="rmode" data-m="plan">план (${P.seq.length})</button><button class="${mode === "prog" ? "sel" : ""}" data-act="rmode" data-m="prog">${prog ? `программа №${prog.id}` : "программа"}</button></span>`;
   let body = "";
   if (mode === "plan") {
     head += `<span class="small mut">${P.seq.length ? `${P.seq.length} × повторов ${P.repeat} ≈ ${fmtDur(seqEstimate())} · не запущен` : "пусто — добавьте шаги"}</span>`;
@@ -724,13 +750,13 @@ function renderRibbon(d) {
       if (r) {
         const g = (r.gen || {})["все"] || {}, sv = r.watch && STATIC_VERDICT[r.watch.verdict];
         const why = sv && sv.cls !== "ok" && sv.cls !== "mut" ? Object.values(r.watch.sensors || {}).flatMap(p => (p.reasons || []).slice(0, 1))[0] : "";
-        res = `<div>${r.spoiled ? `<span class="bad">✗ испорчен: ${esc(r.spoiled_why || "")}</span>` : `<b>${fmt(primesInRun(r))}</b> пр · ${fmt(g.pr_s, 1)}/с`}${prog.anomalies && prog.anomalies[String(i)] ? ` <span class="bad">аномалия</span>` : ""}</div>
+        res = `<div>${r.alert ? `<b class="bad" title="отклонение статики на этом шаге">❗</b> ` : ""}${r.spoiled ? `<span class="bad">✗ испорчен: ${esc(r.spoiled_why || "")}</span>` : `<b>${fmt(primesInRun(r))}</b> пр · ${fmt(g.pr_s, 1)}/с`}${prog.anomalies && prog.anomalies[String(i)] ? ` <span class="bad">аномалия</span>` : ""}</div>
           ${sv ? `<div class="${sv.cls}" title="${esc(sv.word)}${why ? ": " + esc(why) : ""}">${sv.icon} ${sv.short}${why ? ` <span class="mut">· ${reasonHTML(why).replace(/^(\S+) /, "")}</span>` : ""}</div>` : ""}`;
       } else if (cur) {
         const t0 = now.t_meas || now.t0, tot = (now.minutes || 0) * 60, el2 = Math.max(0, Date.now() / 1000 - t0);
         res = now.rest ? `<div class="warn">⏸ отдых</div>` : `<div>▶ ${fmtDur(Math.max(0, tot - el2))}</div><div class="bar"><i style="width:${Math.min(100, 100 * el2 / Math.max(tot, 1))}%"></i></div>`;
       } else res = `<div class="mut">ждёт</div>`;
-      return `<div class="step ${st.control ? "ctl" : ""} ${cur ? "cur" : ""} ${r && r.spoiled ? "spoiled" : ""}" data-act="report" title="${esc(st.name || "")}"><div class="n">${i + 1}${st.control ? " · контроль" : ""}${it.confirm ? " · проверка" : ""}</div><div>${layText(st.layers, st.coil) || esc(st.name || "")}</div>${res}</div>`;
+      return `<div class="step ${st.control ? "ctl" : ""} ${cur ? "cur" : ""} ${r && r.spoiled ? "spoiled" : ""}" data-act="report" title="${esc(st.name || "")}"><div class="n">${i + 1}${st.control ? " · контроль" : ""}${it.confirm ? " · проверка" : ""}${it.again ? ` · ↻ повтор${it.why === "оператор" ? " (по просьбе)" : " (отклонение)"}` : ""}</div><div>${layText(st.layers, st.coil) || esc(st.name || "")}</div>${res}</div>`;
     }).join("");
   }
   head += `<span class="sp"></span><button class="btn sm" data-act="qadd" title="Один шаг из первых отмеченных вариантов на каждом колесе">＋ шаг</button>
@@ -837,6 +863,7 @@ const DLG = {
       ${P.seq.length ? `<table class="t"><tr><th>№</th><th>шаг · группы и агенты</th><th></th><th></th></tr>${rows}</table>` : `<div class="mut">шагов нет</div>`}` };
   },
   diag: d => ({ title: "Диагностика установки", html: diagHTML(d) }),
+  alarm: d => ({ title: "❗ Отклонение статики — ⚠ проверить", html: alarmHTML(d) }),
   fw: d => {
     const boards = ((d.usb || {}).boards || []).filter(b => b.status !== "online");
     const vers = [...new Set(d.agents.filter(a => a.fw).map(a => a.fw))];
@@ -880,6 +907,10 @@ function experForm() {
       <label class="inl"><input data-k="idleStep" data-t="b" type="checkbox"> в матрицу — контрольный шаг «все стоят» (только статика)</label><br>
       <label class="inl">эталон шума статических перед началом, мин <input data-k="baseline" type="number" min="0" max="60" style="width:3.5em"></label>
       <label class="inl">проверочных пар на аномалию <input data-k="confirm" type="number" min="0" max="10" style="width:3em"></label></fieldset>
+    <fieldset class="fs"><legend>❗ отклонение статики (⚠ проверить) — тревога</legend>
+      <label class="inl">повторить тот же шаг сразу <select data-k="again" data-t="n"><option value="0">нет — только звук и окно</option><option value="1">1 раз</option><option value="2">до 2 раз</option><option value="3">до 3 раз</option></select></label>
+      <label class="inl"><input data-k="sound" data-t="b" type="checkbox"> звук тревоги на этой планшетке</label>
+      <div class="small mut">Отклонение — вывод статики «⚠ проверить»: отличие от эталона держится несколько окон подряд и не объясняется сетью, пингом, оборотами. Планшетка звенит, в шапке загорается «❗», открывается окно с причиной и кнопкой «повторить этот шаг ещё раз». С повтором здесь программа сама вставит тот же шаг сразу после отклонившегося — даже если планшетка закрыта. Помеха (↻ толчок, сдвиг) тревогой не считается — такой шаг повторяется и так.</div></fieldset>
     <div class="small mut">Изменения сохраняются сразу и действуют на шаги, которые запускаются после этого; поле катушек — в середине главного окна.</div>`;
 }
 function bindExper(B) {
@@ -1177,6 +1208,33 @@ document.addEventListener("click", async e => {
     else body[k] = isNaN(+t.dataset.v) ? t.dataset.v : +t.dataset.v;
     try { MOT = { ...(await postJSON("/api/motors", body)) }; renderDlg(); } catch (er) { note("✗ моторы: " + er.message, "bad"); }
   }
+  else if (act === "sound") {                           // нажатие — и разрешение звука для браузера, и проба
+    P.sound = !P.sound; save(); audioUnlock();
+    if (P.sound) setTimeout(() => { if (!beep(1)) note("🔕 браузер не дал звук — нажмите ещё раз", "warn"); renderAlarmTop(); }, 60);
+    renderAlarmTop();
+  }
+  else if (act === "alarm") { ALARM.fresh = false; openDlg("alarm"); renderAlarmTop(); }
+  else if (act === "alarmack") { ALARM.fresh = false; closeDlg(); renderAlarmTop(); }
+  else if (act === "alarmclear") { ALARM.list = []; ALARM.fresh = false; closeDlg(); renderAlarmTop(); }
+  else if (act === "again") {                           // идущая программа: тот же шаг ещё раз, сразу после текущего
+    try { const r = await postJSON("/api/program/again", { n: +t.dataset.n }); ALARM.fresh = false; note(`↻ шаг «${r.queued}» повторится сразу после текущего`, "ok"); await refresh(); }
+    catch (er) { note("✗ повтор: " + er.message, "bad"); }
+  }
+  else if (act === "againauto") {
+    const k = +t.dataset.k;
+    try { await postJSON("/api/program/again", { auto: k }); P.again = k; save(); note(k ? `↻ при отклонении шаг повторится сам, до ${k} раз` : "при отклонении — только тревога", "ok"); await refresh(); }
+    catch (er) { note("✗ " + er.message, "bad"); }
+  }
+  else if (act === "againlast") {                       // программы нет: шаг с отклонением — отдельной программой из одного шага
+    const st = ((prog && prog.program || {}).steps || [])[+t.dataset.step];
+    if (!st) return;
+    const one = { ...st, control_for: null };
+    try {
+      const r = await postJSON("/api/program/start", { program: { name: `повтор после отклонения: ${st.name}`.slice(0, 80), baseline_min: 0, repeat: 1, shuffle: false,
+        settle_s: 10, ...restJSON(), z: 4, confirm: 0, redo: 2, again: P.again || 0, metrics: ["pr_s", "cand_s"], targets: "all", steps: [one] } });
+      ALARM.fresh = false; closeDlg(); progT = 0; ribbonMode = "auto"; note(`▶ программа №${r.id}: шаг «${st.name}» ещё раз`, "ok"); await refresh();
+    } catch (er) { note("✗ " + er.message, "bad"); }
+  }
   else if (act === "base") { baseAsk = +t.dataset.min; renderStatic(D); }
   else if (act === "baseno") { baseAsk = null; renderStatic(D); }
   else if (act === "baseyes") {
@@ -1251,7 +1309,7 @@ function restJSON() {
 }
 function programJSON(steps) {
   return { name: `планшетка ${new Date().toLocaleString("ru-RU")}`, baseline_min: P.baseline, repeat: P.repeat, shuffle: P.shuffle,
-           settle_s: 10, ...restJSON(), z: 4, confirm: P.confirm, redo: 2, metrics: ["pr_s", "cand_s"], targets: "all",
+           settle_s: 10, ...restJSON(), z: 4, confirm: P.confirm, redo: 2, again: P.again || 0, metrics: ["pr_s", "cand_s"], targets: "all",
            steps: steps.map(s => ({ ...s, minutes: P.minutes, quiet: P.quiet, agent: !!P.agentStep,
                                     groups: s.groups.map(g => ({ ...g, cfg: { ...g.cfg, ...(g.cfg.run === 0 ? {} : { tmax: P.tmax, ro: P.agentStep && P.radioOff ? 1 : 0 }) } })) })) };
 }
@@ -1275,6 +1333,88 @@ $("bHalt").onclick = async () => {
   progT = 0; await refresh();
 };
 
+// ---------- ❗ тревога статики: звук, «❗» в шапке, окно с причиной и «повторить шаг ещё раз» ----------
+// Важное — вывод «⚠ проверить» (verdict "check"): отклонение от эталона держится несколько окон подряд без
+// известной причины — то, что ищем. Источники: живой вывод (идущий шаг или последние 2 минуты) при переходе в
+// «check» и итог шага программы на сервере (program.alerts растёт) — даже если планшетка была закрыта на шаге.
+// Помеха (↻ толчок, сдвиг, сбой прибора) тревогой не считается: такой шаг программа и так повторяет сама.
+const ALARM = { list: [], fresh: false, lastV: null, lastProg: null, lastAlerts: 0, first: true, tLive: 0 };
+// Причины тревоги: сначала отклонения (линия, полоса, форма шума), помеха того же отрезка — после, с пометкой
+const NOISE_R = /^(толчок|выбросы|сдвиг|квантование|пропуск|зашкал)/;
+function alarmReasons(d, sv) {
+  const all = Object.entries((sv && sv.sensors) || {}).flatMap(([m, p]) => (p.reasons || []).map(r => ({ who: nameOf(d, m), r })));
+  return all.filter(x => !NOISE_R.test(x.r)).slice(0, 4).concat(all.filter(x => NOISE_R.test(x.r)).slice(0, 2).map(x => ({ ...x, r: "в том же отрезке помеха: " + x.r })));
+}
+function alarmCheck(d) {
+  const sv = d.static_verdict || {}, v = sv.verdict, p = d.program, running = p && p.state === "running", now = Date.now() / 1000;
+  if (ALARM.first) {                                    // открыли страницу: что было — запомнить без звона
+    ALARM.first = false; ALARM.lastV = v; ALARM.lastProg = p && p.id; ALARM.lastAlerts = p ? p.alerts || 0 : 0;
+    return;
+  }
+  // живой вывод перешёл в «проверить»; без программы окно скользящее — не чаще раза в минуту. В начале шага окно
+  // одно, и вывод «проверить» даётся по одному окну — тревога только когда у датчика окон уже не меньше двух
+  // held — отклонение держится не меньше 2 окон подряд; толчок в том же отрезке даёт вывод «повторить», но тревогу не гасит
+  const held = Object.values(sv.sensors || {}).some(x => (x.held || 0) > 0 || (x.verdict === "check" && (x.windows || 0) >= 2));
+  if (held && ALARM.lastV !== "check" && (running || now - ALARM.tLive > 60)) {
+    ALARM.tLive = now;
+    alarmRaise({ src: "live", t: now, what: sv.what || "", reasons: alarmReasons(d, sv), notes: sv.notes || [],
+                 n: running && p.now ? p.now.n : null, step: running && p.now ? p.now.name : null, prog: running ? p.id : null });
+  }
+  ALARM.lastV = held ? "check" : v === "check" ? ALARM.lastV : v;   // «проверить» по одному окну — не перевзводить
+  if (p) {
+    if (p.id !== ALARM.lastProg) { ALARM.lastProg = p.id; ALARM.lastAlerts = 0; }
+    if ((p.alerts || 0) > ALARM.lastAlerts && p.last_alert) {
+      const a = p.last_alert;
+      const dup = ALARM.list.find(x => x.prog === p.id && x.n === a.n);   // этот шаг уже звенел вживую — дописать итог
+      if (dup) { dup.final = a; dup.auto = a.auto; dup.spoiled = a.spoiled; if (dlg && dlg.kind === "alarm") renderDlg(); }
+      else alarmRaise({ src: "step", t: a.t, what: `итог шага ${a.n}`, reasons: (a.reasons || []).map(r => ({ who: "", r })), notes: [],
+                        n: a.n, step: a.name, prog: p.id, auto: a.auto, spoiled: a.spoiled });
+      ALARM.lastAlerts = p.alerts;
+    }
+  }
+}
+function alarmRaise(a) {
+  ALARM.list.unshift(a); ALARM.list.length = Math.min(ALARM.list.length, 20); ALARM.fresh = true;
+  if (P.sound && !beep(3)) note("🔕 звук тревоги заблокирован браузером — нажмите на страницу один раз", "warn");
+  note(`❗ отклонение статики${a.step ? ` на шаге ${a.n}` : ""}`, "bad");
+  if (!dlg || (dlg.kind !== "exper" && dlg.kind !== "alarm")) openDlg("alarm"); else if (dlg.kind === "alarm") renderDlg();
+  renderAlarmTop();
+}
+function renderAlarmTop() {
+  const el = $("alarm"), a = ALARM.list[0];
+  if (el) setHTML(el, a ? `<button class="alarm ${ALARM.fresh ? "fresh" : ""}" data-act="alarm" title="что за отклонение; повторить шаг">❗ отклонение статики · ${new Date(a.t * 1000).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}${ALARM.list.length > 1 ? ` · ×${ALARM.list.length}` : ""}</button>` : "");
+  const b = $("bSound");
+  if (b) b.textContent = P.sound ? (audioReady() ? "🔔 звук" : "🔔 звук · нажмите на страницу") : "🔕 без звука";
+}
+function alarmHTML(d) {
+  const a = ALARM.list[0], p = d.program, running = p && p.state === "running";
+  if (!a) return `<div class="mut">Отклонений не было.</div>`;
+  const when = t => new Date(t * 1000).toLocaleTimeString("ru-RU");
+  const rs = a.final && (a.final.reasons || []).length ? a.final.reasons.map(r => ({ who: "", r })) : a.reasons;
+  let act;
+  if (running) {
+    const n = a.prog === p.id && a.n ? a.n : p.now && p.now.n;
+    act = `<div class="row"><button class="btn big go" data-act="again" data-n="${n}">↻ повторить шаг ${n} ещё раз</button><span class="small mut">те же настройки — сразу после текущего шага${p.again_wait ? ` · в очереди повторов: ${p.again_wait}` : ""}</span></div>
+      <div class="row small" style="margin-top:6px">повторять сам при каждом отклонении: <span class="seg">${[0, 1, 2, 3].map(k => `<button class="${(p.again || 0) === k ? "sel" : ""}" data-act="againauto" data-k="${k}">${k ? k + " раз" : "нет"}</button>`).join("")}</span><span class="mut">— программа №${p.id}</span></div>`;
+  } else {
+    const it = a.prog && prog && prog.id === a.prog && a.n ? (prog.plan || [])[a.n - 1] : null;
+    const last = prog && (prog.runs || []).slice(-1)[0];
+    const si = it ? it.step : last ? last.step : null, st = si != null && prog ? ((prog.program || {}).steps || [])[si] : null;
+    act = st ? `<div class="row"><button class="btn big go" data-act="againlast" data-step="${si}">▶ повторить шаг «${esc(st.name)}» ещё раз</button><span class="small mut">программа не идёт — запустится одним шагом с теми же настройками</span></div>`
+      : `<div class="small mut">Программа не идёт, повторять нечего: отклонение на живых данных (${esc(a.what)}). Посмотрите датчик вживую.</div>`;
+  }
+  const hist = ALARM.list.slice(1, 8).map(x => `<div class="small">❗ ${when(x.t)} · ${esc(x.step ? `шаг ${x.n} «${x.step}»` : x.what)}${x.auto ? " · повторён сам" : ""}</div>`).join("");
+  const first = staticList(d)[0];
+  return `<div class="kv2"><span>когда</span><b>${when(a.t)}</b><span>отрезок</span><b>${esc(a.what || "—")}</b>
+      ${a.step ? `<span>шаг</span><b>${a.n} «${esc(a.step)}»${a.auto ? " · <span class='ok'>программа уже повторяет его сама</span>" : ""}${a.spoiled ? " · <span class='warn'>в шаге была и помеха — он повторится сам</span>" : ""}</b>` : ""}
+      <span>причина</span><div>${rs.length ? rs.map(x => `<div>${x.who ? `<b>${esc(x.who)}</b>: ` : ""}${reasonHTML(x.r)}</div>`).join("") : "<span class='mut'>—</span>"}${(a.notes || []).map(n => `<div class="warn">◐ ${esc(n)}</div>`).join("")}</div></div>
+    <div style="margin:10px 0">${act}</div>
+    <div class="row">${first ? `<button class="btn" data-act="live" data-mac="${first.mac}">∿ датчик вживую</button>` : ""}<a class="btn" href="/acc" target="acc">◆ статика подробно</a><span class="sp"></span>
+      <button class="btn" data-act="alarmack" title="закрыть окно; «❗» в шапке остаётся, но не мигает">✓ понятно</button><button class="btn" data-act="alarmclear" title="убрать «❗» из шапки и забыть список">убрать «❗»</button></div>
+    ${hist ? `<div style="margin-top:8px"><div class="small mut">раньше:</div>${hist}</div>` : ""}
+    <div class="small mut" style="margin-top:8px">Отклонение — отличие от эталона держится несколько окон подряд и не объясняется известными линиями (сеть 50 Гц, пинг, обороты колеса). Повтор того же шага проверяет, держится ли эффект. Помеха (↻ толчок, сдвиг, сбой прибора) сама по себе тревогой не считается — такой шаг повторяется и так; но толчок не прячет отклонение, державшееся 2 окна подряд.</div>`;
+}
+
 // ---------- сообщения, верх, опрос ----------
 const notes = [];
 // Сообщение: в подвал и, если открыто окно, в его шапку (подвал под затемнением листа не виден)
@@ -1291,7 +1431,7 @@ function renderFoot() {
   }
   setHTML($("foot"), (items.slice(0, 5).join("") || `<span class="mut">сообщений нет</span>`)
     + `<span class="sp"></span><span class="mut">${ICONS.gen} считает · ${ICONS.abs} поглощает · ${ICONS.idle} стоит/отдых · ${ICONS.meas} меряет · ${ICONS.quiet} молчит · ${ICONS.radio} без радио · ${ICONS.done} сдал итоги · ${ICONS.hot} перегрев · ${ICONS.off} нет связи · А/М — акселерометр/магнитометр</span>`
-    + `<a href="/pult" target="pult">пульт</a><a href="/watch" target="watch">наблюдение</a>`);
+);
 }
 function renderTop(d) {
   const all = d.agents.filter(a => a.status !== "never"), on = all.filter(a => alive(a.status)).length, quiet = d.agents.filter(a => a.status === "quiet").length;
@@ -1314,6 +1454,7 @@ function renderTop(d) {
   bRun.title = running ? `идёт программа №${p.id}` : P.seq.length ? "запустить ленту шагов (внизу)" : "план пуст — «＋ шаг» или «⇊ вся матрица»";
   bStop.disabled = !running;
   $("bIdent").textContent = identMode ? "◉ найти: ВКЛ — нажмите агента" : "◉ найти плату";
+  renderAlarmTop();
 }
 function renderAll() {
   if (!D) return;
@@ -1323,6 +1464,7 @@ async function refresh() {
   D = await getJSON("/api/dash?window=10");
   await loadProg(D);
   await loadDiag();
+  alarmCheck(D);
   renderAll();
 }
 poll(refresh, 2000);

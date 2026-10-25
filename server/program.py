@@ -264,6 +264,9 @@ def validate(prog):
            "z": float(prog.get("z", 4.0)), "confirm": max(0, min(10, int(prog.get("confirm", 3)))),
            "baseline_min": max(0.0, min(120.0, float(prog.get("baseline_min", 0)))),
            "redo": max(0, min(5, int(prog.get("redo", 2)))),
+           # отклонение статики за шаг (вывод «⚠ проверить»: держится без известной причины) — повторить тот же шаг
+           # сразу, до again раз подряд, чтобы не пропустить эффект; 0 — только тревога на планшетке
+           "again": max(0, min(5, int(prog.get("again", 0)))),
            # отдых перед каждым шагом (docs/thermal.md, § 4.5): "stable" — пока температура не установится
            # (за rest_window_s упала не больше чем на rest_tol °C; не меньше rest_min_s и не дольше rest_max_s),
            # число — столько секунд; "below" — пока все генераторы не остынут до rest_below °C (не дольше rest_max_s);
@@ -444,14 +447,41 @@ class Runner:
             raise ValueError("программа не идёт")
         self.stop.set()
 
+    def request_again(self, body):
+        """Тревога статики на планшетке: {n} — повторить шаг n (номер в плане, с 1) с теми же настройками сразу
+        после текущего; {auto} — повторять шаг при отклонении сам, до auto раз (меняет идущую программу)."""
+        with self.lock:
+            x = self.active
+            if not x:
+                raise ValueError("программа не идёт")
+            out = {}
+            if body.get("auto") is not None:
+                x["program"]["again"] = max(0, min(5, int(body["auto"])))
+                out["again"] = x["program"]["again"]
+            if body.get("n") is not None:
+                n = int(body["n"])
+                if not 1 <= n <= len(x["plan"]):
+                    raise ValueError(f"шага {n} в плане нет")
+                item = x["plan"][n - 1]
+                x.setdefault("again_req", []).append({"step": item["step"], "repeat": item.get("repeat"),
+                                                      "again": item.get("again", 0) + 1, "why": "оператор"})
+                out["queued"] = x["program"]["steps"][item["step"]]["name"]
+        # на диск запишет сама задача программы в конце шага: две записи одного файла из разных потоков сталкивались бы
+        if out.get("queued"):
+            self.h["log"](f"[prog] №{x['id']}: оператор просит повторить шаг «{out['queued']}»")
+        return out
+
     def brief(self):
         x = self.active
         if not x:
             return None
         last = x["runs"][-1] if x["runs"] else None
+        al = x.get("alerts") or []
         return {"id": x["id"], "name": x["program"]["name"], "state": x["state"], "now": x["now"],
                 "done": len(x["runs"]), "total": len(x["plan"]), "anomalies": len(x["anomalies"]),
                 "spoiled": sum(1 for r in x["runs"] if r.get("spoiled")),
+                "alerts": len(al), "last_alert": al[-1] if al else None, "again": x["program"].get("again", 0),
+                "again_wait": len(x.get("again_req") or []),
                 "last": None if not last else {"name": last["name"], "watch": last.get("watch"),
                                                "spoiled": last.get("spoiled")}}
 
@@ -480,7 +510,8 @@ class Runner:
                 x["now"] = {"n": i + 1, "of": len(x["plan"]), "name": st["name"], "control": st["control"],
                             "agent": st.get("agent", False),
                             "ro": bool(st["cfg"].get("ro") or any(g["cfg"].get("ro") for g in (st.get("groups") or []))),
-                            "t0": round(time.time(), 3), "minutes": st["minutes"], "confirm": item.get("confirm")}
+                            "t0": round(time.time(), 3), "minutes": st["minutes"], "confirm": item.get("confirm"),
+                            "again": item.get("again", 0), "why": item.get("why")}
                 self.store(x)
                 rest = self._rest(x, macs) if prog["rest"] else None
                 if self.stop.is_set():
@@ -500,6 +531,29 @@ class Runner:
                     if item.get("redo", 0) < prog["redo"] and not self.stop.is_set():
                         x["plan"].insert(i + 1, {**item, "redo": item.get("redo", 0) + 1})
                         self.h["log"](f"[prog] №{x['id']}: шаг «{st['name']}» испорчен ({why}) — повторяю")
+                # тревога: статика за шаг «⚠ проверить» — отклонение от эталона держится без известной причины.
+                # Записать (планшетка звенит и показывает окно) и, если велено, повторить тот же шаг сразу
+                # Толчок в том же шаге делает вывод «повторить» (шаг испорчен и повторится по redo), но держащееся
+                # отклонение (held — окон подряд ≥ PERSIST) всё равно отмечается тревогой: пропускать нельзя
+                w = run.get("watch") or {}
+                held = any((p.get("held") or 0) > 0 for p in (w.get("sensors") or {}).values())
+                if w.get("verdict") == "check" and not run.get("spoiled") or held:
+                    al = {"n": i + 1, "t": round(time.time(), 1), "name": st["name"], "step": item["step"],
+                          "reasons": [r for p in (w.get("sensors") or {}).values() for r in (p.get("reasons") or [])
+                                      if not r.startswith(("толчок", "выбросы", "сдвиг", "квантование", "пропуск", "зашкал"))][:4],
+                          "auto": False, "spoiled": bool(run.get("spoiled"))}
+                    run["alert"] = True
+                    if not run.get("spoiled") and item.get("again", 0) < prog.get("again", 0) and not self.stop.is_set():
+                        x["plan"].insert(i + 1, {"step": item["step"], "repeat": item.get("repeat"),
+                                                 "again": item.get("again", 0) + 1, "why": "отклонение статики"})
+                        al["auto"] = True
+                        self.h["log"](f"[prog] №{x['id']}: отклонение статики на шаге «{st['name']}» — повторяю тот же шаг")
+                    x.setdefault("alerts", []).append(al)
+                # оператор нажал «повторить шаг ещё раз» (окно тревоги): тот же шаг — сразу после этого
+                k = 1
+                while x.get("again_req"):
+                    x["plan"].insert(i + k, x["again_req"].pop(0))
+                    k += 1
                 found = anomalies(x["runs"], prog["z"], prog.get("metrics"))
                 x["anomalies"] = {str(k): v for k, v in found.items()}
                 x["verdicts"] = verdicts(x["runs"], found, prog["z"])
@@ -577,6 +631,7 @@ class Runner:
             self.h["apply"](idle, {**base["cfg"], "run": 0, "cpu": 80, "led": 0}, base["own"], False)
         head = {"step": item["step"], "name": st["name"], "control": st["control"], "control_for": st.get("control_for"),
                 "confirm": bool(item.get("confirm")), "repeat": item.get("repeat"), "redo": item.get("redo", 0),
+                "again": item.get("again", 0), "again_why": item.get("why"),
                 "cid": applied[0]["cid"] if applied else None, "cids": [a["cid"] for a in applied],
                 "groups": [{"targets": a["targets"], "cid": a["cid"], "label": a["label"]} for a in applied] if st.get("groups") else None,
                 "coil": st.get("coil"), "layers": st.get("layers"), "t_apply": round(t_apply, 3)}

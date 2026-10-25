@@ -33,7 +33,7 @@
 <body>
 <div class="screen">
   <div class="panel top">
-    <h1 id="title">Колесо-2 · наблюдение</h1>
+    <h1 id="title">Колесо-2 · наблюдение</h1><span id="nav"></span>
     <span id="step" class="big"></span>
     <span class="sp"></span>
     <span id="tele"></span>
@@ -60,6 +60,7 @@
   </div>
 </div>
 <script src="/ui.js"></script>
+<script src="/nav.js"></script>
 <script>
 "use strict";
 let D = null;
@@ -77,7 +78,9 @@ function renderTop(d) {
   } else if (c.state === "run") s = `Опыт вручную · ${fmtDur(Date.now() / 1000 - c.t)}`;
   else if (c.state === "quench") s = `Тушение · ${fmtDur(Date.now() / 1000 - c.t)}`;
   else s = "Генераторы стоят";
-  $("step").textContent = s;
+  // ❗ отклонение статики (вывод «⚠ проверить») — крупно в шапке второго экрана; звенит планшетка
+  const sv = d.static_verdict || {}, al = p && p.alerts ? ` · ❗ тревог за программу: ${p.alerts}` : "";
+  $("step").innerHTML = (sv.verdict === "check" ? `<span class="alarm fresh">❗ отклонение статики</span> ` : "") + esc(s) + (al ? `<span class="bad">${al}</span>` : "");
   const tl = d.tele || 0;
   $("tele").innerHTML = tl === 2 ? `<span class="warn">◐ генераторы молчат — итоги простых после шага</span>`
     : tl === 1 ? `<span class="mut">телеметрия редкая</span>` : "";

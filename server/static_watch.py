@@ -767,6 +767,12 @@ class Watch:
                             r["f"] = f
                 need = min(PERSIST, len(ws))
                 held = sorted([r for r in runs.values() if r["best"] >= need], key=lambda r: -abs(r["f"]["z"]))
+                # отклонений, державшихся не меньше PERSIST окон подряд — для тревоги планшетки: толчок в том же
+                # отрезке делает вывод «повторить», но держащееся отклонение от этого не исчезает. Сбой прибора
+                # (квантование, зашкал, пропуски, режим) и сдвиг датчика — другое дело: отклонения тогда от прибора
+                # или от нового положения (эталон к нему не подходит), не тревога
+                moved = any(f["kind"] == "moved" for f in finds)
+                n_held = 0 if inst or moved else sum(1 for r in runs.values() if r["best"] >= PERSIST)
                 for r in held[:4]:
                     rs.append(f"{r['f']['text']} (z {fnum(r['f']['z'])}, окон подряд {r['best']})")
                 integ = [f for f in self._integral(s, ws) if not f.get("known")]
@@ -779,7 +785,7 @@ class Watch:
                 if not v:
                     v = "check" if held else ("ok" if self._base(s) is not None else "nobase")
                 per[mac] = {"verdict": v, "reasons": rs, "windows": len(ws), "known": sorted(known),
-                            "base": self._base(s) is not None}
+                            "base": self._base(s) is not None, "held": n_held}
             order = ["repeat", "check", "ok", "nobase", "nodata"]
             vs = [p["verdict"] for p in per.values()]
             overall = next((x for x in order if x in vs), "nodata")

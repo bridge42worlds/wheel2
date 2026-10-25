@@ -310,8 +310,12 @@ def page(name, title, body, toc, live, static=False):
     flow = "flow.html" if static else "../flow"
     live_btn = f'<a class="live" href="{flow}#{live}">▶ посмотреть вживую на живой схеме</a>' if live else ""
     src = "README.md" if name == "index" else f"docs/{name}.md"
+    # с сервера — то же меню страниц, что на экранах (server/static/nav.js): каждая страница — своя вкладка
     links = ('<a href="pult.html">пульт</a><a href="watch.html">наблюдение</a><a href="flow.html">живая схема</a>' if static else
-             '<a href="../flow">живая схема</a><a href="../">главная панель</a><a href="../acc">второй экран</a>')
+             "".join(f'<a href="{h}" target="{k}">{t}</a>' for k, h, t in (
+                 ("plan", "/plan", "▦ Планшетка"), ("acc", "/acc", "◆ Статика"), ("watch", "/watch", "◉ Наблюдение"),
+                 ("report", "/report", "☰ Отчёт"), ("pult", "/pult", "⚙ Пульт"), ("old", "/", "☷ Подробно"),
+                 ("flow", "/flow", "↻ Схема"))))
     foot = ("Опубликованная копия (tools/build_docs.py --static): пульт и наблюдение — демонстрация на снимке с имитаторов, "
             "живая схема — на замерах; с платами всё работает только на сервере в сети опыта." if static else
             f"Страница собрана из {src} командой tools/build_docs.py — правьте markdown. Ссылки на живую схему и панель\n"
@@ -538,8 +542,8 @@ def build_static(out_dir):
     files["index.html"] = unwrap(index_page(readme_md, static=True))
     flow = open(os.path.join(ROOT, "server", "static", "flow.html"), encoding="utf-8").read()
     for a, b in [("const STATIC_BUILD = false;", "const STATIC_BUILD = true;"),
-                 ('<nav class="small"><a href="/">главная панель</a><a href="/acc">второй экран</a><a href="/docs/">документация</a></nav>',
-                  '<nav class="small"><a href="index.html">документация</a></nav>')]:
+                 ('  <span id="nav"></span>\n', '  <nav class="small"><a href="index.html">документация</a></nav>\n'),
+                 ('<script src="/nav.js"></script>\n', '')]:      # меню страниц — только на сервере
         if flow.count(a) != 1:
             raise SystemExit(f"flow.html: не найдено «{a[:40]}…» — поправьте build_static")
         flow = flow.replace(a, b)

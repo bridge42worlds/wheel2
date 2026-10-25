@@ -160,7 +160,7 @@ dialog#helpDlg .kv2 { display:grid; grid-template-columns:auto 1fr; gap:4px 10px
 <body>
 <header>
   <h1>Колесо-2 · генератор простых</h1>
-  <span class="small"><a href="/flow">живая схема</a> · <a href="/docs/">документация</a> · <a href="/acc">второй экран</a></span>
+  <span id="nav"></span>
   <span id="srv" class="mut">подключение…</span>
   <label class="small">окно графиков
     <select id="window">
@@ -1934,5 +1934,6 @@ document.addEventListener("click", e => {
 setInterval(tick, 2000);
 tick();
 </script>
+<script src="/nav.js"></script>
 </body>
 </html>

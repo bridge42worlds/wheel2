@@ -92,7 +92,7 @@ svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:va
 <body>
 <header>
   <h1>Колесо-2 · живая схема</h1>
-  <nav class="small"><a href="/">главная панель</a><a href="/acc">второй экран</a><a href="/docs/">документация</a></nav>
+  <span id="nav"></span>
   <span id="srcState" class="small mut">…</span>
 </header>
 
@@ -1704,5 +1704,6 @@ poll();
 if (!STATIC_BUILD) setInterval(poll, 2000);
 requestAnimationFrame(loop);
 </script>
+<script src="/nav.js"></script>
 </body>
 </html>

@@ -20,8 +20,7 @@ details { margin-top:8px; }
 </style>
 </head>
 <body>
-<div class="top"><div class="row"><b>Колесо-2 · отчёт</b><span id="conn" class="small"></span><span class="sp"></span>
-  <a class="btn" href="/plan" target="plan">Планшетка ↗</a><a class="btn" href="/watch" target="watch">Наблюдение ↗</a><a class="btn" href="/pult" target="pult">Пульт ↗</a></div></div>
+<div class="top"><div class="row"><b>Колесо-2 · отчёт</b><span id="conn" class="small"></span><span id="nav"></span><span class="sp"></span></div></div>
 <div class="wrap">
   <div class="sel"><label>программа <select id="pSel"></select></label><button class="btn" id="bCsv">⇩ CSV</button><span class="small mut" id="pInfo"></span></div>
   <div class="sum" id="sum"></div>
@@ -30,6 +29,7 @@ details { margin-top:8px; }
 </div>
 <div class="foot" id="foot"><span class="mut">…</span></div>
 <script src="/ui.js"></script>
+<script src="/nav.js"></script>
 <script>
 "use strict";
 let list = [], cur = null, curId = null;
@@ -85,7 +85,7 @@ function render() {
     const st = steps[r.step] || {}, g = r.gen || {}, all = g["все"] || {}, it = plan[i] || {};
     const sc = (r.scan || [])[0];
     const an = (x.anomalies || {})[String(i)], vd = (x.verdicts || {})[String(i)];
-    const marks = [r.control ? "контроль" : "", r.confirm ? "проверка аномалии" : "", it.redo ? `передел ${it.redo}` : "", it.repeat ? `повторение ${it.repeat}` : ""].filter(Boolean);
+    const marks = [r.control ? "контроль" : "", r.confirm ? "проверка аномалии" : "", it.redo ? `передел ${it.redo}` : "", it.repeat ? `повторение ${it.repeat}` : "", it.again ? `↻ повтор ${it.why === "оператор" ? "по просьбе" : "после отклонения"}` : ""].filter(Boolean);
     return `<tr class="${r.control ? "ctl" : ""} ${r.spoiled ? "spoiled" : ""}"><td>${i + 1}</td>
       <td>${esc(r.name)}${marks.length ? ` <span class='small mut'>(${marks.join(" · ")})</span>` : ""}<div class="lay">${layText(st.layers || r.layers, st.coil || r.coil)}</div>${(st.groups || []).length ? `<div class="lay">${st.groups.map(g => esc(g.label) + " (" + g.targets.length + ")").join("; ")}</div>` : ""}</td>
       <td class="small">${new Date(r.t0 * 1000).toLocaleTimeString("ru-RU")}</td><td class="num">${fmt((r.t1 - r.t0) / 60, 1)}</td><td class="num">${all.pr_s != null ? fmt(Math.round(all.pr_s * (r.t1 - r.t0))) : "—"}</td><td class="num">${fmt(all.pr_s, 1)}</td>
@@ -93,7 +93,7 @@ function render() {
       <td>${watchCell(r)}</td>
       <td class="small">${fieldText(r.field) || "<span class='mut'>—</span>"}</td>
       <td class="small">${sc ? `${esc(sc.mac)}/${esc(sc.metric)} t ${fmtZ(sc.z)} (p ${esc(sc.p)}, из ${sc.tests})` : "—"}</td>
-      <td>${r.spoiled ? `<span class="bad">✗ испорчен: ${esc(r.spoiled_why || "")}</span>` : an ? `<span class="warn">◐ аномалия${vd ? (vd.confirmed ? " · <b>подтвердилась</b>" : " · не подтвердилась") : ""}</span>` : `<span class="ok">✓</span>`}</td></tr>`;
+      <td>${r.alert ? `<b class="bad">❗ отклонение статики</b><br>` : ""}${r.spoiled ? `<span class="bad">✗ испорчен: ${esc(r.spoiled_why || "")}</span>` : an ? `<span class="warn">◐ аномалия${vd ? (vd.confirmed ? " · <b>подтвердилась</b>" : " · не подтвердилась") : ""}</span>` : `<span class="ok">✓</span>`}</td></tr>`;
   }).join("");
   $("tbl").innerHTML = head + rows;
   const an = Object.entries(x.anomalies || {});

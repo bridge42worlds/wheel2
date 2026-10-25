@@ -69,6 +69,17 @@ table.t th { color:var(--mut); font-weight:500; }
 .sheet { background:var(--card); border:1px solid var(--line2); border-radius:12px; padding:12px 14px; width:min(1100px, 94vw);
          max-height:90vh; overflow:auto; }
 .legend { display:flex; gap:12px; flex-wrap:wrap; font-size:.86em; color:var(--mut); }
+/* ⓘ — пояснение по нажатию (ui.js: TIPS страницы) */
+.tip { border:1px solid var(--line2); background:var(--card); color:var(--on); border-radius:50%; width:1.45em; height:1.45em; padding:0;
+       font:inherit; font-size:.8em; line-height:1; cursor:pointer; vertical-align:middle; text-transform:none; letter-spacing:0; }
+.tip:hover { border-color:var(--on); }
+.tippop { position:fixed; z-index:40; background:var(--card); color:var(--ink); border:1px solid var(--on); border-radius:9px; padding:8px 11px;
+          box-shadow:0 4px 18px rgba(0,0,0,.2); font-size:.92em; line-height:1.4; display:flex; flex-direction:column; gap:4px; }
+/* ❗ тревога статики в шапке: рамка и слово; свежая — мигает раз в секунду (без мигания при «меньше движения») */
+.alarm { border:2px solid var(--bad); color:var(--bad); background:var(--card); border-radius:8px; padding:.22em .8em; font:inherit; font-weight:700; cursor:pointer; }
+.alarm.fresh { animation:alarmpulse 1s ease-in-out infinite; }
+@keyframes alarmpulse { 50% { background:var(--bad); color:#fff; } }
+@media (prefers-reduced-motion: reduce) { .alarm.fresh { animation:none; background:var(--bad); color:#fff; } }
 /* телефон и узкое окно: одна колонка, прокрутка */
 @media (max-width: 900px) {
   .screen { height:auto; overflow:visible; grid-template-rows:auto auto auto; }

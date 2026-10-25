@@ -34,7 +34,7 @@
 <body>
 <div class="screen">
   <div class="panel top">
-    <h1>Колесо-2 · пульт</h1>
+    <h1>Колесо-2 · пульт</h1><span id="nav"></span>
     <span id="conn" class="small"></span>
     <span id="exp" class="small"></span>
     <span class="sp"></span>
@@ -42,10 +42,7 @@
     <button class="btn big stop" id="bStop" title="Все генераторы стоят и остывают (80 МГц); статические меряют">⏹ Стоп</button>
     <button class="btn big" id="bQuench" title="Все генераторы только рассеивают свой шум: шум в шум, ни одного простого">≋ Тушение</button>
     <span class="small mut">телеметрия</span>
-    <a class="btn" href="/plan" target="plan" title="Слои опыта: роль колеса, способ, шум, поле; матрица → программа; лента шагов">Планшетка ↗</a>
     <span class="seg" id="tele"><button data-tl="0" title="Пакет раз в секунду — всё в реальном времени">обычная</button><button data-tl="1" title="В 10 раз реже">редкая</button><button data-tl="2" title="Генераторы молчат (команды слышат); статические говорят">молчание</button></span>
-    <a class="btn" href="/watch" target="watch" title="Второй экран: статика и простые в реальном времени">Наблюдение ↗</a>
-    <a class="btn" href="/" target="old" title="Прежняя панель со всеми счётчиками">Подробно ↗</a>
     <a class="btn" href="/docs/modes.html" target="docs" title="Все режимы установки">Режимы ↗</a>
   </div>
 
@@ -71,6 +68,7 @@
   <div class="foot" id="foot"><span class="mut">…</span></div>
 </div>
 <script src="/ui.js"></script>
+<script src="/nav.js"></script>
 <script>
 "use strict";
 let D = null, pick = new Set(), pending = false, tab = "now";

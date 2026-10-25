@@ -2632,7 +2632,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_file(os.path.join(STATIC, "plan.html"), "text/html; charset=utf-8")
         if u.path in ("/report", "/report.html"):        # журнал-отчёт: все шаги программ с параметрами и итогами
             return self.send_file(os.path.join(STATIC, "report.html"), "text/html; charset=utf-8")
-        if u.path in ("/ui.js", "/ui.css"):              # общее для двух экранов: помощники, параметры, вид
+        if u.path in ("/ui.js", "/ui.css", "/nav.js"):   # общее для экранов: помощники, параметры, вид, меню страниц
             return self.send_file(os.path.join(STATIC, u.path[1:]),
                                   "text/javascript; charset=utf-8" if u.path.endswith(".js") else "text/css; charset=utf-8")
         if u.path in ("/flow", "/flow.html"):            # живая схема: протокол по шагам, замедленно
@@ -2756,7 +2756,7 @@ class Handler(BaseHTTPRequestHandler):
                     stats["err_last"] = f"{time.strftime('%H:%M:%S')} ingest {e!r}"
             return self.send_json({"ok": True, "n": k, "bad": bad, "t": round(t, 3)})
         if u.path not in ("/api/control", "/api/session/start", "/api/session/stop", "/api/compose",
-                          "/api/program/start", "/api/program/stop", "/api/static/baseline", "/api/ota",
+                          "/api/program/start", "/api/program/stop", "/api/program/again", "/api/static/baseline", "/api/ota",
                           "/api/usb", "/api/rest_rot", "/api/telemetry", "/api/ident", "/api/motors", "/api/coils"):
             return self.send_error(404)
         try:
@@ -2828,6 +2828,8 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/program/stop":
                 runner.request_stop()
                 return self.send_json({"ok": True})
+            if u.path == "/api/program/again":           # тревога статики: {n} — повторить шаг, {auto} — повторять сам
+                return self.send_json({"ok": True, **runner.request_again(body)})
             if u.path == "/api/session/stop":
                 if session_active["s"] is None:
                     raise ValueError("сессия не идёт")

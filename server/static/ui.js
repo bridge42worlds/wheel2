@@ -206,6 +206,49 @@ function poll(fn, ms) {
   go();
   return setInterval(go, ms);
 }
+// Пояснение по нажатию на ⓘ: <button class="tip" data-tip="ключ">ⓘ</button>, тексты — в TIPS страницы
+// {ключ: [заголовок, текст]}. На планшете подсказки title не видны, поэтому — по нажатию; ещё раз, мимо или Esc — закрыть.
+let tipEl = null;
+function tipClose() { if (tipEl) { tipEl.remove(); tipEl = null; } }
+document.addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest(".tip[data-tip]");
+  if (!b) { if (tipEl && !tipEl.contains(e.target)) tipClose(); return; }
+  e.preventDefault(); e.stopPropagation();                // не открывать окна страницы под пояснением
+  const key = b.dataset.tip, T = typeof TIPS !== "undefined" ? TIPS[key] : null;
+  if (tipEl && tipEl.dataset.key === key) { tipClose(); return; }
+  tipClose();
+  if (!T) return;
+  tipEl = document.createElement("div");
+  tipEl.className = "tippop"; tipEl.dataset.key = key; tipEl.setAttribute("role", "note");
+  tipEl.innerHTML = `<b>ⓘ ${esc(T[0])}</b><div>${esc(T[1])}</div>`;
+  document.body.appendChild(tipEl);
+  const r = b.getBoundingClientRect(), w = Math.min(400, innerWidth - 16);
+  tipEl.style.width = w + "px";
+  const h = tipEl.offsetHeight, x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2));
+  const y = r.bottom + 6 + h > innerHeight - 8 ? Math.max(8, r.top - h - 6) : r.bottom + 6;
+  tipEl.style.left = x + "px"; tipEl.style.top = y + "px";
+}, true);
+document.addEventListener("keydown", e => { if (e.key === "Escape") tipClose(); });
+// Звук тревоги: браузер даёт звук только после нажатия на страницу — звуковой контекст заводится при первом нажатии
+let AC = null;
+function audioUnlock() {
+  try { AC = AC || new (window.AudioContext || window.webkitAudioContext)(); if (AC.state === "suspended") AC.resume(); } catch (e) { AC = null; }
+}
+document.addEventListener("pointerdown", audioUnlock, { passive: true });
+document.addEventListener("keydown", audioUnlock);
+function audioReady() { return !!AC && AC.state === "running"; }
+// n коротких сигналов: высокий — низкий по очереди (слышно и сквозь шум моторов); false — звук не разрешён
+function beep(n = 3) {
+  if (!audioReady()) return false;
+  const t0 = AC.currentTime + 0.02;
+  for (let k = 0; k < n; ++k) {
+    const o = AC.createOscillator(), g = AC.createGain(), t = t0 + k * 0.32;
+    o.type = "square"; o.frequency.value = k % 2 ? 660 : 990;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.18, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.24);
+    o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + 0.26);
+  }
+  return true;
+}
 function sheet(html, onclose) {
   const bg = document.createElement("div");
   bg.className = "sheet-bg";
