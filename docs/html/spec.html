@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Спецификация и смета · Колесо-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+.flowbox { margin:12px 0 18px; }
+.flowbox iframe { width:100%; height:min(82vh, 860px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.flowbox .small { font-size:13px; color:var(--mut); margin-top:4px; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Колесо-2 · документация</a>
+  <nav><a href="/" target="plan">▦ Установка</a><a href="/flow" target="flow">↻ Как работает</a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Документы</h4>
+    <ul><li><a href="index.html">Обзор</a></li><li><a href="preamble.html">Преамбула</a></li><li><a href="how_it_works.html">Как всё работает</a></li><li><a href="modes.html">Режимы</a></li><li><a href="wiring.html">Схемы подключения</a></li><li><a href="spec.html" class=cur>Спецификация и смета</a></li><li><a href="sensors.html">Датчики, телефон, моторы и катушки</a></li><li><a href="static_watch.html">Статика: эталон и слежение</a></li><li><a href="program.html">Программа и серии</a></li><li><a href="group_protocol.html">Групповой режим</a></li><li><a href="scatter.html">Поглощение</a></li><li><a href="randomness.html">Откуда берётся случайность</a></li><li><a href="thermal.html">Температура агентов</a></li></ul>
+    <h4>Приложения</h4>
+    <ul><li><a href="history.html">Приложение А. История изменений</a></li><li><a href="ui_concept.html">Приложение Б. Концепт пульта и наблюдения</a></li></ul>
+    <h4>На этой странице</h4><ul class="toc"><li class="l2"><a href="#итог">Итог</a></li><li class="l2"><a href="#агенты-и-датчики">Агенты и датчики</a></li><li class="l2"><a href="#колёса-и-катушки">Колёса и катушки</a></li><li class="l2"><a href="#питание-колёс">Питание колёс</a></li><li class="l2"><a href="#рама-и-моторы">Рама и моторы</a></li><li class="l2"><a href="#сеть-опыта-wi-fi">Сеть опыта (Wi-Fi)</a></li><li class="l2"><a href="#монтаж-и-тепло">Монтаж и тепло</a></li><li class="l2"><a href="#инструменты-и-расходники">Инструменты и расходники</a></li><li class="l2"><a href="#не-оплачено-или-заказ-истёк">Не оплачено или заказ истёк</a></li></ul>
+  </aside>
+  <main class="doc">
+
+<h1>Спецификация и смета</h1>
+<p>Из чего собрана установка и сколько это стоит. Цены — в кувейтских динарах (KWD; 1 KWD ≈ 3,25 $):</p>
+<ul><li><b>без знака</b> — как оплачено в заказах AliExpress (06.09–08.10.2026), доставка в основном бесплатная;</li><li><b>≈</b> — оценка по поиску AliExpress 26.10.2026: этого нет в заказах — надо купить или куплено отдельно;</li><li><b>—</b> — куплено на месте или своё, без цены.</li></ul>
+<p>Ссылки ведут на страницы товаров; цены и варианты на них со временем меняются. Где что стоит в установке — <a href="wiring.html">схемы подключения</a>.</p>
+<h2 id="итог">Итог<a class="anc" href="#итог">#</a></h2>
+<div class="tw"><table><thead><tr><th>раздел</th><th>куплено, KWD</th><th>оценка, KWD</th><th>всего, KWD</th></tr></thead><tbody>
+<tr><td>Агенты и датчики</td><td>96,88</td><td>—</td><td>96,88</td></tr>
+<tr><td>Колёса и катушки</td><td>29,64</td><td>≈ 32,41</td><td>62,05</td></tr>
+<tr><td>Питание колёс</td><td>29,62</td><td>≈ 32,26</td><td>61,88</td></tr>
+<tr><td>Рама и моторы</td><td>34,08</td><td>≈ 3,09</td><td>37,17</td></tr>
+<tr><td>Сеть опыта (Wi-Fi)</td><td>13,81</td><td>—</td><td>13,81</td></tr>
+<tr><td>Монтаж и тепло</td><td>4,95</td><td>—</td><td>4,95</td></tr>
+<tr><td>Инструменты и расходники</td><td>32,92</td><td>—</td><td>32,92</td></tr>
+<tr><td><b>установка без инструментов</b></td><td><b>208,98</b></td><td><b>≈ 67,76</b></td><td><b>276,74</b> (≈ 899 $)</td></tr>
+<tr><td><b>всё вместе с инструментами</b></td><td><b>241,90</b></td><td><b>≈ 67,76</b></td><td><b>309,66</b> (≈ 1 006 $)</td></tr>
+</tbody></table></div>
+<p>Ноутбук (сервер) и телефон Samsung Galaxy A26 (статический датчик №9) — свои, в смету не входят.</p>
+<p>Из оценки на самом деле докупить осталось меньше: медный провод уже куплен, мост DRV8833 колеса 1 и часть радиаторов — тоже (цена куплённого отдельно неизвестна, взят ориентир AliExpress). Обязательно купить: аккумуляторы 18650 и боксы к ним, мост DRV8833 колеса 2, недостающие радиаторы.</p>
+<h2 id="агенты-и-датчики">Агенты и датчики<a class="anc" href="#агенты-и-датчики">#</a></h2>
+<p>Платы-агенты и датчики: генераторы и поглотители на колёсах, агенты катушек и моторов, статика.</p>
+<div class="tw"><table><thead><tr><th>позиция</th><th>вариант, сколько</th><th>цена</th><th>шт.</th><th>сумма</th><th>ссылка</th><th>примечание</th></tr></thead><tbody>
+<tr><td>Seeed XIAO ESP32-S3 — агент</td><td>упаковка 10 шт.</td><td>22,19</td><td>1</td><td>22,19</td><td><a href="https://www.aliexpress.com/item/1005006987905528.html">AliExpress</a></td><td>заказ 18.09</td></tr>
+<tr><td>Seeed XIAO ESP32-S3 — агент</td><td>упаковка 10 шт.</td><td>23,58</td><td>1</td><td>23,58</td><td><a href="https://www.aliexpress.com/item/1005006987905528.html">AliExpress</a></td><td>заказ 06.09; всего 20 плат: 12 на колёсах, катушка, моторы, статика, запас</td></tr>
+<tr><td>Акселерометр-гироскоп ICM-42688 (фиолетовая плата)</td><td>датчик обода, статика</td><td>5,69</td><td>2</td><td>11,38</td><td><a href="https://www.aliexpress.com/item/1005011642881650.html">AliExpress</a></td><td></td></tr>
+<tr><td>Магнитометр MLX90393</td><td>упаковка 2 шт.</td><td>4,98</td><td>1</td><td>4,98</td><td><a href="https://www.aliexpress.com/item/1005012414990689.html">AliExpress</a></td><td>поле в трубе колеса</td></tr>
+<tr><td>Точный акселерометр ADXL355</td><td>статика по центру оси</td><td>23,82</td><td>1</td><td>23,82</td><td><a href="https://www.aliexpress.com/item/1005009311859684.html">AliExpress</a></td><td>шум 25 мкg/√Гц</td></tr>
+<tr><td>Измеритель тока INA219</td><td>упаковка 5 шт.</td><td>1,79</td><td>1</td><td>1,79</td><td><a href="https://www.aliexpress.com/item/1005004939456588.html">AliExpress</a></td><td>в установке не используется — снят со схемы</td></tr>
+<tr><td>Seeed XIAO ESP32-C3</td><td>упаковка 10 шт.</td><td>4,57</td><td>2</td><td>9,14</td><td><a href="https://www.aliexpress.com/item/1005008791937363.html">AliExpress</a></td><td>в установке не используются — запас</td></tr>
+</tbody></table></div>
+<p>Раздел: куплено <b>96,88 KWD</b>.</p>
+<h2 id="колёса-и-катушки">Колёса и катушки<a class="anc" href="#колёса-и-катушки">#</a></h2>
+<p>Обод — силиконовая труба на алюминиевом диске, на трубу намотана катушка; мост катушки, радиаторы агентов.</p>
+<div class="tw"><table><thead><tr><th>позиция</th><th>вариант, сколько</th><th>цена</th><th>шт.</th><th>сумма</th><th>ссылка</th><th>примечание</th></tr></thead><tbody>
+<tr><td>Алюминиевый диск 6061 Ø300 × 3 мм</td><td>основа колеса</td><td>10,38</td><td>2</td><td>20,76</td><td><a href="https://www.aliexpress.com/item/1005008038945720.html">AliExpress</a></td><td></td></tr>
+<tr><td>Силиконовая трубка пищевая, ID 19 × OD 23 мм</td><td>обод — агенты внутри</td><td>6,56</td><td>1</td><td>6,56</td><td><a href="https://www.aliexpress.com/item/1005010025288570.html">AliExpress</a></td><td></td></tr>
+<tr><td>Клипсы ПВХ U-образные 25 мм</td><td>20 шт.</td><td>2,32</td><td>1</td><td>2,32</td><td><a href="https://www.aliexpress.com/item/1005009762220367.html">AliExpress</a></td><td>крепят трубу к диску</td></tr>
+<tr><td>Эмалированный медный провод 0,67 мм</td><td>~200 м на два колеса (≈0,6 кг)</td><td>≈ 19,18</td><td>1</td><td>≈ 19,18</td><td><a href="https://www.aliexpress.com/item/1005003650119052.html">AliExpress</a></td><td>куплен отдельно; ориентир — катушка 1 кг</td></tr>
+<tr><td>Мост DRV8833 (катушка, 5,1 В)</td><td>по одному на колесо</td><td>≈ 0,96</td><td>2</td><td>≈ 1,92</td><td><a href="https://www.aliexpress.com/item/1005009044264044.html">AliExpress</a></td><td>колесо 1 — есть (куплен не на AliExpress), колесу 2 — купить</td></tr>
+<tr><td>Радиатор алюминиевый 10 × 10 × 10 мм</td><td>по 2 на агента: 24 шт. (3 упаковки по 10)</td><td>≈ 3,77</td><td>3</td><td>≈ 11,31</td><td><a href="https://www.aliexpress.com/item/1005004079109702.html">AliExpress</a></td><td>в заказах AliExpress не оплачен (заказ истёк); на №3 стоят — уточнить, сколько есть</td></tr>
+</tbody></table></div>
+<p>Раздел: куплено <b>29,64 KWD</b>, докупить или оценка <b>≈ 32,41 KWD</b>.</p>
+<h2 id="питание-колёс">Питание колёс<a class="anc" href="#питание-колёс">#</a></h2>
+<p>По два блока 2×18650 на колесо (шина агентов и катушка), DC-DC 5,1 В, защита и проводка.</p>
+<div class="tw"><table><thead><tr><th>позиция</th><th>вариант, сколько</th><th>цена</th><th>шт.</th><th>сумма</th><th>ссылка</th><th>примечание</th></tr></thead><tbody>
+<tr><td>Аккумулятор 18650, 3400 мА·ч (LiitoKala NCR18650B)</td><td>8 в работе + 2 запасных</td><td>≈ 2,71</td><td>10</td><td>≈ 27,10</td><td><a href="https://www.aliexpress.com/item/1005010576713983.html">AliExpress</a></td><td>купить; литиевые аккумуляторы в Кувейт везут не все продавцы — проверить доставку</td></tr>
+<tr><td>Бокс 2×18650 с крышкой и выключателем</td><td>по 2 на колесо</td><td>≈ 1,29</td><td>4</td><td>≈ 5,16</td><td><a href="https://www.aliexpress.com/item/4001207701699.html">AliExpress</a></td><td>купить</td></tr>
+<tr><td>Зарядное устройство LiitoKala Lii-402</td><td>на 4 аккумулятора</td><td>3,96</td><td>1</td><td>3,96</td><td><a href="https://www.aliexpress.com/item/1005008078706966.html">AliExpress</a></td><td></td></tr>
+<tr><td>DC-DC LM2596 с вольтметром</td><td>3 шт.</td><td>1,40</td><td>3</td><td>4,20</td><td><a href="https://www.aliexpress.com/item/1005010587294093.html">AliExpress</a></td><td>5 в работе: шина и катушка каждого колеса, агент моторов</td></tr>
+<tr><td>DC-DC LM2596 с индикатором</td><td>2 шт.</td><td>1,24</td><td>2</td><td>2,48</td><td><a href="https://www.aliexpress.com/item/1005006735114768.html">AliExpress</a></td><td></td></tr>
+<tr><td>Диоды Шоттки 1N5819</td><td>50 шт.</td><td>0,86</td><td>1</td><td>0,86</td><td><a href="https://www.aliexpress.com/item/1005001552094086.html">AliExpress</a></td><td>полоской к 5V агента</td></tr>
+<tr><td>Диоды 1N4007</td><td>50 шт.</td><td>0,76</td><td>1</td><td>0,76</td><td><a href="https://www.aliexpress.com/item/1005001552094086.html">AliExpress</a></td><td>запас</td></tr>
+<tr><td>Электролиты 470 мкФ 25 В</td><td>20 шт.</td><td>0,85</td><td>1</td><td>0,85</td><td><a href="https://www.aliexpress.com/item/1005005945721276.html">AliExpress</a></td><td>C1–C3 на шине, у мостов</td></tr>
+<tr><td>Электролиты, набор</td><td>120 шт.</td><td>1,02</td><td>1</td><td>1,02</td><td><a href="https://www.aliexpress.com/item/1005006244064108.html">AliExpress</a></td><td></td></tr>
+<tr><td>Керамика 104 (0,1 мкФ) 50 В</td><td>100 шт.</td><td>0,68</td><td>1</td><td>0,68</td><td><a href="https://www.aliexpress.com/item/1005008165798085.html">AliExpress</a></td><td>на выводах моторов</td></tr>
+<tr><td>Керамика, набор</td><td>300 шт.</td><td>1,15</td><td>1</td><td>1,15</td><td><a href="https://www.aliexpress.com/item/1005008244407175.html">AliExpress</a></td><td></td></tr>
+<tr><td>Держатель предохранителя 18AWG с предохранителем 3 А</td><td>2 шт.</td><td>0,73</td><td>2</td><td>1,46</td><td><a href="https://www.aliexpress.com/item/1005007369776673.html">AliExpress</a></td><td></td></tr>
+<tr><td>Провод 2 × 18 AWG (красный-чёрный)</td><td>10 м</td><td>3,22</td><td>1</td><td>3,22</td><td><a href="https://www.aliexpress.com/item/1005009014635843.html">AliExpress</a></td><td>шины</td></tr>
+<tr><td>Провод силиконовый 20 AWG</td><td>3 м</td><td>0,70</td><td>1</td><td>0,70</td><td><a href="https://www.aliexpress.com/item/1005009017260144.html">AliExpress</a></td><td></td></tr>
+<tr><td>Провод силиконовый 22 AWG</td><td>3 м</td><td>0,64</td><td>1</td><td>0,64</td><td><a href="https://www.aliexpress.com/item/1005009017260144.html">AliExpress</a></td><td></td></tr>
+<tr><td>Т-соединители проводов</td><td>20 шт.</td><td>2,24</td><td>1</td><td>2,24</td><td><a href="https://www.aliexpress.com/item/1005011893119817.html">AliExpress</a></td><td>отводы от шины к агентам</td></tr>
+<tr><td>Разъёмы H2, 2 контакта</td><td>50 шт.</td><td>1,53</td><td>1</td><td>1,53</td><td><a href="https://www.aliexpress.com/item/1005008802959407.html">AliExpress</a></td><td></td></tr>
+<tr><td>Клеммники компактные</td><td>5 шт.</td><td>0,57</td><td>4</td><td>2,28</td><td><a href="https://www.aliexpress.com/item/1005012488325489.html">AliExpress</a></td><td></td></tr>
+<tr><td>Термоусадка, набор</td><td>127 шт.</td><td>0,89</td><td>1</td><td>0,89</td><td><a href="https://www.aliexpress.com/item/1005010440409440.html">AliExpress</a></td><td></td></tr>
+<tr><td>Вольтметр-амперметр DC 100 В 10 А</td><td>1 шт.</td><td>0,70</td><td>1</td><td>0,70</td><td><a href="https://www.aliexpress.com/item/1005005631605113.html">AliExpress</a></td><td></td></tr>
+</tbody></table></div>
+<p>Раздел: куплено <b>29,62 KWD</b>, докупить или оценка <b>≈ 32,26 KWD</b>.</p>
+<h2 id="рама-и-моторы">Рама и моторы<a class="anc" href="#рама-и-моторы">#</a></h2>
+<p>Моторы на осях колёс, мосты, агент моторов на раме; блок 12 В.</p>
+<div class="tw"><table><thead><tr><th>позиция</th><th>вариант, сколько</th><th>цена</th><th>шт.</th><th>сумма</th><th>ссылка</th><th>примечание</th></tr></thead><tbody>
+<tr><td>Мотор-редуктор 36GP-555, 12 В, 112 об/мин</td><td>по одному на колесо</td><td>14,23</td><td>2</td><td>28,46</td><td><a href="https://www.aliexpress.com/item/1005012582421407.html">AliExpress</a></td><td></td></tr>
+<tr><td>Мост DRV8871</td><td>упаковка 5 шт.</td><td>3,86</td><td>1</td><td>3,86</td><td><a href="https://www.aliexpress.com/item/1005012157077217.html">AliExpress</a></td><td>2 в работе</td></tr>
+<tr><td>Опора вала с фланцем, 8 мм</td><td>2 шт.</td><td>0,88</td><td>2</td><td>1,76</td><td><a href="https://www.aliexpress.com/item/1005011593372874.html">AliExpress</a></td><td></td></tr>
+<tr><td>Блок питания 12 В 5 А (60 Вт)</td><td>моторы и агент моторов</td><td>≈ 3,09</td><td>1</td><td>≈ 3,09</td><td><a href="https://www.aliexpress.com/item/1005004110696893.html">AliExpress</a></td><td>в заказах AliExpress нет — уточнить, какой стоит</td></tr>
+<tr><td>Фанера 12 мм, подшипники упоров, муфты, крепёж</td><td>рама и упоры</td><td>—</td><td>1</td><td>—</td><td>—</td><td>куплено на месте</td></tr>
+</tbody></table></div>
+<p>Раздел: куплено <b>34,08 KWD</b>, докупить или оценка <b>≈ 3,09 KWD</b>.</p>
+<h2 id="сеть-опыта-wi-fi">Сеть опыта (Wi-Fi)<a class="anc" href="#сеть-опыта-wi-fi">#</a></h2>
+<p>Свой роутер только для агентов; ноутбук — к нему кабелем, интернет — по своему Wi-Fi.</p>
+<div class="tw"><table><thead><tr><th>позиция</th><th>вариант, сколько</th><th>цена</th><th>шт.</th><th>сумма</th><th>ссылка</th><th>примечание</th></tr></thead><tbody>
+<tr><td>Роутер GL.iNet GL-MT300N-V2 (Mango)</td><td>2,4 ГГц, питание micro-USB 5 В</td><td>8,60</td><td>1</td><td>8,60</td><td><a href="https://www.aliexpress.com/item/1005005454366776.html">AliExpress</a></td><td>настройки — <a href="wiring.html#сеть-опыта-wi-fi">схемы, «Сеть опыта»</a></td></tr>
+<tr><td>Адаптер UGREEN USB 3.0 → RJ45 (ASIX AX88179)</td><td>ноутбук ↔ LAN роутера</td><td>3,30</td><td>1</td><td>3,30</td><td><a href="https://www.aliexpress.com/item/1005007088906526.html">AliExpress</a></td><td></td></tr>
+<tr><td>Кабель Cat6</td><td>3 м</td><td>1,91</td><td>1</td><td>1,91</td><td><a href="https://www.aliexpress.com/item/1005009029087811.html">AliExpress</a></td><td></td></tr>
+<tr><td>Прежний домашний роутер</td><td>запасная сеть агентов</td><td>—</td><td>1</td><td>—</td><td>—</td><td>свой</td></tr>
+</tbody></table></div>
+<p>Раздел: куплено <b>13,81 KWD</b>.</p>
+<h2 id="монтаж-и-тепло">Монтаж и тепло<a class="anc" href="#монтаж-и-тепло">#</a></h2>
+<p>Крепление радиаторов и плат, изоляция под обмоткой.</p>
+<div class="tw"><table><thead><tr><th>позиция</th><th>вариант, сколько</th><th>цена</th><th>шт.</th><th>сумма</th><th>ссылка</th><th>примечание</th></tr></thead><tbody>
+<tr><td>Двусторонний термоскотч 10 мм</td><td>5 м</td><td>0,92</td><td>1</td><td>0,92</td><td><a href="https://www.aliexpress.com/item/1005005721222386.html">AliExpress</a></td><td>радиаторы на плату</td></tr>
+<tr><td>Каптоновая лента 20 мм</td><td>33 м</td><td>1,65</td><td>1</td><td>1,65</td><td><a href="https://www.aliexpress.com/item/1005002708125522.html">AliExpress</a></td><td>кромки радиаторов под проводом</td></tr>
+<tr><td>Клей AB для металла</td><td>50 мл</td><td>2,00</td><td>1</td><td>2,00</td><td><a href="https://www.aliexpress.com/item/1005008690859660.html">AliExpress</a></td><td></td></tr>
+<tr><td>Нано-лента двусторонняя 20 мм</td><td>1 м</td><td>0,38</td><td>1</td><td>0,38</td><td><a href="https://www.aliexpress.com/item/1005010778627319.html">AliExpress</a></td><td></td></tr>
+</tbody></table></div>
+<p>Раздел: куплено <b>4,95 KWD</b>.</p>
+<h2 id="инструменты-и-расходники">Инструменты и расходники<a class="anc" href="#инструменты-и-расходники">#</a></h2>
+<p>Для сборки — в стоимость самой установки не входят.</p>
+<div class="tw"><table><thead><tr><th>позиция</th><th>вариант, сколько</th><th>цена</th><th>шт.</th><th>сумма</th><th>ссылка</th><th>примечание</th></tr></thead><tbody>
+<tr><td>Паяльник 60 Вт с регулятором (S806), набор 7 в 1</td><td></td><td>2,49</td><td>1</td><td>2,49</td><td><a href="https://www.aliexpress.com/item/1005007111909400.html">AliExpress</a></td><td></td></tr>
+<tr><td>«Третья рука» с лупой, 4 держателя</td><td></td><td>2,17</td><td>1</td><td>2,17</td><td><a href="https://www.aliexpress.com/item/1005009212103647.html">AliExpress</a></td><td></td></tr>
+<tr><td>Силиконовый коврик для пайки</td><td></td><td>1,27</td><td>1</td><td>1,27</td><td><a href="https://www.aliexpress.com/item/1005005241808257.html">AliExpress</a></td><td></td></tr>
+<tr><td>Лупа-очки</td><td></td><td>6,00</td><td>1</td><td>6,00</td><td><a href="https://www.aliexpress.com/item/1005005669666176.html">AliExpress</a></td><td></td></tr>
+<tr><td>Отвёртка 7 в 1</td><td></td><td>1,21</td><td>1</td><td>1,21</td><td><a href="https://www.aliexpress.com/item/1005012615752371.html">AliExpress</a></td><td></td></tr>
+<tr><td>Стриппер-обжимник 10–26 AWG</td><td></td><td>2,61</td><td>1</td><td>2,61</td><td><a href="https://www.aliexpress.com/item/1005009138448458.html">AliExpress</a></td><td></td></tr>
+<tr><td>Набор ножей</td><td></td><td>0,70</td><td>1</td><td>0,70</td><td><a href="https://www.aliexpress.com/item/1005005733410013.html">AliExpress</a></td><td></td></tr>
+<tr><td>Струбцины 4"</td><td>5 шт.</td><td>5,10</td><td>1</td><td>5,10</td><td><a href="https://www.aliexpress.com/item/1005007147995927.html">AliExpress</a></td><td></td></tr>
+<tr><td>Пружинные зажимы 3"</td><td>6 шт.</td><td>1,66</td><td>2</td><td>3,32</td><td><a href="https://www.aliexpress.com/item/1005006441096614.html">AliExpress</a></td><td></td></tr>
+<tr><td>Струбцины 2"</td><td>10 шт.</td><td>1,46</td><td>1</td><td>1,46</td><td><a href="https://www.aliexpress.com/item/1005008565541292.html">AliExpress</a></td><td></td></tr>
+<tr><td>Припой ПОС-63 с канифолью, 0,8 мм</td><td>50 г</td><td>1,37</td><td>1</td><td>1,37</td><td><a href="https://www.aliexpress.com/item/1005009113499721.html">AliExpress</a></td><td></td></tr>
+<tr><td>Флюс-карандаш 951</td><td></td><td>1,53</td><td>1</td><td>1,53</td><td><a href="https://www.aliexpress.com/item/1005009476418222.html">AliExpress</a></td><td></td></tr>
+<tr><td>Оплётка для снятия припоя 2,5 мм</td><td>1,5 м</td><td>0,68</td><td>1</td><td>0,68</td><td><a href="https://www.aliexpress.com/item/1005012817073895.html">AliExpress</a></td><td></td></tr>
+<tr><td>Паяльная паста</td><td>15 г</td><td>1,03</td><td>1</td><td>1,03</td><td><a href="https://www.aliexpress.com/item/1005009377104599.html">AliExpress</a></td><td></td></tr>
+<tr><td>Ёмкость из нержавейки</td><td>300 мл</td><td>1,34</td><td>1</td><td>1,34</td><td><a href="https://www.aliexpress.com/item/1005010588950996.html">AliExpress</a></td><td></td></tr>
+<tr><td>Подставка Type-C</td><td></td><td>0,64</td><td>1</td><td>0,64</td><td><a href="https://www.aliexpress.com/item/1005012357688054.html">AliExpress</a></td><td></td></tr>
+</tbody></table></div>
+<p>Раздел: куплено <b>32,92 KWD</b>.</p>
+<h2 id="не-оплачено-или-заказ-истёк">Не оплачено или заказ истёк<a class="anc" href="#не-оплачено-или-заказ-истёк">#</a></h2>
+<p>В итог не входит; что из этого нужно установке — стоит в разделах выше оценкой.</p>
+<div class="tw"><table><thead><tr><th>позиция</th><th>цена</th><th>шт.</th><th>ссылка</th><th>состояние</th></tr></thead><tbody>
+<tr><td>ICM-42688, ещё 2 шт.</td><td>6,83</td><td>2</td><td><a href="https://www.aliexpress.com/item/1005011642881650.html">AliExpress</a></td><td>ждёт оплаты (07.10)</td></tr>
+<tr><td>Алюминиевая полоса под проставки радиаторов</td><td>0,70</td><td>1</td><td><a href="https://www.aliexpress.com/item/1005009745567019.html">AliExpress</a></td><td>ждёт оплаты (07.10)</td></tr>
+<tr><td>Нано-лента 30 мм</td><td>1,76</td><td>1</td><td><a href="https://www.aliexpress.com/item/1005008384803828.html">AliExpress</a></td><td>ждёт оплаты (07.10)</td></tr>
+<tr><td>Жала 900M-T, 10 шт.</td><td>1,27</td><td>1</td><td><a href="https://www.aliexpress.com/item/1005009914123433.html">AliExpress</a></td><td>заказ истёк</td></tr>
+<tr><td>Хомуты из нержавейки с резиной, 38 мм</td><td>2,21</td><td>1</td><td><a href="https://www.aliexpress.com/item/1005009891179008.html">AliExpress</a></td><td>заказ истёк</td></tr>
+</tbody></table></div>
+  </main>
+</div>
+<footer>Страница собрана из docs/spec.md командой tools/build_docs.py — правьте markdown. Ссылки на установку и живую схему
+работают, когда документация открыта с сервера (http://&lt;сервер&gt;:8090/docs/).</footer>
+</body>
+</html>

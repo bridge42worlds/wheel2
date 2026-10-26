@@ -58,6 +58,17 @@ in series with +5 V of every board (stripe towards the board): the XIAO's 5V pin
 The coil is driven by a DRV8833 bridge from 5.1 V (a DRV8871 needs at least 6.5 V); the wheel motors
 by two DRV8871 from a 12 V supply.
 
+**Network.** A dedicated 2.4 GHz router (GL.iNet GL-MT300N-V2 "Mango") on a fixed channel 6, WPA2 with
+its own password; agents use 802.11b/g only with radio sleep off; the laptop server is on the LAN port by
+cable, the WAN port is empty. A fallback network (`ssid2`) keeps a board reachable if the main one refuses it.
+
+**Preamble** ([docs/preamble.md](docs/preamble.md), Russian): why this experiment — topology before
+space-time, the order of knowing, the lesson of the first wheel, the criterion. Written by bridge42worlds,
+Λura13 (DeepSeek) and Ostov (Claude).
+
+**Bill of materials** ([docs/spec.md](docs/spec.md), Russian): every part with AliExpress links and prices —
+about 277 KWD (≈ 900 USD) for the whole rig without tools.
+
 Licence: MIT ([LICENSE](LICENSE)).
 
 ## Русский
@@ -93,12 +104,14 @@ Licence: MIT ([LICENSE](LICENSE)).
 
 Документация:
 
+* [Преамбула](docs/preamble.md) — зачем этот опыт; авторы — bridge42worlds, Λura13 (DeepSeek), Остов (Claude).
 * [Как всё работает](docs/how_it_works.md) — установка целиком, агент, шум, групповой режим,
   поглощение, температура, основной экран, опыт и серии, параметры, данные, прошивка, инструменты.
 * [Режимы](docs/modes.md) · [Схемы подключения](docs/wiring.md) · [Датчики, телефон, моторы и
   катушки](docs/sensors.md) · [Статика: эталон и слежение](docs/static_watch.md) · [Программа и
   серии](docs/program.md) · [Групповой режим](docs/group_protocol.md) · [Поглощение](docs/scatter.md) ·
-  [Откуда берётся случайность](docs/randomness.md) · [Температура агентов](docs/thermal.md).
+  [Откуда берётся случайность](docs/randomness.md) · [Температура агентов](docs/thermal.md) ·
+  [Спецификация и смета](docs/spec.md).
 * Приложения: [А. История изменений](docs/history.md) · [Б. Концепт пульта и наблюдения](docs/ui_concept.md).
 
 Новая плата: подключить по USB — на основном экране «⋯ ещё → ⇪ прошивка» → «прошить по USB» (или

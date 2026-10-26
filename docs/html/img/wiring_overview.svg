@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 960" width="1000" height="960" role="img">
 <title>Установка «Колесо-2»: общая схема</title>
-<desc>Два колеса друг напротив друга: на каждом обод-труба с обмоткой катушки, шесть агентов на шине 5,1 В от своих аккумуляторов с электролитами C1–C3, отдельное питание катушки с мостом DRV8833 и агентом катушки (у колеса 1 — №13); сервер связан со всеми по Wi-Fi; на раме — моторы M1 и M2 на осях с упорами, мосты DRV8871, агент моторов №10, блок 12 В и статические №8 и №9 между колёсами.</desc>
+<desc>Два колеса друг напротив друга: на каждом обод-труба с обмоткой катушки, шесть агентов на шине 5,1 В от своих аккумуляторов с электролитами C1–C3, отдельное питание катушки с мостом DRV8833 и агентом катушки (у колеса 1 — №13); агенты — в Wi-Fi роутера Mango (2,4 ГГц, канал 6), ноутбук-сервер — к нему кабелем; на раме — моторы M1 и M2 на осях с упорами, мосты DRV8871, агент моторов №10, блок 12 В и статические №8 и №9 между колёсами.</desc>
 <style>
 text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d2228}
 .h{font-size:15px;font-weight:600}.t{font-size:13px}.s{font-size:12px;fill:#4a535e}.x{font-size:10.5px;fill:#4a535e}
@@ -284,13 +284,20 @@ text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d22
 <text class="s" x="260" y="504" text-anchor="middle">6 агентов на шине · катушка — агент №13</text>
 <text class="h" x="740" y="487" text-anchor="middle">Колесо 2</text>
 <text class="s" x="740" y="504" text-anchor="middle">6 агентов на шине · катушка — без агента</text>
-<path class="sig" style="stroke-dasharray:none" d="M490 236 A12 12 0 0 1 510 236 M484 229 A20 20 0 0 1 516 229 M478 222 A28 28 0 0 1 522 222"/>
-<circle cx="500" cy="240" r="3" fill="#0072B2"/>
+<path class="sig" style="stroke-dasharray:none" d="M490 146 A12 12 0 0 1 510 146 M484 139 A20 20 0 0 1 516 139 M478 132 A28 28 0 0 1 522 132"/>
+<circle cx="500" cy="150" r="3" fill="#0072B2"/>
+<rect class="box" x="444" y="158" width="112" height="46" rx="6"/>
+<text class="t b" x="500" y="177" text-anchor="middle">роутер Mango</text>
+<text class="x" x="500" y="194" text-anchor="middle">2,4 ГГц · канал 6</text>
+<line class="m" x1="500" y1="204" x2="500" y2="250"/>
+<text class="x" x="506" y="224">LAN · Cat6</text>
+<text class="x" x="506" y="238">USB-RJ45</text>
 <rect class="box" x="448" y="250" width="104" height="46" rx="6"/>
 <text class="t b" x="500" y="270" text-anchor="middle">сервер</text>
 <text class="x" x="500" y="286" text-anchor="middle">ноутбук</text>
-<text class="s" x="500" y="316" text-anchor="middle">по Wi‑Fi —</text>
-<text class="s" x="500" y="331" text-anchor="middle">все агенты</text>
+<text class="s" x="500" y="316" text-anchor="middle">агенты — Wi‑Fi,</text>
+<text class="s" x="500" y="331" text-anchor="middle">ноутбук — кабель</text>
+<text class="x" x="500" y="347" text-anchor="middle">интернет — свой Wi‑Fi</text>
 <text class="h" x="20" y="550">Вид сверху: колёса стоят друг напротив друга на раме</text>
 <rect class="fr" x="40" y="562" width="920" height="310" rx="8"/>
 <text class="s" x="52" y="864">рама (фанера)</text>
