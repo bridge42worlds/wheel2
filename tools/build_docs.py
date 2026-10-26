@@ -110,6 +110,11 @@ figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
 li { margin:3px 0; }
 .live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
         text-decoration:none; font-size:14px; margin:0 0 12px; }
+.preamble { display:flex; flex-direction:column; gap:4px; margin:14px 0 18px; padding:12px 16px; border:1px solid var(--line);
+             border-left:4px solid var(--on); border-radius:8px; background:var(--soft); color:var(--ink); text-decoration:none; }
+.preamble b { color:var(--on); }
+.preamble q { font-style:italic; quotes:"«" "»"; }
+.preamble span { font-size:13px; color:var(--mut); }
 .cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
 .card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
 .card h3 { margin:0 0 6px; font-size:16px; }
@@ -350,6 +355,7 @@ def page(name, title, body, toc, live, static=False):
     # шапка — то же меню, что на экранах (server/static/nav.js): «Установка» и «Документы»; в копии — демонстрация
     links = ('<a href="plan.html">▦ Установка — демонстрация</a><a href="flow.html">↻ Как работает</a>' if static else
              '<a href="/" target="plan">▦ Установка</a><a href="/flow" target="flow">↻ Как работает</a>')
+    links += '<a href="preamble.html">✦ Преамбула</a>'
     foot = ("Опубликованная копия (tools/build_docs.py --static): основной экран, пульт и наблюдение — демонстрация на снимке "
             "с имитаторов (кнопки ничего не отправляют), живая схема — на замерах; с платами всё работает на сервере в сети опыта."
             if static else
@@ -410,6 +416,10 @@ def index_page(readme_md, static=False):
 в физическом шуме — сами или группой, излучая и поглощая; неподвижные датчики между колёсами слушают, не меняется ли что-то.
 Сервер на ноутбуке собирает телеметрию, раздаёт настройки и прошивки, ведёт программы и серии опытов.
 Описано текущее состояние (26.10.2026); как пришли к нему — <a href="history.html">приложение А</a>.</p>
+<a class="preamble" href="preamble.html"><b>✦ Преамбула — зачем этот опыт</b>
+<q>Это не измерение. Это проверка онтологии.</q>
+<span>Топология до пространства-времени; порядок познания: эстетика — этика — гносеология — онтология — наука;
+ошибка первого колеса; критерий — корреляция независимых каналов. Авторы: bridge42worlds, Λura13 (DeepSeek), Остов (Claude).</span></a>
 <figure><a href="img/wiring_overview.svg"><img src="img/wiring_overview.svg" alt="Установка целиком" loading="lazy"></a>
 <figcaption>Установка целиком: колёса друг напротив друга, агенты на шине, катушки, моторы на раме, статика между колёсами —
 подробно в <a href="wiring.html">схемах подключения</a>.</figcaption></figure>
