@@ -142,7 +142,7 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
   else if (!valid_bits(bits))              snprintf(err, errlen, "bad bits=%ld", bits);
   else if (nb < 1 || nb > MAX_BASES)       snprintf(err, errlen, "bad nb=%ld", nb);
   else if (td < 0 || td > 20000)           snprintf(err, errlen, "bad td=%ld", td);
-  else if (tmax < 40 || tmax > 70)         snprintf(err, errlen, "bad tmax=%ld", tmax);
+  else if (tmax < 40 || tmax > 75)         snprintf(err, errlen, "bad tmax=%ld", tmax);
   else if (mode != MODE_SOLO && mode != MODE_GROUP) snprintf(err, errlen, "bad mode=%ld", mode);
   else if (bad_grp)                        snprintf(err, errlen, "bad grp");
   else if (nrate < 0 || nrate > 2)         snprintf(err, errlen, "bad nr=%ld", nrate);

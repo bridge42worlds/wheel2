@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 440" width="700" height="440" role="img">
-<title>Колесо: катушка — свои аккумуляторы, 5,1 В, мост DRV8833</title>
-<desc>Аккумулятор 2×18650 через выключатель на DC-DC 5,1 В; шина плюс идёт на VM моста DRV8833, конденсатор 470 мкФ плюсом к ней, и через диод 1N5819 полоской на вывод 5V агента; общий минус на GND моста, минус конденсатора и GND агента; D0 и D1 агента на IN1 и IN2 моста; OUT1 и OUT2 на катушку.</desc>
+<title>Колесо: катушка — свои аккумуляторы, 5,1 В, мост DRV8871</title>
+<desc>Аккумулятор 2×18650 через выключатель на DC-DC 5,1 В; шина плюс идёт на VM моста DRV8871, конденсатор 470 мкФ плюсом к ней, и через диод 1N5819 полоской на вывод 5V агента; общий минус на GND моста, минус конденсатора и GND агента; D0 и D1 агента на IN1 и IN2 моста; OUT1 и OUT2 на катушку.</desc>
 <style>
 text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d2228}
 .h{font-size:15px;font-weight:600}.t{font-size:13px}.s{font-size:12px;fill:#4a535e}
@@ -10,7 +10,7 @@ text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d22
 .sig{stroke:#0072B2;stroke-width:1.8;fill:none;stroke-dasharray:6 4}
 </style>
 <rect width="700" height="440" fill="#ffffff"/>
-<text class="h" x="16" y="28">Колесо: катушка — свои аккумуляторы, 5,1 В, мост DRV8833</text>
+<text class="h" x="16" y="28">Колесо: катушка — свои аккумуляторы, 5,1 В, мост DRV8871</text>
 <g transform="translate(0,-20)">
 <rect class="box" x="16" y="120" width="68" height="140" rx="6"/>
 <text class="h" x="50" y="186" text-anchor="middle">2×18650</text>
@@ -27,7 +27,7 @@ text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d22
 <text class="s" x="381" y="170">5V</text><text class="s" x="381" y="244">GND</text>
 <text class="s" x="459" y="174" text-anchor="end">D0</text><text class="s" x="459" y="196" text-anchor="end">D1</text>
 <rect class="box" x="515" y="120" width="110" height="140" rx="6"/>
-<text class="h" x="570" y="238" text-anchor="middle">DRV8833</text>
+<text class="h" x="570" y="238" text-anchor="middle">DRV8871</text>
 <text class="s" x="521" y="140">VM</text><text class="s" x="521" y="174">IN1</text><text class="s" x="521" y="196">IN2</text><text class="s" x="521" y="254">GND</text>
 <text class="s" x="619" y="169" text-anchor="end">OUT1</text><text class="s" x="619" y="219" text-anchor="end">OUT2</text>
 <line class="p" x1="84" y1="150" x2="98" y2="150"/>
@@ -60,9 +60,9 @@ text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d22
 <text class="s" x="652" y="152" text-anchor="middle">катушка</text>
 </g>
 <text class="s" x="16" y="340">1N5819 — полоской к выводу 5V агента. 470 мкФ — плюсом к шине +, вплотную к VM и GND моста.</text>
-<text class="s" x="16" y="358">Полоса на банке конденсатора — минус. DRV8833 работает от 5 В (DRV8871 нужно не меньше 6,5 В).</text>
-<text class="s" x="16" y="376">Вывод nSLEEP (EEP) — к 3V3 агента, если модуль его не подтянул. DC-DC выставить на 5,1 В до подключения.</text>
-<text class="s" x="16" y="394">Ток катушки 5 Ом — около 1 А.</text>
+<text class="s" x="16" y="358">Полоса на банке конденсатора — минус. Наш DRV8871 работает от 5,1 В (по паспорту — от 6,5); запасной — DRV8833.</text>
+<text class="s" x="16" y="376">У DRV8833 вывод nSLEEP (EEP) — к 3V3 агента. DC-DC выставить на 5,1 В до подключения.</text>
+<text class="s" x="16" y="394">Катушка 5 Ом: на ней 4,5 В, ток около 0,9 А (проверено 26.10).</text>
 <line class="p" x1="16" y1="420" x2="52" y2="420"/><text class="s" x="60" y="424">плюс</text>
 <line class="m" x1="126" y1="420" x2="162" y2="420"/><text class="s" x="170" y="424">минус</text>
 <line class="sig" x1="242" y1="420" x2="278" y2="420"/><text class="s" x="286" y="424">сигналы 3,3 В</text>

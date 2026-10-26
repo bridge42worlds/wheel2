@@ -111,7 +111,7 @@ SOURCES = [
 SRC_INDEX = {"rng": 0, "csi": 1, "adc": 2, "jit": 3, "bc": 4, "acc": 5, "mag": 6}     # порядок в массиве "e" телеметрии
 OPTIONS = {"bits": [32, 64, 128, 256, 512, 1024, 2048], "nb_max": len(BASES), "bases": BASES,
            "td": [0, 100, 1000, 10000, 20000], "sources": SOURCES, "source_groups": SOURCE_GROUPS,
-           "tmax": [50, 55, 60, 65, 70],
+           "tmax": [50, 55, 60, 65, 70, 73, 75],
            "modes": [{"mode": 0, "name": "каждый сам за себя"}, {"mode": 1, "name": "сообща (группа)"}],
            # вариант группы: как делится работа над числами из кусочков всех
            "gv": [{"gv": 0, "name": "все на одном числе — проверяют все, базы поделены"},
@@ -146,7 +146,7 @@ OPTIONS = {"bits": [32, 64, 128, 256, 512, 1024, 2048], "nb_max": len(BASES), "b
            "bgr": [0, 5, 10, 20, 50, 100],
            "sf": [{"sf": 0, "name": "хеш SHA-256"}, {"sf": 1, "name": "XOR с шумом"},
                   {"sf": 2, "name": "умножение на случайное"}, {"sf": 3, "name": "перестановка бит"}]}
-DEFAULT_CFG = {"src": 1, "bits": 256, "nb": 8, "all": 0, "td": 1000, "tmax": 70, "mode": 0, "nr": 1,
+DEFAULT_CFG = {"src": 1, "bits": 256, "nb": 8, "all": 0, "td": 1000, "tmax": 73, "mode": 0, "nr": 1,
                "k": 24, "pre": 1, "tp": 1000, "cpu": 240, "txp": 20, "ping": 100, "led": 1,
                "role": 0, "sm": 1, "sf": 0, "cf": 0, "sh": 0, "bgr": 0, "tl": 0, "tq": 0, "rmm": 450, "afs": 2,
                "avg": 2, "pl": 0, "dc": 0, "gv": 0, "rk": 1, "pw": 0, "raw": 0, "hb": 1, "dur": 0, "ro": 0}
@@ -989,7 +989,7 @@ def save_control():
 
 def cfg_line(c):
     line = (f"CFG cid={c['cid']} src={c['src']} bits={c['bits']} nb={c['nb']} all={c['all']} td={c['td']}"
-            f" tmax={c.get('tmax', 70)} mode={c.get('mode', 0)} nr={c.get('nr', 1)} run={c.get('run', 0)}"   # без поля run — стоять
+            f" tmax={c.get('tmax', 73)} mode={c.get('mode', 0)} nr={c.get('nr', 1)} run={c.get('run', 0)}"   # без поля run — стоять
             f" k={c.get('k', 24)} pre={c.get('pre', 1)} cpu={c.get('cpu', 240)} txp={c.get('txp', 20)}"
             f" ping={c.get('ping', 100)} hb={c.get('hb', 1)} led={c.get('led', 1)} tp={c.get('tp', 1000)}"
             f" role={c.get('role', 0)} sm={c.get('sm', 1)} sf={c.get('sf', 0)} cf={c.get('cf', 0)}"
@@ -1017,7 +1017,7 @@ def validate_cfg(c):
     try:
         out = {"src": int(c["src"]), "bits": int(c["bits"]), "nb": int(c["nb"]),
                "all": 1 if c.get("all") else 0, "td": int(c["td"]),
-               "tmax": int(c.get("tmax", 70)), "mode": int(c.get("mode", 0)), "nr": int(c.get("nr", 1)),
+               "tmax": int(c.get("tmax", 73)), "mode": int(c.get("mode", 0)), "nr": int(c.get("nr", 1)),
                "run": 1 if c.get("run", 1) else 0,
                "k": int(c.get("k", 24)), "pre": 1 if c.get("pre", 1) else 0, "tp": int(c.get("tp", 1000)),
                "cpu": int(c.get("cpu", 240)), "txp": int(c.get("txp", 20)), "ping": int(c.get("ping", 100)),
@@ -1031,7 +1031,7 @@ def validate_cfg(c):
                "raw": int(c.get("raw", 0))}
     except (KeyError, TypeError, ValueError):
         raise ValueError("нужны поля src, bits, nb, td")
-    if not 40 <= out["tmax"] <= 70:
+    if not 40 <= out["tmax"] <= 75:
         raise ValueError("предел температуры от 40 до 70 °C")
     if out["mode"] not in (0, 1):
         raise ValueError("режим 0 или 1")
@@ -1507,6 +1507,9 @@ def ota_start(targets, force=False):
     t = int(now)
     sent, skipped = [], {}
     for m, ip, fwv, ota in todo:
+        if str(fwv or "").startswith("phone"):        # телефон — приложение, не плата: обновляется установкой APK
+            skipped[m] = "телефон — обновляется приложением"
+            continue
         if fwv == fw["version"] and not force:
             skipped[m] = "уже эта версия"
             continue
@@ -1646,7 +1649,7 @@ def rest_tick():
                 hot = []
                 for m in mem:
                     v = agents[m].get("values") or {}
-                    temp, work, tmax = v.get("temp"), v.get("work"), v.get("tmax") or 70
+                    temp, work, tmax = v.get("temp"), v.get("work"), v.get("tmax") or 73
                     if temp is not None and work is not None and temp >= tmax - REST_GROUP["hot"] and work < REST_GROUP["work_lt"]:
                         hot.append((temp, m))
                 if hot:                                # регулятор начал резать самого горячего — отдыхают все
@@ -1688,7 +1691,7 @@ def rest_tick():
                 if st.get("on") or now - st.get("end", 0) < REST_ROT["gap_s"]:
                     continue
                 v = agents[m].get("values") or {}
-                temp, work, tmax = v.get("temp"), v.get("work"), v.get("tmax") or 70
+                temp, work, tmax = v.get("temp"), v.get("work"), v.get("tmax") or 73
                 if temp is not None and work is not None and temp >= tmax - REST_ROT["hot"] and work < REST_ROT["work_lt"]:
                     cands.append((temp, m))
             if cands:

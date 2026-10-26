@@ -55,7 +55,8 @@ panel). Documentation in HTML — `/docs/`.
 **Wiring notes** ([docs/wiring.md](docs/wiring.md)). Leave pin D0 unconnected — it is the ADC noise
 source. Rim sensors go on I²C (D4 SDA, D5 SCL). On a common 5 V bus put a Schottky diode (1N5819)
 in series with +5 V of every board (stripe towards the board): the XIAO's 5V pin is tied to USB VBUS.
-The coil is driven by a DRV8833 bridge from 5.1 V (a DRV8871 needs at least 6.5 V); the wheel motors
+The coil is driven by a DRV8871 bridge from 5.1 V (below its 6.5 V rating, but our modules work; a DRV8833
+is the in-spec spare); the wheel motors
 by two DRV8871 from a 12 V supply.
 
 **Network.** A dedicated 2.4 GHz router (GL.iNet GL-MT300N-V2 "Mango") on a fixed channel 6, WPA2 with

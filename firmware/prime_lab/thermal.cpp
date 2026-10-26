@@ -3,7 +3,7 @@
 
 namespace thermal {
 
-static volatile float s_tmax = 70.0f;
+static volatile float s_tmax = 73.0f;
 static volatile float s_work = 1.0f;
 static volatile int   s_state = NORMAL;
 static volatile bool  s_radio_sleep = false;

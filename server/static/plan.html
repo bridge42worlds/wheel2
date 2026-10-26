@@ -233,7 +233,7 @@ const MAX_GROUP = 16;                       // предел участников
 const DEF = { w1: { roles: ["gen"], ways: ["solo"], abs: ["all"], noise: ["rng"], sens: [] },
               w2: { roles: ["idle"], ways: ["solo"], abs: ["all"], noise: ["rng"], sens: [] },
               fields: ["off"], merge: false, minutes: 1, quiet: false, repeat: 2, shuffle: true,
-              restMode: "stable", restMin: 2, restBelow: 45, restMax: 6, tmax: 70, agentStep: false, radioOff: false,
+              restMode: "stable", restMin: 2, restBelow: 45, restMax: 6, tmax: 73, agentStep: false, radioOff: false,
               idleStep: true, baseline: 0, confirm: 0, seq: [], diagMin: 1, diagId: null,
               again: 0, sound: true };                  // ❗ отклонение статики: повторить шаг (раз), звук тревоги
 let P = (() => { try { return { ...DEF, ...JSON.parse(localStorage.getItem("plan.v2") || "{}") }; } catch (e) { return { ...DEF }; } })();
@@ -1302,7 +1302,7 @@ function experForm() {
       <label class="inl" title="длительность уходит агенту: он сам останавливает счёт, возвращает телеметрию и сдаёт итоги; сервер ждёт «сдали все»"><input data-k="agentStep" data-t="b" type="checkbox"> шаг на агенте: сам останавливается и сдаёт итоги</label>
       <label class="inl" title="Wi-Fi выключается на всё время шага, если эфир шагу не нужен: каждый сам, без поглощения, шум не из эфира"><input data-k="radioOff" data-t="b" type="checkbox"> Wi-Fi выкл на шаге, если эфир не нужен <span class="mut small">(только эгоистичный без поглощения; ГСЧ без радио слабее)</span></label></fieldset>
     <fieldset class="fs"><legend>температура</legend>
-      <label class="inl">греться до <input data-k="tmax" type="number" min="40" max="70" style="width:3.5em"> °C <span class="mut small">(регулятор агента держит на 1° ниже)</span></label><br>
+      <label class="inl">греться до <input data-k="tmax" type="number" min="40" max="75" style="width:3.5em"> °C <span class="mut small">(регулятор агента держит на 1° ниже)</span></label><br>
       <label class="inl">отдых перед шагом <select data-k="restMode" data-t="s"><option value="none">без отдыха</option><option value="fixed">столько минут</option><option value="stable">до стабилизации температуры</option><option value="below">пока не остынут до …</option></select></label>
       <label class="inl" data-show="fixed"><input data-k="restMin" type="number" min="0.5" max="60" step="0.5" style="width:3.5em"> мин</label>
       <label class="inl" data-show="below"><input data-k="restBelow" type="number" min="20" max="80" style="width:3.5em"> °C</label>

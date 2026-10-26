@@ -18,7 +18,7 @@ rig got here — appendix A, change history.
 * **Wheels** — two, facing each other. Each rim is a tube wound with a coil; inside, six **agents** run on
   a 5.1 V bus from their own batteries. Wheel 1: #3, #5, #6 (rim sensor ICM-42688), #7 (magnetometer
   MLX90393), #11, #12; wheel 2: #14–#19.
-* **Coil** of each wheel — its own batteries, a DRV8833 bridge and a **coil agent** (wheel 1: #13): field
+* **Coil** of each wheel — its own batteries, a DRV8871 bridge and a **coil agent** (wheel 1: #13): field
   "+", "−" or off. It is not part of the wheel's groups.
 * **Frame**: 36GP-555 motors on the wheel axles, two DRV8871 bridges, a 12 V supply and the **motor
   agent** #10.
@@ -145,7 +145,7 @@ into their noise — a loop through the air.
 ## 7. Temperature and watchdogs
 
 * **Regulator**: once a second picks the compute core's work fraction (5–100 %) to keep the chip one
-  degree below the limit (default **70 °C**, cannot be raised). At minimum fraction and 3 °C above the
+  degree below the limit (default **73 °C**, 75 at most). At minimum fraction and 3 °C above the
   limit for 20 s the radio sleeps between beacons; 8 °C above for 3 s — emergency stop until 3 °C below.
   The regulator ignores the sensor for the first 12 s after a reboot.
 * **Radio watchdog**: ESP-NOW frames go out but the radio reports nothing for 15 s — or no Wi-Fi for
@@ -247,7 +247,7 @@ agent, **on the fly** (change without a new number, counting continues). Main on
 | `src` | noise mask: 1 RNG, 2 CSI, 4 ADC, 8 jitter, 16 back noise, 32 rim accelerometer, 64 rim magnetometer | 1–127 | 1 |
 | `raw` | 0 — SHA-256 blocks; 1 — no hash; 2 — no hash with von Neumann | 0–2 | 0 |
 | `ping`, `hb`, `cf` | router pings per second for CSI; heartbeat frames per second; where CSI comes from | | 100; 1; 0 |
-| `tmax`, `txp`, `cpu` | chip temperature limit, °C; transmit power, dBm; CPU MHz | 40–70; 2–20; 80–240 | 70; 20; 240 |
+| `tmax`, `txp`, `cpu` | chip temperature limit, °C; transmit power, dBm; CPU MHz | 40–75; 2–20; 80–240 | 73; 20; 240 |
 | `sm`, `sh`, `bgr`, `sf` | absorption mode; dummy; absorbers' background frames/s; scattering function | | 1; 0; 0; 0 |
 | `tl`, `tq` | telemetry: normal / sparse / silence; how long to stay silent | | 0; 0 |
 | `dur`, `ro` | step on the agent: stops by itself after N s and reports; Wi-Fi off for the step | | 0; 0 |
