@@ -1,14 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 480" width="820" height="480" role="img">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 480" width="980" height="480" role="img">
 <title>Колесо: питание агентов — шина 5,1 В</title>
-<desc>Аккумулятор 2×18650 через выключатель на вход DC-DC 5,1 В; с выхода — шина плюс и шина минус вдоль колеса, конденсатор 470 мкФ у DC-DC; каждый агент получает плюс через диод 1N5819 полоской к выводу 5V, минус — прямо с шины.</desc>
+<desc>Аккумулятор 2×18650 через выключатель на вход DC-DC 5,1 В; с выхода — шина плюс и шина минус вдоль колеса; три электролита 470 мкФ на шине: у DC-DC, посередине и перед последним агентом; каждый агент получает плюс через диод 1N5819 полоской к выводу 5V, минус — прямо с шины.</desc>
 <style>
 text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d2228}
-.h{font-size:15px;font-weight:600}.t{font-size:13px}.s{font-size:12px;fill:#4a535e}
+.h{font-size:15px;font-weight:600}.t{font-size:13px}.s{font-size:12px;fill:#4a535e}.x{font-size:10.5px;fill:#4a535e}
+.b{font-weight:600}
 .box{fill:#fff;stroke:#1d2228;stroke-width:1.3}
 .p{stroke:#D55E00;stroke-width:2.6;fill:none}.m{stroke:#1d2228;stroke-width:2;fill:none}
 .pl{stroke:#1d2228;stroke-width:2.6;fill:none}.d{fill:none;stroke:#1d2228;stroke-width:1.6}
+.sig{stroke:#0072B2;stroke-width:1.8;fill:none;stroke-dasharray:6 4}
+.tube{fill:#eef1f4;stroke:#1d2228;stroke-width:1.2;fill-rule:evenodd}
+.wind{stroke:#7a828c;stroke-width:1.1}
+.ax{stroke:#7a828c;stroke-width:5;fill:none}
+.fr{fill:#f6f3ec;stroke:#b9b0a0;stroke-width:1.2}
+.dash{stroke-dasharray:5 4}
 </style>
-<rect width="820" height="480" fill="#ffffff"/>
+<rect width="980" height="480" fill="#ffffff"/>
 <text class="h" x="20" y="28">Колесо: питание агентов — отдельные аккумуляторы, шина 5,1 В</text>
 <rect class="box" x="20" y="120" width="70" height="130" rx="6"/>
 <text class="h" x="55" y="180" text-anchor="middle">2×18650</text>
@@ -26,35 +33,96 @@ text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d22
 <text class="s" x="195" y="200" text-anchor="middle">5,1 В, 3 А</text>
 <text class="s" x="156" y="149">IN+</text><text class="s" x="156" y="232">IN−</text>
 <text class="s" x="234" y="149" text-anchor="end">OUT+</text><text class="s" x="234" y="232" text-anchor="end">OUT−</text>
-<path class="p" d="M240 145 H255 V70 H800"/>
-<path class="m" d="M240 228 H255 V330 H800"/>
-<text class="t" x="560" y="58" text-anchor="middle">шина + (5,1 В)</text>
-<text class="t" x="560" y="350" text-anchor="middle">шина − (общий минус)</text>
+<path class="p" d="M240 145 H255 V70 H960"/>
+<path class="m" d="M240 228 H255 V330 H960"/>
+<text class="t" x="610" y="58" text-anchor="middle">шина + (5,1 В)</text>
+<text class="t" x="610" y="350" text-anchor="middle">шина − (общий минус)</text>
 <line class="p" x1="280" y1="70" x2="280" y2="186"/>
 <line class="pl" x1="268" y1="186" x2="292" y2="186"/>
 <path class="pl" d="M268 199 Q280 192 292 199"/>
 <line class="m" x1="280" y1="196" x2="280" y2="330"/>
-<text class="h" x="297" y="183">+</text><text class="s" x="297" y="207">470 мкФ</text>
+<text class="h" x="295" y="183">+</text>
+<text class="t b" x="295" y="216">C1</text>
+<text class="s" x="295" y="231">470</text><text class="s" x="295" y="245">мкФ</text>
 <circle cx="280" cy="70" r="3.5" fill="#D55E00"/><circle cx="280" cy="330" r="3.5" fill="#1d2228"/>
-<g id="ag" transform="translate(24,0)">
-<line class="p" x1="371" y1="70" x2="371" y2="120"/>
-<polygon class="d" points="361,120 381,120 371,138"/>
-<line class="pl" x1="360" y1="139" x2="382" y2="139" style="stroke-width:3.6"/>
-<line class="p" x1="371" y1="140" x2="371" y2="180"/>
-<circle cx="371" cy="70" r="3.5" fill="#D55E00"/>
-<rect class="box" x="340" y="180" width="62" height="70" rx="5"/>
-<text class="s" x="346" y="194">5V</text><text class="s" x="346" y="244">GND</text>
-<line class="m" x1="371" y1="250" x2="371" y2="330"/>
-<circle cx="371" cy="330" r="3.5" fill="#1d2228"/>
-</g>
-<text class="t" x="395" y="219" text-anchor="middle">агент 1</text>
-<use href="#ag" x="72"/><text class="t" x="467" y="219" text-anchor="middle">агент 2</text>
-<use href="#ag" x="144"/><text class="t" x="539" y="219" text-anchor="middle">агент 3</text>
-<use href="#ag" x="216"/><text class="t" x="611" y="219" text-anchor="middle">агент 4</text>
-<use href="#ag" x="288"/><text class="t" x="683" y="219" text-anchor="middle">агент 5</text>
-<use href="#ag" x="360"/><text class="t" x="755" y="219" text-anchor="middle">агент 6</text>
+<line class="p" x1="380" y1="70" x2="380" y2="120"/>
+<polygon class="d" points="370,120 390,120 380,138"/>
+<line class="pl" x1="369" y1="139" x2="391" y2="139" style="stroke-width:3.6"/>
+<line class="p" x1="380" y1="140" x2="380" y2="180"/>
+<circle cx="380" cy="70" r="3.5" fill="#D55E00"/>
+<rect class="box" x="349" y="180" width="62" height="70" rx="5"/>
+<text class="s" x="355" y="194">5V</text><text class="s" x="355" y="244">GND</text>
+<text class="t" x="380" y="219" text-anchor="middle">агент 1</text>
+<line class="m" x1="380" y1="250" x2="380" y2="330"/>
+<circle cx="380" cy="330" r="3.5" fill="#1d2228"/>
+<line class="p" x1="455" y1="70" x2="455" y2="120"/>
+<polygon class="d" points="445,120 465,120 455,138"/>
+<line class="pl" x1="444" y1="139" x2="466" y2="139" style="stroke-width:3.6"/>
+<line class="p" x1="455" y1="140" x2="455" y2="180"/>
+<circle cx="455" cy="70" r="3.5" fill="#D55E00"/>
+<rect class="box" x="424" y="180" width="62" height="70" rx="5"/>
+<text class="s" x="430" y="194">5V</text><text class="s" x="430" y="244">GND</text>
+<text class="t" x="455" y="219" text-anchor="middle">агент 2</text>
+<line class="m" x1="455" y1="250" x2="455" y2="330"/>
+<circle cx="455" cy="330" r="3.5" fill="#1d2228"/>
+<line class="p" x1="530" y1="70" x2="530" y2="120"/>
+<polygon class="d" points="520,120 540,120 530,138"/>
+<line class="pl" x1="519" y1="139" x2="541" y2="139" style="stroke-width:3.6"/>
+<line class="p" x1="530" y1="140" x2="530" y2="180"/>
+<circle cx="530" cy="70" r="3.5" fill="#D55E00"/>
+<rect class="box" x="499" y="180" width="62" height="70" rx="5"/>
+<text class="s" x="505" y="194">5V</text><text class="s" x="505" y="244">GND</text>
+<text class="t" x="530" y="219" text-anchor="middle">агент 3</text>
+<line class="m" x1="530" y1="250" x2="530" y2="330"/>
+<circle cx="530" cy="330" r="3.5" fill="#1d2228"/>
+<line class="p" x1="605" y1="70" x2="605" y2="186"/>
+<line class="pl" x1="593" y1="186" x2="617" y2="186"/>
+<path class="pl" d="M593 199 Q605 192 617 199"/>
+<line class="m" x1="605" y1="196" x2="605" y2="330"/>
+<text class="h" x="620" y="183">+</text>
+<text class="t b" x="620" y="216">C2</text>
+<text class="s" x="620" y="231">470</text><text class="s" x="620" y="245">мкФ</text>
+<circle cx="605" cy="70" r="3.5" fill="#D55E00"/><circle cx="605" cy="330" r="3.5" fill="#1d2228"/>
+<line class="p" x1="680" y1="70" x2="680" y2="120"/>
+<polygon class="d" points="670,120 690,120 680,138"/>
+<line class="pl" x1="669" y1="139" x2="691" y2="139" style="stroke-width:3.6"/>
+<line class="p" x1="680" y1="140" x2="680" y2="180"/>
+<circle cx="680" cy="70" r="3.5" fill="#D55E00"/>
+<rect class="box" x="649" y="180" width="62" height="70" rx="5"/>
+<text class="s" x="655" y="194">5V</text><text class="s" x="655" y="244">GND</text>
+<text class="t" x="680" y="219" text-anchor="middle">агент 4</text>
+<line class="m" x1="680" y1="250" x2="680" y2="330"/>
+<circle cx="680" cy="330" r="3.5" fill="#1d2228"/>
+<line class="p" x1="755" y1="70" x2="755" y2="120"/>
+<polygon class="d" points="745,120 765,120 755,138"/>
+<line class="pl" x1="744" y1="139" x2="766" y2="139" style="stroke-width:3.6"/>
+<line class="p" x1="755" y1="140" x2="755" y2="180"/>
+<circle cx="755" cy="70" r="3.5" fill="#D55E00"/>
+<rect class="box" x="724" y="180" width="62" height="70" rx="5"/>
+<text class="s" x="730" y="194">5V</text><text class="s" x="730" y="244">GND</text>
+<text class="t" x="755" y="219" text-anchor="middle">агент 5</text>
+<line class="m" x1="755" y1="250" x2="755" y2="330"/>
+<circle cx="755" cy="330" r="3.5" fill="#1d2228"/>
+<line class="p" x1="830" y1="70" x2="830" y2="186"/>
+<line class="pl" x1="818" y1="186" x2="842" y2="186"/>
+<path class="pl" d="M818 199 Q830 192 842 199"/>
+<line class="m" x1="830" y1="196" x2="830" y2="330"/>
+<text class="h" x="845" y="183">+</text>
+<text class="t b" x="845" y="216">C3</text>
+<text class="s" x="845" y="231">470</text><text class="s" x="845" y="245">мкФ</text>
+<circle cx="830" cy="70" r="3.5" fill="#D55E00"/><circle cx="830" cy="330" r="3.5" fill="#1d2228"/>
+<line class="p" x1="905" y1="70" x2="905" y2="120"/>
+<polygon class="d" points="895,120 915,120 905,138"/>
+<line class="pl" x1="894" y1="139" x2="916" y2="139" style="stroke-width:3.6"/>
+<line class="p" x1="905" y1="140" x2="905" y2="180"/>
+<circle cx="905" cy="70" r="3.5" fill="#D55E00"/>
+<rect class="box" x="874" y="180" width="62" height="70" rx="5"/>
+<text class="s" x="880" y="194">5V</text><text class="s" x="880" y="244">GND</text>
+<text class="t" x="905" y="219" text-anchor="middle">агент 6</text>
+<line class="m" x1="905" y1="250" x2="905" y2="330"/>
+<circle cx="905" cy="330" r="3.5" fill="#1d2228"/>
 <text class="s" x="20" y="380">Диод 1N5819 — полоской (на символе — черта) к выводу 5V агента.</text>
-<text class="s" x="20" y="398">Электролит 470 мкФ — плюсом к шине +; полоса на банке — минус.</text>
+<text class="s" x="20" y="398">C1–C3 — электролиты 470 мкФ, плюсом к шине +: C1 у DC-DC, C2 посередине шины, C3 в конце, перед последним агентом. Полоса на банке — минус.</text>
 <text class="s" x="20" y="416">Плюс и минус шины ведите рядом, скрученной парой; кольцом вокруг катушки шину не замыкать.</text>
 <text class="s" x="20" y="434">Платы подключать при выключенном питании.</text>
 <line class="p" x1="20" y1="460" x2="56" y2="460"/><text class="s" x="64" y="464">плюс</text>
