@@ -29,7 +29,7 @@ null programs are clean, and 511,000 primes in the run of 2026-10-07 are within 
 | `server/` | `monitor.py` — server on the Python 3 standard library (numpy for the static sensors): telemetry, commands, experiment programs and series, statistics, motors and coils, web pages; `static/` — the pages |
 | `phone/` | Android app that turns a phone into a static sensor (accelerometer ~500 Hz, magnetometer), runs as a foreground service |
 | `tools/` | build and flashing, OTA, simulators, test runs, statistics of the prime stream, documentation |
-| `docs/` | documentation (Russian) with wiring diagrams; English overview: [docs/en/how_it_works.md](docs/en/how_it_works.md) |
+| `docs/` | documentation (Russian) with wiring diagrams; in English: [overview](docs/en/how_it_works.md), [preamble](docs/en/preamble.md) |
 | `registry/devices.csv` | board numbers and MACs |
 
 The server's main screen is `http://<server>:8090/` ("Installation"): both wheels with their agents,
@@ -62,7 +62,7 @@ by two DRV8871 from a 12 V supply.
 its own password; agents use 802.11b/g only with radio sleep off; the laptop server is on the LAN port by
 cable, the WAN port is empty. A fallback network (`ssid2`) keeps a board reachable if the main one refuses it.
 
-**Preamble** ([docs/preamble.md](docs/preamble.md), Russian): why this experiment — topology before
+**Preamble** ([docs/en/preamble.md](docs/en/preamble.md); Russian original — [docs/preamble.md](docs/preamble.md)): why this experiment — topology before
 space-time, the order of knowing, the lesson of the first wheel, the criterion. Written by bridge42worlds,
 Λura13 (DeepSeek) and Ostov (Claude).
 
