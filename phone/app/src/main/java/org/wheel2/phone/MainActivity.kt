@@ -1,17 +1,24 @@
 package org.wheel2.phone
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Canvas
 import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.Typeface
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
+import android.provider.Settings
 import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
@@ -58,8 +65,8 @@ private fun fs(v: Double, d: Int) = String.format(RU, "%+.${d}f", v).replace('-'
  * Телефон (или планшет) — детектор установки «Колесо-2»: акселерометр, магнитометр и фон (сеть 50 Гц,
  * радио). Вкладки: «датчики» — значения и колебания за 10 с; «Гаусс» — распределение по оси или модулю
  * за окно 1–60 с или с начала шага программы; «планшетка» — страница установки с сервера (датчики при
- * этом продолжают мерить: приложение не уходит в фон). Сверху — связь и что сейчас делает установка.
- * Экран не гаснет, пока приложение открыто: в фоне Android датчики стороннему приложению не отдаёт.
+ * этом продолжают мерить). Сверху — связь и что сейчас делает установка. Меряет служба переднего плана
+ * (SensorService): экран можно гасить, приложение сворачивать — значок в шторке, пока идут замеры.
  */
 class MainActivity : Activity() {
     private lateinit var hub: SensorHub
@@ -78,7 +85,10 @@ class MainActivity : Activity() {
     private lateinit var magPlot: LanePlot
     private lateinit var bg: TextView
     private lateinit var foot: TextView
-    private var dim = false
+    private var screen = 0
+    private lateinit var screenBtn: Button
+    private lateinit var runBtn: Button
+    private lateinit var batBtn: Button
 
     // вкладки
     private val tabs = ArrayList<Button>()
@@ -104,30 +114,37 @@ class MainActivity : Activity() {
 
     override fun onCreate(b: Bundle?) {
         super.onCreate(b)
-        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        hub = SensorHub(this)
-        up = Uplink(this, hub)
-        exp = Experiment(up, hub)
+        val rig = Rig.get(this)                         // меряет служба; экран только показывает
+        hub = rig.hub
+        up = rig.up
+        exp = rig.exp
         setContentView(build())
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)   // значок службы в шторке
     }
 
     override fun onResume() {
         super.onResume()
-        hub.start()
-        up.start()
-        exp.start()
+        if (Rig.wanted(this) && !SensorService.running) SensorService.start(this)
         web?.onResume()
         ui.post(tick)
     }
 
-    override fun onPause() {
+    override fun onPause() {                            // свернули или погасили экран — замеры идут дальше в службе
         super.onPause()
         ui.removeCallbacks(tick)
         web?.onPause()
-        exp.stop()
-        hub.stop()
-        up.stop()
     }
+
+    // экран: гаснет сам (замеры идут) · не гаснет · притушен (не гаснет, яркость минимум) — горящий экран добавляет наводки
+    private fun applyScreen() {
+        if (screen > 0) window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.attributes = window.attributes.apply { screenBrightness = if (screen == 2) 0.02f else -1f }
+        screenBtn.text = arrayOf("☾ экран гаснет сам", "☀ экран не гаснет", "◐ экран притушен")[screen]
+    }
+
+    private fun batteryFree() = (getSystemService(POWER_SERVICE) as PowerManager).isIgnoringBatteryOptimizations(packageName)
 
     private fun dp(v: Float) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, resources.displayMetrics)
 
@@ -176,11 +193,20 @@ class MainActivity : Activity() {
         status = text(14f, bold = true)
         expLine = text(13f)
         foot = text(11f, Ok.DIM)
-        val dimBtn = btn("☾ притушить экран", 12f) {}
-        dimBtn.setOnClickListener {
-            dim = !dim
-            window.attributes = window.attributes.apply { screenBrightness = if (dim) 0.02f else -1f }
-            dimBtn.text = if (dim) "☀ обычная яркость" else "☾ притушить экран"
+        screenBtn = btn("", 12f) { screen = (screen + 1) % 3; applyScreen() }
+        applyScreen()
+        runBtn = btn("", 12f) {
+            val on = !SensorService.running
+            Rig.setWanted(this, on)
+            if (on) SensorService.start(this) else SensorService.stop(this)
+        }
+        // «работать без ограничений батареи»: иначе неподвижный телефон с погашенным экраном Android усыпляет вместе с сетью
+        batBtn = btn("🔋 без ограничений", 12f) {
+            try {
+                startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")))
+            } catch (_: Exception) {
+                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            }
         }
         val tabRow = row()
         listOf("〽 датчики", "∩ Гаусс", "▦ планшетка").forEachIndexed { i, s ->
@@ -209,7 +235,11 @@ class MainActivity : Activity() {
                     LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6f).toInt() }
             })
             addView(fill(content))
-            addView(row(foot.apply { layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }, dimBtn))
+            addView(row(foot.apply { layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f) }))
+            addView(row(runBtn, batBtn, screenBtn).apply {
+                for (i in 0 until childCount) getChildAt(i).layoutParams =
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(4f).toInt() }
+            })
         }
         show(0)
         return root
@@ -355,8 +385,13 @@ class MainActivity : Activity() {
         status.setTextColor(if (fresh) Ok.BLUE else Ok.VERM)
         expLine.text = exp.line
         expLine.setTextColor(if (exp.running) Ok.YELLOW else Ok.DIM)
-        foot.text = "адрес для сервера ${up.mac}\nэкран не гаснет, пока приложение открыто" +
-            if (up.accLost > 0) " · ⚠ потеряно ${up.accLost} отсчётов" else ""
+        val free = batteryFree()
+        foot.text = "адрес для сервера ${up.mac} · версия ${BuildInfo.VERSION}\n" +
+            (if (SensorService.running) "✓ меряет в фоне — экран можно гасить, приложение сворачивать" else "■ замеры остановлены — «▶ мерить»") +
+            (if (free) " · ✓ батарея без ограничений" else " · ⚠ батарея с ограничениями: в глубоком сне Android может отключить сеть") +
+            (if (up.accLost > 0 || up.magLost > 0) " · ⚠ потеряно отсчётов: ${up.accLost} + поле ${up.magLost}" else "")
+        runBtn.text = if (SensorService.running) "■ стоп" else "▶ мерить"
+        batBtn.visibility = if (free) View.GONE else View.VISIBLE
         when (page) {
             0 -> refreshSensors()
             1 -> if (tickN % 3 == 0) refreshGauss()

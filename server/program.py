@@ -251,6 +251,24 @@ def verdicts(runs, found, z_thr):
     return out
 
 
+MOT_PAIRS = ("free", "same", "opposite", "only1", "only2")   # как в motors.py
+MOT_MODES = ("off", "pwm", "rpm", "zerog")
+
+
+def _mot(m, i):
+    """Вращение шага: {pair, mode, dir, rpm, pwm} — связка колёс и режим ведущего колеса 1; None — не трогать."""
+    if m is None:
+        return None
+    if not isinstance(m, dict) or m.get("pair") not in MOT_PAIRS or m.get("mode") not in MOT_MODES:
+        raise ValueError(f"шаг {i + 1}: mot — {{pair: {'/'.join(MOT_PAIRS)}, mode: {'/'.join(MOT_MODES)}}}")
+    out = {"pair": m["pair"], "mode": m["mode"], "dir": 1 if int(m.get("dir", 1)) >= 0 else -1}
+    if m.get("rpm") is not None:
+        out["rpm"] = max(0.0, min(112.0, float(m["rpm"])))
+    if m.get("pwm") is not None:
+        out["pwm"] = int(max(0, min(1000, float(m["pwm"]))))
+    return out
+
+
 def validate(prog):
     """Проверить программу; вернуть нормализованную. ValueError — что не так."""
     if not isinstance(prog, dict):
@@ -305,7 +323,12 @@ def validate(prog):
                 # программы вне групп на этом шаге стоят
                 "groups": None,
                 "coil": s.get("coil") if isinstance(s.get("coil"), dict) else None,       # поле катушек (пока запись)
-                "layers": s.get("layers") if isinstance(s.get("layers"), dict) else None}  # слои словами — для ленты
+                "layers": s.get("layers") if isinstance(s.get("layers"), dict) else None,  # слои словами — для ленты
+                # серия с планшетки: вращение колёс на шаге (агент моторов), своё установление (смена вращения
+                # дольше смены поля) и отдых только там, где меняется внешний уровень серии
+                "mot": _mot(s.get("mot"), i),
+                "settle_s": max(0.0, min(300.0, float(s["settle_s"]))) if s.get("settle_s") is not None else None,
+                "rest": bool(s["rest"]) if s.get("rest") is not None else None}
         if s.get("groups") is not None:
             gl = s.get("groups")
             if not isinstance(gl, list) or not gl:
@@ -513,7 +536,7 @@ class Runner:
                             "t0": round(time.time(), 3), "minutes": st["minutes"], "confirm": item.get("confirm"),
                             "again": item.get("again", 0), "why": item.get("why")}
                 self.store(x)
-                rest = self._rest(x, macs) if prog["rest"] else None
+                rest = self._rest(x, macs) if prog["rest"] and st.get("rest") is not False else None
                 if self.stop.is_set():
                     break
                 run = self._one(macs, st, item, x["base"])
@@ -588,6 +611,8 @@ class Runner:
                 pass
             if self.h.get("coil_off"):                        # программа кончилась — поле выкл
                 self.h["coil_off"]("конец программы")
+            if self.h.get("motor_off") and any(s.get("mot") for s in prog["steps"]):
+                self.h["motor_off"]("конец программы")       # колёса крутила программа — она и останавливает
             x["t_stop"] = round(time.time(), 3)
             x["now"] = None
             try:
@@ -599,10 +624,11 @@ class Runner:
     def _one(self, macs, st, item, base):
         t_apply = time.time()
         fixed = self.h["static_macs"]()
+        settle = st["settle_s"] if st.get("settle_s") is not None else self.h_settle()
         # План шага: одна настройка всем (как раньше) или несколько групп, каждая со своей настройкой и
         # своим номером (планшетка: колесо 1 — генерация, колесо 2 — поглощение или своя генерация).
         # шаг на агенте: срок — длительность плюс установление (измерение начинается после него)
-        dur = {"dur": min(7200, int(st["minutes"] * 60 + self.h_settle()))} if st.get("agent") else {}
+        dur = {"dur": min(7200, int(st["minutes"] * 60 + settle))} if st.get("agent") else {}
         plan = []
         if st.get("groups"):
             for g in st["groups"]:
@@ -624,6 +650,8 @@ class Runner:
         applied = []
         if self.h.get("coil"):                                 # поле катушек шага: «+», «−», «выкл» (агенты катушек)
             self.h["coil"](st.get("coil") or {}, f"шаг «{st['name']}»")
+        if st.get("mot") and self.h.get("motor"):              # вращение шага: колёса разгоняются за время установления
+            self.h["motor"](st["mot"], f"шаг «{st['name']}»")
         for tg, cfg, own, label in plan:
             cid = self.h["apply"](tg, cfg, own, True)          # новый номер: счётчики — с нуля
             applied.append({"targets": tg, "cid": cid, "cfg": cfg, "own": own, "label": label})
@@ -634,7 +662,7 @@ class Runner:
                 "again": item.get("again", 0), "again_why": item.get("why"),
                 "cid": applied[0]["cid"] if applied else None, "cids": [a["cid"] for a in applied],
                 "groups": [{"targets": a["targets"], "cid": a["cid"], "label": a["label"]} for a in applied] if st.get("groups") else None,
-                "coil": st.get("coil"), "layers": st.get("layers"), "t_apply": round(t_apply, 3)}
+                "coil": st.get("coil"), "mot": st.get("mot"), "layers": st.get("layers"), "t_apply": round(t_apply, 3)}
         bad = []
         for a in applied:
             bad += self.h["confirmed"](a["targets"], a["cid"], 20)
@@ -646,7 +674,7 @@ class Runner:
                 own_q = {m: {**(a["own"] or {}).get(m, {}), "tl": (a["own"] or {}).get(m, {}).get("tl", 0) if m in fixed else 2}
                          for m in a["targets"]}
                 self.h["apply"](a["targets"], {**a["cfg"], "tl": 2}, own_q, False)
-        self.stop.wait(self.h_settle())
+        self.stop.wait(settle)
         t0 = time.time()
         snap0 = self.h["snapshot"](macs)                       # счётчики на начало измерения: итог шага — разность
         if self.active and self.active.get("now"):

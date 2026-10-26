@@ -555,8 +555,30 @@ def ingest_mag(a, mac, p, tt):
     if ring is None or ring.maxlen != keep:   # замеры за 15 мин — окно «поле вживую»
         ring = a["mag_s"] = deque(ring or (), maxlen=keep)
     thin = max(1, int(round(hz / 20.0)))
+    # телефон 1.1+: номер первого замера (i0) и время первого и последнего по часам датчика (mt0, mt1, ms — «сейчас»
+    # там же) — накопленное за обрыв связи встаёт на свои места, повторы отбрасываются. Без них — назад от приёма
+    t_first = t_last = None
+    if p.get("i0") is not None and p.get("mt1") is not None and p.get("ms") is not None and s_:
+        i0, nxt = int(p["i0"]), a.get("mag_i")
+        if nxt is not None and i0 < nxt:
+            if nxt - i0 > hz * 3600:                 # номера пошли заново — приложение перезапускалось
+                nxt = None
+            else:
+                skip = min(len(s_), nxt - i0)        # уже было: повтор после потерянного ответа
+                s_, i0 = s_[skip:], i0 + skip
+                p = {**p, "mt0": None} if skip else p
+        a["mag_i"] = i0 + len(s_)
+        if not s_:
+            return
+        t_last = tt - (float(p["ms"]) - float(p["mt1"])) / 1000.0
+        t_first = tt - (float(p["ms"]) - float(p["mt0"])) / 1000.0 if p.get("mt0") is not None else None
     for i, v in enumerate(s_):
-        ts = round(tt - (len(s_) - 1 - i) / hz, 4)
+        if t_last is None:
+            ts = round(tt - (len(s_) - 1 - i) / hz, 4)
+        elif t_first is not None and len(s_) > 1:
+            ts = round(t_first + (t_last - t_first) * i / (len(s_) - 1), 4)
+        else:
+            ts = round(t_last - (len(s_) - 1 - i) / hz, 4)
         if i % thin == 0:
             put(mac, "m_sabs", ts, round(math.sqrt(sum(x * x for x in v)) / div, 2), SENSOR_LEN)
         if len(v) >= 3:
@@ -2628,7 +2650,9 @@ class Handler(BaseHTTPRequestHandler):
     def _get(self):
         u = urlparse(self.path)
         q = {k: v[0] for k, v in parse_qs(u.query).items()}
-        if u.path in ("/", "/index.html"):
+        if u.path in ("/", "/index.html", "/plan", "/plan.html"):   # основной экран (установка); подробное — его окнами
+            return self.send_file(os.path.join(STATIC, "plan.html"), "text/html; charset=utf-8")
+        if u.path in ("/old", "/old.html"):              # прежняя панель со всеми счётчиками — окно «⋯ ещё» установки
             return self.send_file(os.path.join(STATIC, "index.html"), "text/html; charset=utf-8")
         if u.path in ("/acc", "/acc.html"):              # статические акселерометры — второй экран
             return self.send_file(os.path.join(STATIC, "acc.html"), "text/html; charset=utf-8")
@@ -2636,8 +2660,6 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_file(os.path.join(STATIC, "pult.html"), "text/html; charset=utf-8")
         if u.path in ("/watch", "/watch.html"):          # экран 2: наблюдение — статика и простые
             return self.send_file(os.path.join(STATIC, "watch.html"), "text/html; charset=utf-8")
-        if u.path in ("/plan", "/plan.html"):            # планшетка: слои опыта, матрица → программа, лента шагов
-            return self.send_file(os.path.join(STATIC, "plan.html"), "text/html; charset=utf-8")
         if u.path in ("/report", "/report.html"):        # журнал-отчёт: все шаги программ с параметрами и итогами
             return self.send_file(os.path.join(STATIC, "report.html"), "text/html; charset=utf-8")
         if u.path in ("/ui.js", "/ui.css", "/nav.js"):   # общее для экранов: помощники, параметры, вид, меню страниц
@@ -2937,6 +2959,8 @@ runner = Runner({"apply": lambda t, c, o, f: apply_all(t, c, o, f), "confirmed":
                  "field": field_step,
                  "coil": lambda field, src: coils.set_field(field, src),
                  "coil_off": lambda src: coils.all_off(src),
+                 "motor": lambda spec, src: motors.apply_spec(spec, src),
+                 "motor_off": lambda src: (motors.set({"stop": True}), print(f"[mot] {src}: стоп", flush=True)),
                  "static_macs": _prog_static, "baseline": _prog_baseline,
                  "base_cfg": lambda: dict(control.get("common") or DEFAULT_CFG),
                  "base_own": lambda: dict(control.get("own") or {}),
@@ -3039,7 +3063,7 @@ def main():
     else:
         spawn("beacon", beacon, a.udp)
     srv = ThreadingHTTPServer(("0.0.0.0", a.http), Handler)
-    print(f"[http] мониторинг: http://localhost:{a.http}/  статические (второй экран): /acc", flush=True)
+    print(f"[http] установка: http://localhost:{a.http}/  документы: /docs/", flush=True)
     for ip in local_ipv4():
         print(f"[http]           http://{ip}:{a.http}/", flush=True)
     srv.serve_forever()

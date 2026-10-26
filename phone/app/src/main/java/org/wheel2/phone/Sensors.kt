@@ -47,6 +47,8 @@ class SensorHub(ctx: Context) : SensorEventListener {
     // ---- магнитометр: мкТл ----
     val magCap = 1 shl 18                       // ~35 мин при 125 Гц
     val magRing = FloatArray(magCap * 3)
+    // время каждого замера (часы датчика, нс): после обрыва связи сервер ставит накопленное на свои места
+    val magTs = LongArray(magCap)
     @Volatile var magHead = 0L
     val magRate = Rate()
     // оценка системы: сколько в замере от магнитов самого телефона (у датчика без калибровки — values[3..5])
@@ -132,6 +134,7 @@ class SensorHub(ctx: Context) : SensorEventListener {
                 synchronized(lock) {
                     val i = ((magHead % magCap) * 3).toInt()
                     for (j in 0..2) magRing[i + j] = e.values[j]
+                    magTs[(magHead % magCap).toInt()] = e.timestamp
                     magHead++
                     if (e.values.size >= 6) {
                         for (j in 0..2) magBias[j] = e.values[3 + j]

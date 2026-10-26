@@ -105,6 +105,19 @@ class Motors:
                          f"ШИМ {s['pwm']} ‰ / {s['rpm']} об/мин, смена направления {s['flip'] or 'нет'} мин")
             return self.brief_locked()
 
+    def apply_spec(self, spec, src=""):
+        """Шаг программы (серия с планшетки): {pair, mode, dir, rpm, pwm} — связка колёс и режим ведущего
+        колеса 1 (в same / opposite / only1 / only2 второе колесо идёт по нему); смена направления по таймеру — нет."""
+        self.set({"pair": spec["pair"]})
+        body = {"wheel": "a", "mode": spec["mode"], "dir": spec.get("dir", 1), "flip": 0}
+        for k in ("rpm", "pwm"):
+            if spec.get(k) is not None:
+                body[k] = spec[k]
+        self.set(body)
+        if src:
+            self.log(f"[mot] {src}: {spec['pair']} {spec['mode']}")
+        return self.brief()
+
     def _eff(self, w):
         """Что колесо w делает на самом деле с учётом связки колёс: (режим, направление, ШИМ ‰, об/мин)."""
         s, L = self.st[w], self.st["a"]

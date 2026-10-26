@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Два экрана: «Пульт» и «Наблюдение» · Колесо-2</title>
+<title>Приложение Б. Концепт двух экранов: «Пульт» и «Наблюдение» (06.10.2026) · Колесо-2</title>
 <style>
 :root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
         --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
@@ -48,6 +48,9 @@ hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
 figure { margin:16px 0 22px; }
 figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
 figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+.flowbox { margin:12px 0 18px; }
+.flowbox iframe { width:100%; height:min(82vh, 860px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.flowbox .small { font-size:13px; color:var(--mut); margin-top:4px; }
 li { margin:3px 0; }
 .live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
         text-decoration:none; font-size:14px; margin:0 0 12px; }
@@ -73,17 +76,20 @@ svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--o
 <body>
 <header>
   <a class="brand" href="index.html">Колесо-2 · документация</a>
-  <nav><a href="/plan" target="plan">▦ Планшетка</a><a href="/acc" target="acc">◆ Статика</a><a href="/watch" target="watch">◉ Наблюдение</a><a href="/report" target="report">☰ Отчёт</a><a href="/pult" target="pult">⚙ Пульт</a><a href="/" target="old">☷ Подробно</a><a href="/flow" target="flow">↻ Схема</a></nav>
+  <nav><a href="/" target="plan">▦ Установка</a><a href="/flow" target="flow">↻ Как работает</a></nav>
 </header>
 <div class="layout">
   <aside>
     <h4>Документы</h4>
-    <ul><li><a href="index.html">Обзор</a></li><li><a href="modes.html">Режимы</a></li><li><a href="ui_concept.html" class=cur>Концепт: пульт и наблюдение</a></li><li><a href="how_it_works.html">Как всё работает</a></li><li><a href="group_protocol.html">Сообща: протокол группы</a></li><li><a href="scatter.html">Рассеяние: сет B</a></li><li><a href="randomness.html">Откуда берётся случайность</a></li><li><a href="thermal.html">Температура агентов</a></li><li><a href="program.html">Программа эксперимента</a></li><li><a href="static_watch.html">Статические акселерометры</a></li><li><a href="sensors.html">Датчики</a></li><li><a href="wiring.html">Схемы подключения</a></li></ul>
+    <ul><li><a href="index.html">Обзор</a></li><li><a href="how_it_works.html">Как всё работает</a></li><li><a href="modes.html">Режимы</a></li><li><a href="wiring.html">Схемы подключения</a></li><li><a href="sensors.html">Датчики, телефон, моторы и катушки</a></li><li><a href="static_watch.html">Статика: эталон и слежение</a></li><li><a href="program.html">Программа и серии</a></li><li><a href="group_protocol.html">Групповой режим</a></li><li><a href="scatter.html">Поглощение</a></li><li><a href="randomness.html">Откуда берётся случайность</a></li><li><a href="thermal.html">Температура агентов</a></li></ul>
+    <h4>Приложения</h4>
+    <ul><li><a href="history.html">Приложение А. История изменений</a></li><li><a href="ui_concept.html" class=cur>Приложение Б. Концепт пульта и наблюдения</a></li></ul>
     <h4>На этой странице</h4><ul class="toc"><li class="l2"><a href="#зачем">Зачем</a></li><li class="l2"><a href="#принципы">Принципы</a></li><li class="l2"><a href="#установка-36-агентов-в-трёх-блоках">Установка: 36 агентов в трёх блоках</a></li><li class="l2"><a href="#экран-1-пульт">Экран 1 — «Пульт»</a></li><li class="l2"><a href="#экран-2-наблюдение">Экран 2 — «Наблюдение»</a></li><li class="l2"><a href="#журнал-опытов-что-пишется-в-каждую-запись">Журнал опытов: что пишется в каждую запись</a></li><li class="l2"><a href="#программа-список-шагов-план-факт">Программа: список шагов «план — факт»</a></li><li class="l2"><a href="#телеметрия-режим-всей-установки">Телеметрия — режим всей установки</a></li><li class="l2"><a href="#что-сделать-по-порядку">Что сделать (по порядку)</a></li><li class="l2"><a href="#вопросы-к-решению">Вопросы к решению</a></li></ul>
   </aside>
   <main class="doc">
 
-<h1>Два экрана: «Пульт» и «Наблюдение»</h1>
+<h1>Приложение Б. Концепт двух экранов: «Пульт» и «Наблюдение» (06.10.2026)</h1>
+<p>Исторический документ: так задумывались и были сделаны 06.10.2026 два экрана. Сейчас основное управление — экран «Установка» (<a href="how_it_works.html">как всё работает</a>, § 8), а пульт и наблюдение открываются его окнами («⋯ ещё»). Пульт по-прежнему нужен для логических групп 1–4 и наборов.</p>
 <p><b>Сделано 06.10.2026:</b> пульт — <code>http://&lt;сервер&gt;:8090/pult</code>, наблюдение — <code>/watch</code> (открывается и кнопкой «Наблюдение ↗» с пульта — на второй монитор, F11 — во весь экран). Экран ноутбука 1920×1200 при масштабе 125 % — 1536×960 точек: оба экрана целиком, без прокрутки; на 1920×1080 — крупнее. На телефоне — одна колонка с прокруткой. Решения пользователя: мышь, спектр целиком, группы логические — могут идти через оба колеса или включать всех генераторов; статические тоже ставятся в группу или режим (смена роли перезапускает плату).</p>
 <p><b>Как пользоваться пультом.</b> Нажать фишки агентов (выбор), внизу колонки — «место» (группа 1–4, ▲ генерация / ▼ поглощение, ◆ статический, ○ стоит) и «колесо». У колеса — «всё колесо → группа N». В карточке группы — режим генерации и поглощения кнопками, главные параметры чипами, «все параметры ▸» — лист по смыслу с пояснениями «что изменится». Изменения сохраняются сразу и уходят агентам по «▶ Пуск». Двойное нажатие на фишку — карточка агента с историей ошибок. Справа: «Сейчас» (что идёт, статика, эталон шума), «Программа» (план — факт), «Журнал» (опыты со статикой; нажать строку — подробности), «Сервис» (прошивка, USB, отдых, документация). Телеметрия — переключатель вверху.</p>
 <p><b>Экран наблюдения.</b> Слева спектры статических по осям (X синий сплошной, Y оранжевый штрих, Z точки) против коридора эталона, вывод и причина; справа страж статистики по каждой настройке (выход, отсев, биты, остатки, повторы, ошибки счёта — баланс бит и остатки нужен журнал простых: параметр группы «журнал простых — да»); внизу лента опыта.</p>
@@ -152,7 +158,7 @@ svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--o
 <ul><li>✓ Разрешение — как у ноутбука (1536×960 точек), мышь; телефон — плюс.</li><li>✓ На экране 2 — спектр целиком.</li><li>✓ Группы логические: через оба колеса, все генераторы; статические — тоже в группу.</li></ul>
   </main>
 </div>
-<footer>Страница собрана из docs/ui_concept.md командой tools/build_docs.py — правьте markdown. Ссылки на живую схему и панель
+<footer>Страница собрана из docs/ui_concept.md командой tools/build_docs.py — правьте markdown. Ссылки на установку и живую схему
 работают, когда документация открыта с сервера (http://&lt;сервер&gt;:8090/docs/).</footer>
 </body>
 </html>

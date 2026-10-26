@@ -11,8 +11,8 @@ android {
         applicationId = "org.wheel2.phone"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2                  // 1.1: замеры в службе (экран можно гасить), время замеров поля
+        versionName = "1.1"
     }
 
     buildTypes {

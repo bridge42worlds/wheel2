@@ -25,29 +25,33 @@ IMG = os.path.join(DOCS, "img")                   # схемы и рисунки
 
 # порядок и описания страниц; flow — режим живой схемы для кнопки «посмотреть вживую»
 PAGES = [
-    ("modes", "Режимы", "Все режимы установки в одном месте: стоп, пуск, тушение, отдых; генерация (каждый сам, "
-     "два ядра, все на одном числе, эстафета, каскад); шум; поглощение (сет B); статические; телеметрия; программа.", ""),
-    ("ui_concept", "Концепт: пульт и наблюдение", "Два экрана: пульт (36 агентов, группы и режимы, опыт, программа "
-     "«план — факт», журнал) и наблюдение (статика и простые в реальном времени). Черновик для обсуждения.", ""),
-    ("how_it_works", "Как всё работает", "Система целиком: агент и его ядра, источники шума, поиск простого, сообща, "
-     "предел температуры, параметры, сессии, страницы, телеметрия, прошивка по Wi-Fi, замеры, инструменты.", ""),
-    ("group_protocol", "Сообща: протокол группы", "Все на одном числе (третья версия): число с итогом, базы по кругу, "
-     "запас и кусочки, сбои, когерентность, согласие, результаты на 1–4 платах. Эстафета и каскад: число из шума всех, "
-     "проверяет один или все, оценка по модели.", "group"),
-    ("scatter", "Рассеяние: сет B", "Как простое попадает к сету B, режимы (каждый, россыпь, эстафета, тишина), пустышка, "
-     "фон, функции, окна по местам, петля через эфир, проверка на четырёх платах.", "pieces"),
-    ("randomness", "Откуда берётся случайность", "ГСЧ чипа и шум радио, CSI, АЦП, дрожание RC: как берём, сколько "
-     "засчитываем, как смешиваем, скорость по источникам и длинам.", "solo"),
-    ("thermal", "Температура агентов", "Предел 70 °C: регулятор доли работы, замеры нагрева и остывания, откуда тепло, "
-     "частота, отдых по очереди, спринт после отдыха, отдых между режимами, рейтинг агентов по истории ошибок.", ""),
-    ("program", "Программа эксперимента", "Шаги, контроль, случайный порядок, эталон шума, аномалии и их проверка "
-     "парами, испорченные шаги.", ""),
-    ("static_watch", "Статические акселерометры", "Роль S: что меряет агент, что считает сервер, эталон шума, линии, "
-     "полосы, толчки, вывод «продолжать / повторить / проверить».", ""),
-    ("sensors", "Датчики", "Колесо (обороты и невесомость), магнитное поле, статический акселерометр; подключение и пакеты.", ""),
-    ("wiring", "Схемы подключения", "Общая схема установки; колесо: питание агентов по шине от своих аккумуляторов, управление катушкой "
-     "(5,1 В, DRV8833); рама: моторы колёс (блок 12 В, агент моторов, два DRV8871). Полярность диодов и конденсаторов.", ""),
+    ("how_it_works", "Как всё работает", "Установка целиком: колёса, катушки, статика, телефон, моторы, сервер; агент, шум, поиск "
+     "простого, групповой режим, поглощение, температура и сторожа; основной экран; опыт, серии, программа; параметры, данные, "
+     "прошивка, инструменты.", ""),
+    ("modes", "Режимы", "Все режимы словами основного экрана: вращение, поле катушек, совместная работа, шум, излучение и "
+     "поглощение; серия — все режимы по порядку; статика, телеметрия, тепло.", ""),
+    ("wiring", "Схемы подключения", "Общая схема установки; колесо: шина агентов от своих аккумуляторов (C1–C3), катушка "
+     "(5,1 В, DRV8833); рама: моторы (блок 12 В, два DRV8871). Полярность диодов и конденсаторов.", ""),
+    ("sensors", "Датчики, телефон, моторы и катушки", "Датчик обода (обороты, невесомость), магнитометр, статика ICM-42688 и "
+     "ADXL355, телефон (служба, экран можно гасить), агент моторов и агенты катушек.", ""),
+    ("static_watch", "Статика: эталон и слежение", "Роль S: что меряет агент, что считает сервер, эталон шума, линии, полосы, "
+     "толчки, вывод «продолжать / повторить / проверить»; Гаусс и спектр на основном экране.", ""),
+    ("program", "Программа и серии", "Шаги, серии вложенными циклами (вращение в шаге, своё установление, отдых), контроль, "
+     "случайный порядок, эталон, аномалии и их проверка парами, тревога статики.", ""),
+    ("group_protocol", "Групповой режим", "Каскад, эстафета, одно число на всех: протокол, кусочки шума, молчащие, сбои, "
+     "согласие, замеры на 1–6 платах.", "cascade"),
+    ("scatter", "Поглощение", "Как простое попадает к поглотителям, режимы (все со всеми, россыпь, эстафета, тишина), "
+     "пустышка, фон, функции, петля через эфир — обратный шум.", "scatter"),
+    ("randomness", "Откуда берётся случайность", "ГСЧ чипа и шум радио, CSI, АЦП, дрожание RC, датчики: как берём, "
+     "сколько засчитываем, как смешиваем, без хеша, скорость по источникам и длинам.", "solo"),
+    ("thermal", "Температура агентов", "Предел 70 °C: регулятор, замеры нагрева и остывания, откуда тепло, отдых по очереди, "
+     "спринт, отдых между режимами, агенты в трубке и радиаторы, рейтинг агентов.", ""),
+    ("history", "Приложение А. История изменений", "Как установка пришла к нынешнему виду: по дням — что появилось, "
+     "что нашли и исправили (03.10–26.10.2026).", ""),
+    ("ui_concept", "Приложение Б. Концепт пульта и наблюдения", "Исторический черновик двух экранов (06.10.2026); "
+     "сейчас они — окна основного экрана.", ""),
 ]
+APPENDIX = {"history", "ui_concept"}          # приложения — отдельной группой в меню и на главной
 TITLES = {k: t for k, t, _, _ in PAGES}
 
 CSS = """
@@ -94,6 +98,9 @@ hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
 figure { margin:16px 0 22px; }
 figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
 figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+.flowbox { margin:12px 0 18px; }
+.flowbox iframe { width:100%; height:min(82vh, 860px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.flowbox .small { font-size:13px; color:var(--mut); margin-top:4px; }
 li { margin:3px 0; }
 .live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
         text-decoration:none; font-size:14px; margin:0 0 12px; }
@@ -277,6 +284,10 @@ def render(md):
             out.append("<hr>")
             i += 1
             continue
+        if ln.strip() == "<!-- живая схема -->":
+            out.append('<div class="flowembed"></div>')
+            i += 1
+            continue
         m = IMG_RE.match(ln.strip())
         if m:
             cap, src = m.group(1), m.group(2)
@@ -320,20 +331,23 @@ def render(md):
 
 
 def page(name, title, body, toc, live, static=False):
-    nav = "".join(f'<li><a href="{k}.html"{" class=cur" if k == name else ""}>{esc(t)}</a></li>' for k, t, _, _ in PAGES)
+    li = lambda k, t: f'<li><a href="{k}.html"{" class=cur" if k == name else ""}>{esc(t)}</a></li>'
+    nav = "".join(li(k, t) for k, t, _, _ in PAGES if k not in APPENDIX)
+    nav_app = "".join(li(k, t) for k, t, _, _ in PAGES if k in APPENDIX)
     toc_html = "".join(f'<li class="l{lvl}"><a href="#{k}">{esc(t)}</a></li>' for lvl, k, t in toc)
-    flow = "flow.html" if static else "../flow"
+    flow = "flow.html" if static else "/flow"
     live_btn = f'<a class="live" href="{flow}#{live}">▶ посмотреть вживую на живой схеме</a>' if live else ""
+    # живая схема внутри документа: на сервере — живая, в опубликованной копии — демонстрация
+    body = body.replace('<div class="flowembed"></div>', f"""<div class="flowbox"><iframe src="{flow}?embed=1" title="живая схема: как работает установка" loading="lazy"></iframe>
+<div class="small">живая схема в окне; <a href="{flow}" target="flow">открыть целиком ↗</a></div></div>""")
     src = "README.md" if name == "index" else f"docs/{name}.md"
-    # с сервера — то же меню страниц, что на экранах (server/static/nav.js): каждая страница — своя вкладка
-    links = ('<a href="pult.html">пульт</a><a href="watch.html">наблюдение</a><a href="flow.html">живая схема</a>' if static else
-             "".join(f'<a href="{h}" target="{k}">{t}</a>' for k, h, t in (
-                 ("plan", "/plan", "▦ Планшетка"), ("acc", "/acc", "◆ Статика"), ("watch", "/watch", "◉ Наблюдение"),
-                 ("report", "/report", "☰ Отчёт"), ("pult", "/pult", "⚙ Пульт"), ("old", "/", "☷ Подробно"),
-                 ("flow", "/flow", "↻ Схема"))))
-    foot = ("Опубликованная копия (tools/build_docs.py --static): пульт и наблюдение — демонстрация на снимке с имитаторов, "
-            "живая схема — на замерах; с платами всё работает только на сервере в сети опыта." if static else
-            f"Страница собрана из {src} командой tools/build_docs.py — правьте markdown. Ссылки на живую схему и панель\n"
+    # шапка — то же меню, что на экранах (server/static/nav.js): «Установка» и «Документы»; в копии — демонстрация
+    links = ('<a href="plan.html">▦ Установка — демонстрация</a><a href="flow.html">↻ Как работает</a>' if static else
+             '<a href="/" target="plan">▦ Установка</a><a href="/flow" target="flow">↻ Как работает</a>')
+    foot = ("Опубликованная копия (tools/build_docs.py --static): основной экран, пульт и наблюдение — демонстрация на снимке "
+            "с имитаторов (кнопки ничего не отправляют), живая схема — на замерах; с платами всё работает на сервере в сети опыта."
+            if static else
+            f"Страница собрана из {src} командой tools/build_docs.py — правьте markdown. Ссылки на установку и живую схему\n"
             "работают, когда документация открыта с сервера (http://&lt;сервер&gt;:8090/docs/).")
     return f"""<!doctype html>
 <html lang="ru">
@@ -352,6 +366,8 @@ def page(name, title, body, toc, live, static=False):
   <aside>
     <h4>Документы</h4>
     <ul><li><a href="index.html"{" class=cur" if name == "index" else ""}>Обзор</a></li>{nav}</ul>
+    <h4>Приложения</h4>
+    <ul>{nav_app}</ul>
     {f'<h4>На этой странице</h4><ul class="toc">{toc_html}</ul>' if toc_html else ""}
   </aside>
   <main class="doc">
@@ -365,84 +381,46 @@ def page(name, title, body, toc, live, static=False):
 """
 
 
-SYSTEM_SVG = """
-<svg viewBox="0 0 860 330" role="img" aria-label="схема системы" style="width:100%;max-width:860px;display:block;margin:6px 0 4px">
-  <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
-    <path d="M0 0 L10 5 L0 10 z" fill="#8a8f98"/></marker></defs>
-  <g font-size="13">
-    <rect x="20" y="20" width="230" height="64" rx="10" fill="none" stroke="#8a8f98"/>
-    <text x="34" y="44" font-weight="700">▣ сервер (ПК)</text>
-    <text x="34" y="64" font-size="12" class="m">телеметрия · команды · журнал · страницы</text>
-    <rect x="315" y="20" width="200" height="64" rx="10" fill="none" stroke="#8a8f98"/>
-    <text x="329" y="44" font-weight="700">⌂ роутер Wi-Fi</text>
-    <text x="329" y="64" font-size="12" class="m">свой канал</text>
-    <path d="M250 52 L315 52" stroke="#8a8f98" marker-end="url(#ar)"/>
-    <text x="560" y="40" font-size="12" class="m">UDP 5005 — телеметрия раз в 1 с</text>
-    <text x="560" y="58" font-size="12" class="m">UDP 5007 — команды CFG, OTA</text>
-    <text x="560" y="76" font-size="12" class="m">UDP 5006 — маяк сервера</text>
-    <rect x="20" y="130" width="470" height="120" rx="12" fill="none" class="sa" stroke-dasharray="5 4"/>
-    <text x="34" y="150" font-weight="700" class="ta">сет A — генерация</text>
-    <g>
-      <circle cx="80" cy="200" r="26" fill="none" class="sa" stroke-width="2"/><text x="80" y="205" text-anchor="middle" font-weight="700">№3</text>
-      <circle cx="190" cy="200" r="26" fill="none" stroke="#E69F00" stroke-width="3"/><text x="190" y="205" text-anchor="middle" font-weight="700">№4</text>
-      <text x="190" y="242" text-anchor="middle" font-size="12" fill="#E69F00">★ мастер</text>
-      <circle cx="300" cy="200" r="26" fill="none" class="sa" stroke-width="2"/><text x="300" y="205" text-anchor="middle" font-weight="700">№5</text>
-      <circle cx="410" cy="200" r="26" fill="none" class="sa" stroke-width="2"/><text x="410" y="205" text-anchor="middle" font-weight="700">№6</text>
-      <path d="M106 200 L162 200 M216 200 L272 200 M326 200 L382 200" stroke="#8a8f98" stroke-dasharray="3 3" marker-end="url(#ar)"/>
-    </g>
-    <rect x="560" y="130" width="280" height="120" rx="12" fill="none" class="sb" stroke-dasharray="5 4"/>
-    <text x="574" y="150" font-weight="700" class="tb">сет B — рассеяние</text>
-    <path d="M640 180 L660 200 L640 220 L620 200 Z" fill="none" class="sb" stroke-width="2"/>
-    <path d="M760 180 L780 200 L760 220 L740 200 Z" fill="none" class="sb" stroke-width="2"/>
-    <text x="700" y="238" text-anchor="middle" font-size="12" class="m">смешивают простое со своим шумом</text>
-    <path d="M436 190 C 500 150, 560 150, 616 190" stroke="#CC79A7" fill="none" marker-end="url(#ar)"/>
-    <text x="526" y="150" text-anchor="middle" font-size="12" fill="#CC79A7">PRIME</text>
-    <path d="M620 215 C 560 270, 480 270, 436 215" stroke="#CC79A7" fill="none" stroke-dasharray="4 3" marker-end="url(#ar)"/>
-    <text x="526" y="282" text-anchor="middle" font-size="12" fill="#CC79A7">эфир B → шум A (петля)</text>
-    <text x="34" y="312" font-size="12" class="m">ESP-NOW между агентами на канале роутера: адресные кадры группы (итог, ответы, кусочки) и широковещательные — сету B</text>
-  </g>
-</svg>
-"""
-
-
 def index_page(readme_md, static=False):
-    cards = "".join(f'<a class="card" href="{k}.html" style="text-decoration:none;color:inherit"><h3>{esc(t)}</h3><p>{esc(d)}</p></a>'
-                    for k, t, d, _ in PAGES)
-    live = [("", "все режимы: выбор вверху страницы"), ("solo", "каждый сам"), ("dc", "два ядра — конвейер"),
-            ("group", "сообща: мастер, эстафета, запас"), ("relay", "эстафета сета A: проверяет один, ход по кругу"), ("cascade", "каскад сета A: проверяют все, шум от всех ко всем"), ("scatter", "сообща + рассеяние"), ("pieces", "россыпь"),
-            ("chain", "эстафета сета B — цепочка рассеяния"), ("silence", "тишина и фон"), ("sham", "пустышка"), ("loop", "петля через эфир"),
-            ("csi", "сообща на медленном шуме (CSI)")]
-    flow = "flow.html" if static else "../flow"
+    card = lambda k, t, d: f'<a class="card" href="{k}.html" style="text-decoration:none;color:inherit"><h3>{esc(t)}</h3><p>{esc(d)}</p></a>'
+    cards = "".join(card(k, t, d) for k, t, d, _ in PAGES if k not in APPENDIX)
+    cards_app = "".join(card(k, t, d) for k, t, d, _ in PAGES if k in APPENDIX)
+    live = [("", "все режимы: выбор вверху страницы"), ("solo", "▶ эгоистичный — каждый сам"), ("dc", "эгоистичный, два ядра — конвейер"),
+            ("cascade", "▶ групповой (каскад): проверяют все, шум от всех ко всем"), ("relay", "групповой · эстафета: проверяет один, ход по кругу"),
+            ("group", "групповой · одно число на всех: мастер, запас, кусочки"), ("scatter", "групповой + ▼ поглощение"),
+            ("pieces", "▼ россыпь"), ("chain", "▼ эстафета поглотителей"), ("silence", "▼ тишина и фон"), ("sham", "▼ пустышка (контроль)"),
+            ("loop", "↺ петля: обратный шум"), ("csi", "групповой на ≋ CSI")]
+    flow = "flow.html" if static else "/flow"
     live_html = "".join(f'<li><a href="{flow}{"#" + k if k else ""}">{esc(t)}</a></li>' for k, t in live)
-    panel = ('<li><a href="pult.html">Пульт</a> — экран 1: агенты по колёсам, группы и режимы, программа «план — факт», '
-             'журнал опытов со статикой, телеметрия. Здесь — демонстрация на снимке с имитаторов: кнопки ничего не отправляют.</li>'
-             '<li><a href="watch.html">Наблюдение</a> — экран 2: спектры статических акселерометров против эталона, '
-             'страж статистики простых, лента опыта (демонстрация).</li>'
-             '<li>С платами пульт, наблюдение и прежняя панель работают на сервере в сети опыта '
-             '(<code>http://&lt;сервер&gt;:8090/pult</code>, <code>/watch</code>, <code>/</code>).</li>' if static else
-             '<li><a href="../">Главная панель</a> — агенты, управление, сессии, итоги, графики, журнал опытов, '
-             'прошивка по Wi-Fi; у каждого параметра значок ⓘ.</li>')
-    acc = "" if static else '<li><a href="../acc">Второй экран</a> — статические акселерометры: спектр, эталон шума, вывод.</li>'
+    where = ('<li><a href="plan.html">▦ Установка</a> — основной экран: колёса, режимы, статика с Гауссом и спектром, лента шагов, '
+             'серии. Здесь — демонстрация на снимке с имитаторов: кнопки ничего не отправляют; пульт и наблюдение открываются его окнами.</li>'
+             '<li>С платами всё работает на сервере в сети опыта: <code>http://&lt;сервер&gt;:8090/</code>.</li>' if static else
+             '<li><a href="/" target="plan">▦ Установка</a> — основной экран: колёса, режимы, статика с Гауссом и спектром, лента шагов, '
+             'серии, запуск; подробное — окнами (статика подробно, отчёт, пульт, наблюдение, живая схема, прежняя панель).</li>')
     readme_body, _, _ = render(readme_md)
     readme_body = re.sub(r"^<h1>.*?</h1>", "", readme_body, count=1)
     body = f"""<h1>Колесо-2 — документация</h1>
-<p>Агенты — платы XIAO ESP32-S3 с общей прошивкой <code>prime_lab</code>: генерируют простые числа (каждый сам или сообща),
-рассеивают их (сет B), меряют ускорение (роль S). Сервер на ПК собирает телеметрию, раздаёт настройки и прошивки,
-ведёт сессии, программы и журнал опытов.</p>
-{SYSTEM_SVG}
-<h2 id="pages">Живые страницы</h2>
+<p>Экспериментальная установка: платы XIAO ESP32-S3 («агенты») на двух вращающихся колёсах с катушками ищут простые числа
+в физическом шуме — сами или группой, излучая и поглощая; неподвижные датчики между колёсами слушают, не меняется ли что-то.
+Сервер на ноутбуке собирает телеметрию, раздаёт настройки и прошивки, ведёт программы и серии опытов.
+Описано текущее состояние (26.10.2026); как пришли к нему — <a href="history.html">приложение А</a>.</p>
+<figure><a href="img/wiring_overview.svg"><img src="img/wiring_overview.svg" alt="Установка целиком" loading="lazy"></a>
+<figcaption>Установка целиком: колёса друг напротив друга, агенты на шине, катушки, моторы на раме, статика между колёсами —
+подробно в <a href="wiring.html">схемах подключения</a>.</figcaption></figure>
+<h2 id="pages">Где смотреть</h2>
 <ul>
-{panel}
-<li><a href="{flow}">Живая схема</a> — протокол по шагам, замедленно: шум, кандидат, отсев, Миллер — Рабин, мастер и эстафета, кусочки, рассеяние, петля; характерные времена «модель / на платах».</li>
-{acc}
+{where}
+<li><a href="{flow}">↻ Как работает</a> — живая схема: установка целиком (кто кому что шлёт) и протокол группы по шагам, замедленно.</li>
 </ul>
 <h3 id="modes">Режимы на живой схеме</h3>
 <ul>{live_html}</ul>
 <h2 id="docs">Документы</h2>
 <div class="cards">{cards}</div>
+<h2 id="app">Приложения</h2>
+<div class="cards">{cards_app}</div>
 <h2 id="readme">Папки проекта</h2>
 {readme_body}"""
-    toc = [(2, "pages", "Живые страницы"), (2, "docs", "Документы"), (2, "readme", "Папки проекта")]
+    toc = [(2, "pages", "Где смотреть"), (2, "docs", "Документы"), (2, "app", "Приложения"), (2, "readme", "Папки проекта")]
     return page("index", "Обзор", body, toc, "", static)
 
 
@@ -524,9 +502,16 @@ DEMO_NOTE = ('<span class="pill warn" title="Опубликованная коп
              'с платами экран работает на сервере в сети опыта">демонстрация · снимок с имитаторов · кнопки ничего не отправляют</span>')
 
 
+# Меню экранов в комплекте — без nav.js: «Установка» (демонстрация основного экрана) и «Документы»; в окне — без меню
+STATIC_NAV = ('<nav class="w2nav w2-noembed" style="display:inline-flex;gap:8px;font-size:.9em">'
+              '<a href="plan.html">▦ Установка</a><a href="index.html">? Документы</a></nav>'
+              '<script>if (location.search.indexOf("embed") >= 0 || window.self !== window.top) '
+              'document.write("<style>.w2-noembed{display:none!important}</style>")</script>')
+
+
 def static_screens():
-    """Пульт и наблюдение в комплект: общее (ui.css, ui.js) — внутрь страницы, ответы сервера — из снимка
-    build/demo/demo.json (tools/demo_capture.py). Снимка нет — экраны в комплект не идут."""
+    """Основной экран, пульт и наблюдение в комплект: общее (ui.css, ui.js) — внутрь страницы, ответы сервера —
+    из снимка build/demo/demo.json (tools/demo_capture.py). Снимка нет — экраны в комплект не идут."""
     demo_path = os.path.join(ROOT, "build", "demo", "demo.json")
     if not os.path.exists(demo_path):
         print("экраны: нет снимка build/demo/demo.json (tools/demo_capture.py) — в комплект не идут")
@@ -539,11 +524,13 @@ def static_screens():
     css = open(os.path.join(st, "ui.css"), encoding="utf-8").read()
     js = open(os.path.join(st, "ui.js"), encoding="utf-8").read()
     out = {}
-    for name in ("pult", "watch"):
+    for name in ("plan", "pult", "watch"):
         html = scrub(open(os.path.join(st, name + ".html"), encoding="utf-8").read(), name + ".html")
         for a, b in [('<link rel="stylesheet" href="/ui.css">', "<style>\n" + css + "\n</style>"),
                      ('<span id="conn" class="small"></span>', '<span id="conn" class="small"></span>' + DEMO_NOTE),
-                     ('<script src="/ui.js"></script>', "<script>window.DEMO_DATA = @@DEMO@@;</script>\n<script>\n" + js + "\n</script>")]:
+                     ('<script src="/ui.js"></script>', "<script>window.DEMO_DATA = @@DEMO@@;</script>\n<script>\n" + js + "\n</script>"),
+                     ('<script src="/nav.js"></script>', ""),
+                     ('<span id="nav"></span>', '<span id="nav">' + STATIC_NAV + "</span>")]:
             if html.count(a) != 1:
                 raise SystemExit(f"{name}.html: не найдено «{a[:40]}…» — поправьте static_screens")
             html = html.replace(a, b)
@@ -580,7 +567,7 @@ def build_static(out_dir):
     files.update(static_screens())
     for fn, text in files.items():
         with open(os.path.join(out_dir, fn), "w", encoding="utf-8", newline="\n") as f:
-            f.write(text if fn in ("pult.html", "watch.html") else scrub(text, fn))   # экраны проверены в static_screens
+            f.write(text if fn in ("plan.html", "pult.html", "watch.html") else scrub(text, fn))   # экраны проверены в static_screens
     imgs = copy_images(out_dir)
     for fn in imgs:
         if fn.endswith(".svg"):

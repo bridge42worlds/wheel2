@@ -15,10 +15,25 @@
 .topbar { padding:6px 10px; }
 .topbar .row { gap:6px; }
 .topbar .btn { padding:.3em .75em; }
-.cols3 { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr); gap:8px; min-height:0; }
+.cols3 { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr); gap:8px; min-height:0; }
 .wbody { display:flex; flex-direction:column; gap:6px; overflow:auto; }
+.wbody > * { flex-shrink:0; }               /* не сплющивать карточки — лучше прокрутка колонки */
 .grp { padding:5px 7px; gap:3px; }
-.grp .chips { grid-template-columns:repeat(auto-fill, minmax(66px, 1fr)); gap:4px; }
+.grp .chips { grid-template-columns:repeat(auto-fill, minmax(57px, 1fr)); gap:4px; }
+/* плашка над рисунком: часы · что идёт сейчас · колёса таблицей */
+.info { display:grid; grid-template-columns:auto minmax(0, 1fr); gap:4px 14px; align-items:center; border:1px solid var(--line); border-radius:9px; padding:6px 10px; background:var(--card); }
+.info .clk { display:flex; flex-direction:column; align-items:center; line-height:1.05; }
+.info .clk b { font-size:1.75em; font-variant-numeric:tabular-nums; letter-spacing:.01em; }
+.info .cur { font-size:1.08em; font-weight:700; }
+.info .ist { min-width:0; }
+.info .ist .row { flex-wrap:nowrap; }
+.info .tmr { font-size:1.6em; font-variant-numeric:tabular-nums; line-height:1; }
+.info .bar { margin:3px 0 1px; }
+.info .ist .small { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.info .wtab { grid-column:1 / -1; display:grid; grid-template-columns:auto minmax(0, 1.7fr) minmax(0, 1fr) auto auto; gap:2px 12px; font-size:.9em; border-top:1px solid var(--line); padding-top:4px; }
+.info .wtab .hd { color:var(--mut); font-size:.82em; text-transform:uppercase; letter-spacing:.04em; }
+.info .wtab > * { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-variant-numeric:tabular-nums; }
+.fon { color:var(--on); font-weight:700; }
 /* фишка агента в три строки: значок + номер, слово состояния, скорость или температура (без связи — давность) */
 .chip { padding:2px 3px 3px; }
 .chip .h { display:flex; align-items:center; justify-content:center; gap:3px; }
@@ -44,16 +59,42 @@
 .opt.on { border-color:var(--on); background:var(--on-bg); font-weight:600; }
 .opt.on::before { content:"✓ "; }
 .opt.dis { opacity:.5; cursor:not-allowed; text-decoration:line-through; }
+/* окно «серия»: уровни-вложенность, перетаскивание за ⠿ */
+.sopt { border:1px solid var(--line); border-radius:6px; padding:1px 7px; cursor:pointer; user-select:none; font-size:.86em; background:var(--card); }
+.sopt.on { border-color:var(--on); background:var(--on-bg); font-weight:600; }
+.sopt.on::before { content:"✓ "; }
+.sopt.dis { opacity:.5; cursor:not-allowed; text-decoration:line-through; }
+.sergrid { display:grid; grid-template-columns:auto minmax(0, 1fr); gap:5px 12px; align-items:center; }
+.serlev { display:flex; flex-direction:column; gap:4px; }
+.slev { display:flex; gap:8px; align-items:flex-start; border:1px solid var(--line); border-radius:8px; padding:5px 8px; background:var(--card); }
+.slev .sbody { flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+.slev.dragging { outline:2px dashed var(--on); opacity:.75; }
+.sdrag { cursor:grab; touch-action:none; font-size:1.3em; line-height:1; padding:2px 4px; color:var(--mut); user-select:none; }
+.snum { font-size:1.1em; min-width:1.2em; text-align:center; padding-top:1px; }
+.sersum { margin-top:6px; }
+.sheet.wide { width:min(1760px, 97vw); max-height:96vh; }
+/* живая статика на карточке: Гаусс, спектр, колебания — нажатие открывает окно «вживую» */
+.stat .baserow { flex-wrap:nowrap; }
+.stat .baserow .bl { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.stat .baserow .seg, .stat .baserow > .small { flex:none; }
+.svgrid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; cursor:pointer; border-radius:7px; }
+.svgrid:hover { outline:1px solid var(--line2); }
+.svgrid svg { background:var(--bg); border-radius:6px; }
+.dlgframe { width:100%; height:calc(96vh - 110px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.morelist { display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:8px; }
+.morelist .btn { display:flex; flex-direction:column; align-items:flex-start; gap:2px; text-align:left; padding:8px 10px; white-space:normal; }
 .dim { opacity:.45; }
 .mid { gap:6px; }
-.pic { flex:1 1 auto; min-height:140px; }
+.mid > :not(.pic) { flex-shrink:0; }
+.pic { flex:1 1 auto; min-height:170px; }
 .pic svg { width:100%; height:100%; display:block; }
 .pic svg [data-act] { cursor:pointer; }
-.now { border:1px solid var(--line); border-radius:9px; padding:6px 10px; }
-.now .tm { font-size:2em; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.1; }
-.now .kv { display:grid; grid-template-columns:auto 1fr; gap:1px 10px; font-size:.92em; }
-.now .kv b { font-variant-numeric:tabular-nums; font-weight:600; }
-.setline { font-size:.9em; }
+.setline { font-size:.9em; flex-wrap:nowrap; }
+.setline .ell { min-width:0; flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.setline > .mut, .fieldrow > .lh { white-space:nowrap; flex:none; }
+.fieldrow { flex-wrap:nowrap; }
+@media (max-height: 1050px) { .info .wtab { display:none; } }   /* низкий экран: колёса и так на рисунке — высоту ему */
+.fieldrow .opts { flex-wrap:nowrap; }
 .ribbon { max-height:24vh; }
 .steps { display:flex; gap:4px; overflow-x:auto; padding:2px 0 4px; }
 .step { min-width:118px; max-width:170px; border:1px solid var(--line); border-radius:8px; padding:3px 6px; font-size:.8em; flex:0 0 auto; background:var(--card); cursor:pointer; }
@@ -77,6 +118,10 @@ label.inl { display:inline-flex; align-items:center; gap:4px; margin:2px 10px 2p
 .seg button.sel::before { content:"✓ "; }       /* выбранное в сегменте — не только заливкой */
 .fs { border:1px solid var(--line); border-radius:9px; padding:6px 10px; margin:0 0 8px; }
 .fs legend { color:var(--mut); font-size:.85em; padding:0 4px; }
+@media (max-width: 1500px) {                    /* ноутбук: фишкам колёс — место для шести в ряд */
+  .cols3 { grid-template-columns:minmax(0, 1fr) minmax(0, 1.35fr) minmax(0, 1fr); }
+  .grp .chips { grid-template-columns:repeat(auto-fill, minmax(52px, 1fr)); }
+}
 @media (max-width: 900px) {
   .cols3 { display:flex; flex-direction:column; }
   .pic { height:300px; flex:none; }
@@ -98,9 +143,11 @@ label.inl { display:inline-flex; align-items:center; gap:4px; margin:2px 10px 2p
     <span class="sp"></span>
     <button class="btn" id="bIdent" data-act="identmode" title="Режим «найти плату»: нажмите на агента — его светодиод замигает 20 с">◉ найти плату</button>
     <button class="btn" data-act="exper" title="Длительность шага, температура, отдых, повторы, контроль, повтор при отклонении">опыт…</button>
+    <button class="btn" data-act="series" title="Серия: вложенные циклы — вращение, поле, совместная работа, шум, излучение/поглощение; длина сета, время всей серии">⇅ серия…</button>
     <button class="btn" data-act="motor" title="Моторы колёс: стоит / ШИМ / обороты, направление, смена направления по таймеру">⟳ вращение…</button>
-    <button class="btn" data-act="diag" title="Проверить установку: связь, слышимость, скорость, температура, память, датчики">диагностика…</button>
-    <button class="btn" data-act="fw" title="Прошивка агентов: по Wi-Fi и новых плат по USB">прошивка…</button>
+    <button class="btn" data-act="frame" data-url="/acc" data-title="◆ Статика подробно" title="Статические датчики подробно: спектры против коридора эталона, события, запись эталона">◆ статика</button>
+    <button class="btn" data-act="frame" data-url="/report" data-title="☰ Отчёт" title="Все шаги программ: режимы, простые, статика, вывод; выгрузка CSV">☰ отчёт</button>
+    <button class="btn" data-act="more" title="Как работает (живая схема), диагностика, прошивка, пульт, наблюдение, прежняя панель">⋯ ещё</button>
     <button type="button" class="tip" data-tip="run" aria-label="что делают кнопки запуска">ⓘ</button>
     <button class="btn big go" id="bRun" title="Запустить последовательность шагов (лента внизу)">▶ Запустить</button>
     <button class="btn big stop" id="bStop" title="Остановить программу после текущего шага (агенты доработают шаг)">⏹ Стоп после шага</button>
@@ -109,10 +156,10 @@ label.inl { display:inline-flex; align-items:center; gap:4px; margin:2px 10px 2p
   <main class="cols3">
     <section class="panel" id="w1"></section>
     <section class="panel mid" id="mid">
+      <div id="info"></div>
       <div class="pic" id="pic"></div>
       <div id="stat"></div>
-      <div id="now"></div>
-      <div class="row small"><span class="lh">4 · поле катушек (колесо 1, колесо 2) <button type="button" class="tip" data-tip="field" aria-label="что такое поле катушек">ⓘ</button></span><span id="fields"></span></div>
+      <div class="row small fieldrow"><span class="lh" title="колесо 1, колесо 2; на отдыхе и в конце — выкл">4 · поле катушек (К1 К2) <button type="button" class="tip" data-tip="field" aria-label="что такое поле катушек">ⓘ</button></span><span id="fields"></span></div>
       <div class="row setline" id="setline"></div>
     </section>
     <section class="panel" id="w2"></section>
@@ -164,10 +211,16 @@ const NOISES = [
   ["acc", "акселерометр (только он)", "ICM-42688-P на ободе: младшие байты осей ускорения и гироскопа — собственный шум датчика, вибрации, вращение. 200 отсчётов/с, 1 бит на байт — медленно: число ждёт, пока наберётся шум. У агента без датчика — вместо него ГСЧ. Подмешать к другим шумам — галочка «+ акселерометр» ниже.", false, { src: 32 }],
   ["mag", "магнитометр (только он)", "MLX90393: младшие байты осей поля — шум датчика, поле катушки, поле Земли, наводки. 20 замеров/с — очень медленно. У агента без датчика — вместо него ГСЧ. Подмешать к другим шумам — галочка «+ магнитометр» ниже.", false, { src: 64 }],
   ["tmp", "температура кристалла", "Проверена 03.10 и отвергнута: датчик даёт шаг 1 °C и меняется раз в несколько секунд (за 4096 чтений — 2 значения), шума в нём нет. Тепловой шум уже входит в дрожание RC и АЦП; сама температура записывается в каждый шаг.", true, null]];
+// Значок шума — рядом со словом везде (слои, рисунок, плашка, лента, серия): различать с одного взгляда
+const NOISE_ICON = { rng: "⚄", all: "Σ", csi: "≋", csiping: "↯", csiair: "◎", adc: "⏚", jit: "⧖", bc: "↺+", bconly: "↺", acc: "↕", mag: "🧲", tmp: "🌡" };
+const NOISES_UI = NOISES.map(n => [n[0], `${NOISE_ICON[n[0]] || "·"} ${n[1]}`, n[2], n[3]]);
+// значок по названию (в слоях шага шум записан словами, иногда с добавкой «+ акселерометр»)
+function noiseIconByName(name) { const n = NOISES.find(x => name && name.startsWith(x[1])); return n ? NOISE_ICON[n[0]] || "" : ""; }
+function noiseLabel(name) { const i = noiseIconByName(name); return name ? (i ? i + " " : "") + name : ""; }
 // Датчики на ободе — добавкой к любому выбранному шуму (в том числе к «все доступные»): накопленное подмешивается
 // в каждый блок, счёт не медленнее; у агентов без датчика добавка пустая
-const SENS_ADD = [["acc", "+ акселерометр", "Младшие байты осей ICM-42688 (обод) подмешиваются в шум — у агентов с этим датчиком.", false],
-                  ["mag", "+ магнитометр", "Младшие байты осей MLX90393 подмешиваются в шум — у агентов с этим датчиком.", false]];
+const SENS_ADD = [["acc", "+ ↕ акселерометр", "Младшие байты осей ICM-42688 (обод) подмешиваются в шум — у агентов с этим датчиком.", false],
+                  ["mag", "+ 🧲 магнитометр", "Младшие байты осей MLX90393 подмешиваются в шум — у агентов с этим датчиком.", false]];
 const sensBits = w => ((P["w" + w].sens || []).includes("acc") ? 32 : 0) | ((P["w" + w].sens || []).includes("mag") ? 64 : 0);
 const sensWord = w => [(P["w" + w].sens || []).includes("acc") ? "+ акселерометр" : "", (P["w" + w].sens || []).includes("mag") ? "+ магнитометр" : ""].filter(Boolean).join(" ");
 const FIELDS = [["off", "выкл"], ["pp", "+ +"], ["pm", "+ −"], ["mp", "− +"], ["mm", "− −"]];
@@ -197,33 +250,45 @@ let noiseMin = 5;
 
 // ---------- данные ----------
 const isStatic = (d, a) => a.kind === "S" || (d.compose.slot || {})[a.mac] === "S";
-// агенты колеса — по составу на сервере, и те, что ещё не выходили на связь (видны как ✗)
-function wheelMacs(d, w) { return d.agents.filter(a => (d.compose.wheels || {})[a.mac] === w && !isStatic(d, a) && a.kind !== "M").map(a => a.mac); }
+// агент катушки — по месту в составе: без связи его роль (kind M) не видна, а в группу колеса он попадать не должен
+const isCoil = (d, a) => (d.compose.slot || {})[a.mac] === "coil";
+// агенты колеса — по составу на сервере, и те, что ещё не выходили на связь (видны как ✗); катушка — отдельно, под колесом
+function wheelMacs(d, w) { return d.agents.filter(a => (d.compose.wheels || {})[a.mac] === w && !isStatic(d, a) && !isCoil(d, a) && a.kind !== "M").map(a => a.mac); }
 // ---------- оборудование в блоке «сейчас»: моторы и катушки ----------
 let MOTS = null;                                        // /api/motors — для главного экрана
 setInterval(async () => { try { MOTS = await getJSON("/api/motors"); } catch (e) { MOTS = null; } }, 2000);
-const PAIR_W = { free: "по отдельности", same: "вместе", opposite: "навстречу", only1: "только колесо 1", only2: "только колесо 2" };
-function hwRows() {
-  const M = MOTS || {}, ag = (M.agents || []).find(x => x.alive) || (M.agents || [])[0];
-  let mot;
-  if (!ag) mot = `<span class="mut">агента моторов нет</span>`;
-  else {
-    const wh = ["a", "b"].map((w, i) => {
-      const s = (M.wheels || {})[w] || {}, br = ag.mot ? ag.mot[w] : null;
-      if (!br || (!br[0] && !br[1])) return `колесо ${i + 1}: ■ стоит`;
-      const dir = (br[1] || br[0]) > 0 ? "▶ вперёд" : "◀ назад";
-      const what = s.eff === "zerog" || s.eff === "rpm" ? `${fmt(s.target, 1)} об/мин${s.eff === "zerog" ? " (невесомость)" : ""}` : `ШИМ ${fmt(Math.abs(br[0]) / 10, 0)} %`;
-      return `колесо ${i + 1}: ${dir} ${what} · ${MOT_ST[br[2]] || ""}${s.meas != null ? ` · обод ${fmt(s.meas, 1)} об/мин` : ""}`;
-    });
-    mot = `${ag.alive ? "<span class='ok'>✓</span>" : "<span class='bad'>✗</span>"} №${ag.id} · ${PAIR_W[M.pair] || ""} · ${wh.join(" · ")}`;
-  }
-  const C = COIL || {};
-  const coil = ["1", "2"].map(w => {
-    const a = (C.agents || {})[w], s = (C.wheels || {})[w] || {};
-    if (!a) return `колесо ${w}: <span class="mut">не настроена</span>`;
-    return `колесо ${w}: ${a.alive ? "<span class='ok'>✓</span>" : "<span class='bad'>✗</span>"} №${a.id} поле <b>${({ off: "выкл", "+": "+", "-": "−" })[s.state] || "?"}</b>`;
-  }).join(" · ");
-  return `<span>моторы</span><b class="small">${mot}</b><span>катушки</span><b class="small">${coil}</b>`;
+const MOT_SHORT = ["стоит", "разгон", "едет", "торможение", "пауза"];
+// Вращение колеса сейчас: мост агента моторов (колесо 1 — a, 2 — b) и обороты по ободу (сервер или датчик на колесе)
+function spinOf(d, w) {
+  const M = MOTS || {}, key = w === "1" ? "a" : "b", all = M.agents || [], ag = all.find(x => x.alive) || all[0] || null;
+  const s = (M.wheels || {})[key] || {}, br = ag && ag.alive && ag.mot ? ag.mot[key] : null;
+  const now = Date.now() / 1000, rim = (d.wheel || []).find(x => wheelMacs(d, w).includes(x.mac) && x.t_rx && now - x.t_rx < 10);
+  const meas = s.meas != null ? Math.abs(s.meas) : rim ? Math.abs(rim.rpm_now || 0) : null;
+  const dirv = br ? (br[1] || br[0]) : 0;
+  return { ag, on: !!(br && (br[0] || br[1])), dir: dirv > 0 ? 1 : dirv < 0 ? -1 : 0, meas, pwm: br ? Math.abs(br[1]) / 10 : 0,
+           target: s.eff === "rpm" || s.eff === "zerog" ? s.target : null, zerog: s.eff === "zerog", st: br ? MOT_SHORT[br[2]] || "" : "" };
+}
+// Вращение словами: {main, sub, glyph}; ⟳ — вперёд (по часовой, если смотреть на вал спереди), ⟲ — назад
+function spinWords(sp) {
+  const glyph = sp.dir < 0 ? "⟲" : "⟳", moving = sp.meas != null && sp.meas >= 0.5;
+  if (!moving && !sp.on) return { main: "■ стоит", sub: "", glyph: "■", on: false };
+  const main = moving ? `${glyph} ${fmt(sp.meas, 1)} об/мин` : `${glyph} ${sp.target != null ? fmt(sp.target, 1) + " об/мин" : "ШИМ " + fmt(sp.pwm, 0) + " %"}`;
+  const sub = [sp.dir > 0 ? "вперёд" : sp.dir < 0 ? "назад" : "", sp.st, sp.zerog ? "невесомость" : sp.target != null && moving ? "цель " + fmt(sp.target, 1) : ""].filter(Boolean).join(" · ");
+  return { main, sub, glyph, on: true };
+}
+// Поле катушки колеса: факт от агента катушки {ag, st: "off" | "+" | "-" | null, word, on}
+function fieldOf(w) {
+  const C = COIL || {}, ag = (C.agents || {})[w], st = ag && ag.alive ? ((C.wheels || {})[w] || {}).state || null : null;
+  const word = !ag ? "нет агента" : !ag.alive ? "нет связи" : ({ off: "выкл", "+": "+", "-": "−" })[st] || "?";
+  return { ag, st, word, on: st === "+" || st === "-" };
+}
+// Режим колеса: идущий шаг программы, иначе — план на планшетке
+function wheelMode(d, w) {
+  const L = currentLayers(), Lw = L ? L["w" + w] : null, S = P["w" + w];
+  const role = Lw ? Lw.role : (S.roles[0] || "idle");
+  const way = Lw ? Lw.way : role === "gen" ? S.ways[0] : role === "abs" ? S.abs[0] : "";
+  return { live: !!Lw, role, icon: ICONS[role] || ICONS.idle, word: role === "gen" ? "генерация" : role === "abs" ? "поглощение" : "стоит",
+           way: wayName(way), short: WAY_SHORT[way] || "", noise: role === "gen" ? (Lw ? Lw.noise : noiseName(S.noise[0])) : "" };
 }
 // ---------- катушки колёс ----------
 let COIL = null;                                        // /api/coils — опрос вместе с планшеткой
@@ -434,7 +499,7 @@ function renderWheel(d, w) {
         <span class="lh">1 · роль ${tipBtn("roles", "роль колеса")}</span>${optsHTML("w" + w, "roles", ROLES_W, S.roles)}
         <span class="lh ${gen ? "" : "dim"}">2 · генерация ${tipBtn("ways", "способ генерации")}</span><div class="${gen ? "" : "dim"}">${optsHTML("w" + w, "ways", WAYS_GEN, S.ways)}</div>
         <span class="lh ${abs ? "" : "dim"}">2 · поглощение ${tipBtn("abs", "способ поглощения")}</span><div class="${abs ? "" : "dim"}">${optsHTML("w" + w, "abs", WAYS_ABS, S.abs)}</div>
-        <span class="lh ${gen ? "" : "dim"}">3 · шум <button class="btn tiny" data-act="noises" title="откуда берётся каждый шум">ⓘ</button></span><div class="${gen ? "" : "dim"}">${optsHTML("w" + w, "noise", NOISES, S.noise)}${optsHTML("w" + w, "sens", SENS_ADD, S.sens || [])}</div>
+        <span class="lh ${gen ? "" : "dim"}">3 · шум <button class="btn tiny" data-act="noises" title="откуда берётся каждый шум">ⓘ</button></span><div class="${gen ? "" : "dim"}">${optsHTML("w" + w, "noise", NOISES_UI, S.noise)}${optsHTML("w" + w, "sens", SENS_ADD, S.sens || [])}</div>
       </div>
     </div>`);
 }
@@ -460,27 +525,35 @@ function modeSource(d) {
   return { word: "план", live: false };
 }
 function renderPic(d) {
-  const W = 640, H = 300, R = 94, cx = [140, 500], cy = 146;
-  const L = currentLayers(), src = modeSource(d), C = COIL || {};
-  let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="установка: два колеса с подгруппами агентов и измерители между ними">`;
+  const W = 740, H = 376, R = 115, cx = [165, 575], cy = 186;
+  const L = currentLayers(), src = modeSource(d);
+  const T = (x, y, size, text, o = "") => `<text x="${x}" y="${y}" text-anchor="middle" font-size="${size}" ${o.includes("fill=") ? "" : 'fill="var(--ink)"'} ${o}>${text}</text>`;   // свой цвет в o — без второго fill (браузер берёт первый)
+  let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="установка: два колеса — режим, обороты, поле катушки; агенты по ободу, агенты катушек под колёсами, измерители между колёсами">`;
   for (const w of [1, 2]) {
-    const x0 = cx[w - 1], groups = wheelGroups(d, String(w)), macs = groups.flatMap(g => g.macs);
-    const Lw = L ? L["w" + w] : null, S = P["w" + w];
-    const role = Lw ? Lw.role : (S.roles[0] || "idle");
-    s += `<circle cx="${x0}" cy="${cy}" r="${R}" fill="none" stroke="var(--line2)" stroke-width="3"/>`;
-    s += `<text x="${x0}" y="${cy - 22}" text-anchor="middle" font-size="15" font-weight="700" fill="var(--ink)">колесо ${w}</text>`;
-    s += `<text x="${x0}" y="${cy - 8}" text-anchor="middle" font-size="10" fill="var(--mut)">${groups.length ? plural(groups.length, "группа", "группы", "групп") + ": " + groups.map(g => g.letter + "·" + g.macs.length).join(" ") : "агентов нет"}</text>`;
-    s += `<text x="${x0}" y="${cy + 9}" text-anchor="middle" font-size="12" fill="var(--ink)"><tspan fill="var(--mut)" font-size="10">${esc(L ? src.word : "план")}:</tspan> ${ICONS[role] || ICONS.idle} ${role === "gen" ? "генерация" : role === "abs" ? "поглощение" : "стоит"}</text>`;
-    const way = Lw ? Lw.way : (role === "gen" ? S.ways[0] : role === "abs" ? S.abs[0] : "");
-    s += `<text x="${x0}" y="${cy + 24}" text-anchor="middle" font-size="11" fill="var(--mut)">${esc(wayName(way))}</text>`;
-    if (role === "gen") s += `<text x="${x0}" y="${cy + 38}" text-anchor="middle" font-size="11" fill="var(--mut)">шум: ${esc(Lw ? Lw.noise : noiseName(S.noise[0]))}</text>`;
-    // катушка: факт от агента катушки (COIL), план — в скобках, если отличается
-    const planCoil = L ? (L.field || {})[String(w)] : (P.fields[0] === "off" || !P.fields[0] ? "выкл" : fieldName(P.fields[0]).split(" ")[w - 1]);
-    const ag = (C.agents || {})[String(w)], cs = ((C.wheels || {})[String(w)] || {}).state;
-    const fact = ag ? (ag.alive ? ({ off: "выкл", "+": "+", "-": "−" })[cs] || "?" : "✗ агент не на связи") : null;
-    const on = fact ? fact !== "выкл" && !fact.startsWith("✗") : planCoil && planCoil !== "выкл";
-    const coilText = fact ? `катушка ${fact}${planCoil && planCoil !== ({ "+": "+", "-": "−" })[cs] && planCoil !== (cs === "off" ? "выкл" : "") ? ` (план ${esc(planCoil)})` : ""}` : `катушка ${esc(planCoil || "выкл")} (план, агента нет)`;
-    s += `<text x="${x0}" y="${cy + R + 30}" text-anchor="middle" font-size="12" ${on ? 'font-weight="700"' : ""} fill="${on ? "var(--ink)" : "var(--mut)"}">${coilText}</text>`;
+    const x0 = cx[w - 1], ws = String(w), groups = wheelGroups(d, ws), macs = groups.flatMap(g => g.macs);
+    const md = wheelMode(d, ws), sp = spinWords(spinOf(d, ws)), fd = fieldOf(ws);
+    const on = macs.filter(m => alive(agentById(d, m).status)).length;
+    s += T(x0, 18, 16, `колесо ${w} <tspan font-size="12" font-weight="400" fill="var(--mut)">· ${plural(macs.length, "агент", "агента", "агентов")}, на связи ${on}</tspan>`, 'font-weight="700"');
+    // обод: при включённом поле — синий и толще, стрелки по ходу поля (+ по часовой, − против; направление условное)
+    s += `<circle cx="${x0}" cy="${cy}" r="${R}" fill="none" stroke="${fd.on ? "var(--on)" : "var(--line2)"}" stroke-width="${fd.on ? 4 : 3}"><title>поле катушки: ${esc(fd.word)}</title></circle>`;
+    if (fd.on) for (let k = 0; k < 6; k++) {
+      const a = -90 + 30 + k * 60, r = a * Math.PI / 180, px = x0 + R * Math.cos(r), py = cy + R * Math.sin(r);
+      s += `<path d="M -6 -5 L 6 0 L -6 5 Z" fill="var(--on)" transform="translate(${px.toFixed(1)} ${py.toFixed(1)}) rotate(${a + (fd.st === "+" ? 90 : -90)})"/>`;
+    }
+    // внутри колеса: откуда режим, роль, способ, шум; обороты; поле
+    s += T(x0, cy - 62, 11, esc(md.live ? src.word : "план"), 'fill="var(--mut)" letter-spacing=".04em"');
+    s += T(x0, cy - 40, 17, `${md.icon} ${md.word}`, `font-weight="700" fill="var(--${md.role === "gen" ? "gen" : md.role === "abs" ? "abs" : "mut"})"`);   // цвет роли — вместе со значком и словом
+    if (md.way) s += T(x0, cy - 20, 13, esc(md.way));
+    if (md.noise) s += T(x0, cy - 3, 11.5, `шум: ${esc(noiseLabel(md.noise))}`, 'fill="var(--mut)"');
+    s += T(x0, cy + 26, 16, esc(sp.main), `font-weight="700"${sp.on ? "" : ' fill="var(--mut)"'}`);
+    if (sp.sub) s += T(x0, cy + 43, 11, esc(sp.sub), 'fill="var(--mut)"');
+    s += T(x0, cy + 70, 14, `поле${fd.on ? " " : ": "}${esc(fd.word)}`, fd.on ? 'font-weight="700" fill="var(--on)"' : 'fill="var(--mut)"');
+    // агент катушки — под колесом, отдельно от групп: он не считает, а включает поле
+    const ca = fd.ag, cOff = ca && !ca.alive, planF = L ? (L.field || {})[ws] : null;
+    const cText = !ca ? "⚙ катушка: агента нет" : `⚙ №${ca.id} катушка · ${ca.alive ? "✓ поле " + fd.word : "✗ нет связи"}${planF && ca.alive && planF !== fd.word ? ` (план ${esc(planF)})` : ""}`;
+    s += `<g ${ca ? `data-act="agent" data-mac="${ca.mac}"` : ""}><title>агент катушки колеса ${w}: включает поле, в группы не входит</title>
+      <rect x="${x0 - 100}" y="${cy + R + 40}" width="200" height="30" rx="6" fill="var(--card)" stroke="${cOff ? "var(--bad)" : ca ? "var(--ink)" : "var(--line2)"}" stroke-width="1.4" ${ca && !cOff ? "" : 'stroke-dasharray="4 3"'}/>
+      ${T(x0, cy + R + 60, 13, esc(cText), cOff ? 'fill="var(--bad)"' : ca ? "" : 'fill="var(--mut)"')}</g>`;
     // агенты по ободу подгруппами: дуга над каждой с буквой и счётом «сколько из скольких делают главное»
     const n = Math.max(macs.length, 1), step = 2 * Math.PI / n;
     let i0 = 0;
@@ -488,34 +561,39 @@ function renderPic(d) {
       const i1 = i0 + g.macs.length - 1, gs = groupState(d, g.macs);
       const a0 = -Math.PI / 2 + i0 * step - step * 0.35, a1 = -Math.PI / 2 + i1 * step + step * 0.35;
       const dash = gs.k === 1 ? 'stroke-dasharray="6 4"' : gs.k >= 2 ? 'stroke-dasharray="2 4"' : "";
-      if (macs.length > 1) s += `<path d="${arcPath(x0, cy, R + 21, a0, a1)}" fill="none" stroke="var(--line2)" stroke-width="2" ${dash}/>`;
-      const am = (a0 + a1) / 2, lx = x0 + (R + 34) * Math.cos(am), ly = cy + (R + 34) * Math.sin(am);
-      s += `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="middle" font-size="11" fill="var(--ink)"><title>${esc(gs.text)}</title><tspan font-weight="700">${g.letter}</tspan> ${gs.icon} ${gs.cnt[gs.k]}/${g.macs.length}</text>`;
+      if (macs.length > 1) s += `<path d="${arcPath(x0, cy, R + 25, a0, a1)}" fill="none" stroke="var(--line2)" stroke-width="2" ${dash}/>`;
+      const am = (a0 + a1) / 2, lx = x0 + (R + 39) * Math.cos(am), ly = cy + (R + 39) * Math.sin(am);
+      s += `<text x="${lx.toFixed(1)}" y="${(ly + 4).toFixed(1)}" text-anchor="middle" font-size="12" fill="var(--ink)"><title>${esc(gs.text)}</title><tspan font-weight="700">${g.letter}</tspan> ${gs.icon} ${gs.cnt[gs.k]}/${g.macs.length}</text>`;
       g.macs.forEach((m, j) => {
         const a = agentById(d, m), ang = -Math.PI / 2 + (i0 + j) * step, px = x0 + R * Math.cos(ang), py = cy + R * Math.sin(ang), v = a.values || {};
         const st = stateOf(d, a), off = st.k === 3, badges = sensBadges(a);
         const sub = off ? agoShort(a.age) : v.temp != null ? Math.round(v.temp) + "°" : "";
         s += `<g data-act="agent" data-mac="${m}"><title>${esc(nameOf(d, m))} · группа ${g.letter}: ${esc(st.word)}${v.temp != null ? ", " + fmt(v.temp, 1) + " °C" : ""}${badges.length ? ", датчики: " + badges.join(" ") : ""}</title>
-          <circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="17" fill="var(--card)" stroke="${off ? "var(--bad)" : "var(--ink)"}" stroke-width="1.6" ${off ? 'stroke-dasharray="3 2"' : ""}/>
-          <text x="${px.toFixed(1)}" y="${(py + 1).toFixed(1)}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">${a.id || "?"}</text>
-          <text x="${px.toFixed(1)}" y="${(py + 12).toFixed(1)}" text-anchor="middle" font-size="9" fill="${off ? "var(--bad)" : "var(--mut)"}">${st.icon} ${sub}</text>
-          ${badges.length ? `<text x="${(px + 12).toFixed(1)}" y="${(py - 11).toFixed(1)}" font-size="8" font-weight="700" fill="var(--ink)">${badges.join("")}</text>` : ""}</g>`;
+          <circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="19" fill="var(--card)" stroke="${off ? "var(--bad)" : "var(--ink)"}" stroke-width="1.6" ${off ? 'stroke-dasharray="3 2"' : ""}/>
+          <text x="${px.toFixed(1)}" y="${(py + 1).toFixed(1)}" text-anchor="middle" font-size="13.5" font-weight="700" fill="var(--ink)">${a.id || "?"}</text>
+          <text x="${px.toFixed(1)}" y="${(py + 13).toFixed(1)}" text-anchor="middle" font-size="9.5" fill="${off ? "var(--bad)" : "var(--mut)"}">${st.icon} ${sub}</text>
+          ${badges.length ? `<text x="${(px + 13).toFixed(1)}" y="${(py - 12).toFixed(1)}" font-size="8.5" font-weight="700" fill="var(--ink)">${badges.join("")}</text>` : ""}</g>`;
       });
       i0 = i1 + 1;
     }
   }
   // измерители — между колёсами
   const st = staticList(d);
-  s += `<text x="${W / 2}" y="${cy - R - 4}" text-anchor="middle" font-size="12" fill="var(--mut)">◆ измерители</text>`;
+  s += `<text x="${W / 2}" y="${cy - R - 2}" text-anchor="middle" font-size="12" fill="var(--mut)">◆ измерители</text>`;
   st.slice(0, 4).forEach((a, i) => {
-    const y = cy - R + 20 + i * 42, v = a.values || {}, sv = (d.static || []).find(x => x.mac === a.mac), sw = staticWord(d, a);
+    const y = cy - R + 24 + i * 46, v = a.values || {}, sv = (d.static || []).find(x => x.mac === a.mac), sw = staticWord(d, a);
     const what = `${sw.icon} ${sw.word}`;
     s += `<g data-act="agent" data-mac="${a.mac}"><title>${esc(nameOf(d, a.mac))} — ${esc(devName(a))}: ${esc(sv && sv.text || what)}</title>
-      <rect x="${W / 2 - 60}" y="${y - 14}" width="120" height="34" rx="6" fill="var(--card)" stroke="${alive(a.status) ? "var(--ink)" : "var(--bad)"}" ${alive(a.status) ? "" : 'stroke-dasharray="3 2"'}/>
-      <text x="${W / 2}" y="${y - 1}" text-anchor="middle" font-size="11" font-weight="700" fill="var(--ink)">${a.dev === "phone" ? "📱 " : ""}№${a.id || "?"} ${a.dev === "phone" ? "телефон" : sensBadges(a).join("") || "А"}${v.temp != null ? " " + Math.round(v.temp) + "°" : ""}</text>
-      <text x="${W / 2}" y="${y + 13}" text-anchor="middle" font-size="10" fill="var(--${sw.cls === "mut" ? "mut" : sw.cls})">${esc(what.length > 24 ? what.slice(0, 23) + "…" : what)}</text></g>`;
+      <rect x="${W / 2 - 56}" y="${y - 15}" width="112" height="36" rx="6" fill="var(--card)" stroke="${alive(a.status) ? "var(--ink)" : "var(--bad)"}" ${alive(a.status) ? "" : 'stroke-dasharray="3 2"'}/>
+      <text x="${W / 2}" y="${y - 1}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--ink)">${a.dev === "phone" ? "📱 " : ""}№${a.id || "?"} ${a.dev === "phone" ? "телефон" : sensBadges(a).join("") || "А"}${v.temp != null ? " " + Math.round(v.temp) + "°" : ""}</text>
+      <text x="${W / 2}" y="${y + 14}" text-anchor="middle" font-size="10.5" fill="var(--${sw.cls === "mut" ? "mut" : sw.cls})">${esc(what.length > 20 ? what.slice(0, 19) + "…" : what)}</text></g>`;
   });
   if (!st.length) s += `<text x="${W / 2}" y="${cy}" text-anchor="middle" font-size="11" fill="var(--mut)">нет</text>`;
+  // агент моторов — на раме, между колёсами внизу
+  const ma = ((MOTS || {}).agents || []).find(x => x.alive) || ((MOTS || {}).agents || [])[0], mOff = ma && !ma.alive;
+  s += `<g ${ma ? `data-act="agent" data-mac="${ma.mac}"` : ""}><title>агент моторов: крутит оба колеса, на неподвижной раме</title>
+    <rect x="${W / 2 - 56}" y="${cy + R + 40}" width="112" height="30" rx="6" fill="var(--card)" stroke="${mOff ? "var(--bad)" : ma ? "var(--ink)" : "var(--line2)"}" stroke-width="1.4" ${ma && !mOff ? "" : 'stroke-dasharray="4 3"'}/>
+    ${T(W / 2, cy + R + 60, 12.5, ma ? `⚙ №${ma.id} моторы ${mOff ? "✗" : "✓"}` : "⚙ моторов нет", mOff ? 'fill="var(--bad)"' : ma ? "" : 'fill="var(--mut)"')}</g>`;
   setHTML($("pic"), s + `</svg>`);
 }
 
@@ -543,6 +621,47 @@ function baseLine(s) {
   else how = `<span class="ok">✓ годен</span>`;
   return `эталон ${when} · ${mins} мин · окон ${b.n}${b.of > b.n ? ` из ${b.of}` : ""} · ${how}`;
 }
+// ---------- статика на основном экране: Гаусс, спектр и колебания выбранного датчика за 10 с (раз в 3 с) ----------
+// Полный разбор — окно «∿ вживую» (оси, окна 10 с … 15 мин, события) и «◆ статика подробно» (против эталона)
+const SV = { mac: null, data: null, busy: false, ax: "|a|" };
+async function svTick() {
+  if (!D || SV.busy || document.hidden || (dlg && ["live", "frame"].includes(dlg.kind))) return;
+  const st = staticList(D);
+  if (!st.length) { SV.data = null; return; }
+  if (!SV.mac || !st.some(a => a.mac === SV.mac)) SV.mac = (st.find(a => alive(a.status)) || st[0]).mac;
+  SV.busy = true;
+  try { SV.data = await getJSON(`/api/static/live?mac=${encodeURIComponent(SV.mac)}&sec=10`); }
+  catch (e) { SV.data = { ok: false, error: e.message }; }
+  finally { SV.busy = false; }
+  renderStatic(D);
+}
+setInterval(svTick, 3000);
+function svHTML(d) {
+  const st = staticList(d);
+  if (!st.length) return "";
+  const r = SV.data, ax = SV.ax;
+  const pick = st.length > 1 ? `<span class="seg">${st.map(a => `<button class="${a.mac === SV.mac ? "sel" : ""}" data-act="svmac" data-mac="${a.mac}">${a.dev === "phone" ? "📱" : "◆"} ${nameOf(d, a.mac)}</button>`).join("")}</span>` : "";
+  const axes = `<span class="seg">${["x", "y", "z", "|a|"].map(c => `<button class="${c === ax ? "sel" : ""}" data-act="svax" data-v="${c}">${c}</button>`).join("")}</span>`;
+  const btns = `<span class="sp"></span><button class="btn tiny" data-act="live" data-mac="${SV.mac}" title="все оси, окна до 15 минут, события — каждую секунду">∿ вживую</button><button class="btn tiny" data-act="frame" data-url="/acc" data-title="◆ Статика подробно" title="спектры против коридора эталона, события, запись эталона">◆ подробно</button>`;
+  const head = `<div class="row small">${pick}${axes}`;
+  if (!r || r.ok === false || !r.stats) return `${head}<span class="mut">${r && r.error ? "✗ " + esc(r.error) : "∩ жду данные датчика…"}</span>${btns}</div>`;
+  const s = r.stats[ax] || {}, hs = (r.hist || {})[ax], U = r.unit || "мg", sd = s.sd || 0;
+  let g1 = "", g2 = "", g3 = "";
+  if (hs && hs.n.length > 1) {                          // распределение отклонений от среднего и гаусс того же разброса
+    const e = hs.edges, ctr = e.slice(0, -1).map((v, i) => (v + e[i + 1]) / 2), tot = hs.n.reduce((a, b) => a + b, 0) || 1, bw = e[1] - e[0], sg = sd || 1, gx = [], gy = [];
+    for (let k = 0; k <= 60; k++) { const xv = e[0] + (e[e.length - 1] - e[0]) * k / 60; gx.push(xv); gy.push(tot * bw * Math.exp(-xv * xv / (2 * sg * sg)) / (sg * Math.sqrt(2 * Math.PI))); }
+    g1 = chart([{ x: ctr, y: hs.n, col: LCOL[ax][0], bars: true }, { x: gx, y: gy, col: "var(--ink)", dash: "4 3", wd: 1 }], { title: `∩ Гаусс ${ax}, ${U} (пунктир — гаусс)`, xlabel: U, w: 330, h: 125 });
+  }
+  if (r.spec && r.spec[ax]) g2 = chart([{ x: r.spec.f, y: r.spec[ax], col: LCOL[ax][0] }], { title: `спектр ${ax}, ${r.spec_unit || "мкg/√Гц"}`, logx: true, logy: true, xlabel: "Гц", w: 330, h: 125 });
+  if (r.wave && r.wave[ax]) {
+    const w = r.wave, m = s.mean || 0;
+    g3 = chart([{ x: w.t, y: w[ax].m.map(v => v - m), lo: w[ax].lo.map(v => v - m), hi: w[ax].hi.map(v => v - m), col: LCOL[ax][0] }],
+      { title: `колебания ${ax}, ${U} — 10 с`, xlabel: "с", sym: true, hlines: sd ? [{ y: 3 * sd, label: "+3σ" }, { y: -3 * sd, label: "−3σ" }] : [], w: 330, h: 125 });
+  }
+  const ev = (r.conds || []).length ? `<span class="warn">◐ ${esc(r.conds[0].text || r.conds[0].kind)}</span>` : (r.knocks || []).length ? `<span class="warn">◐ толчков за 10 с: ${r.knocks.length}</span>` : `<span class="ok">✓ без толчков</span>`;
+  return `${head}<span><b>${gaussWord(s)}</b> · СКО ${fx(sd, 3)} ${U} · асимм. ${fx(s.skew, 2)} · эксцесс ${fx(s.kurt, 2)} · ${ev}</span>${btns}</div>
+    <div class="svgrid" data-act="live" data-mac="${SV.mac}" title="нажмите — окно «вживую»: все оси, окна до 15 минут, события">${g1}${g2}${g3}</div>`;
+}
 function renderStatic(d) {
   const st = staticList(d);
   if (!st.length) { setHTML($("stat"), `<div class="stat"><div class="row"><b class="mut">◆ статика</b><span class="small mut">измерителей нет — окно агента → «→ в измерители (статика)»</span></div></div>`); return; }
@@ -562,50 +681,77 @@ function renderStatic(d) {
   if (rec) ctl = `<span class="small">⏺ пишется эталон ${fmtDur(Math.max(0, Date.now() / 1000 - rec.t0))} из ${fmtDur(rec.t1 - rec.t0)}</span><div class="bar" style="width:90px"><i style="width:${Math.min(100, 100 * (Date.now() / 1000 - rec.t0) / Math.max(1, rec.t1 - rec.t0))}%"></i></div><button class="btn sm" data-act="basestop">закончить</button>${(rec.busy || []).length ? `<span class="small warn">◐ считали ${esc(rec.busy.join(", "))} — эталон будет не чистый</span>` : ""}`;
   else if (baseAsk) ctl = `<span class="ask small">записать эталон ${baseAsk} мин? ${busy.length ? `<span class="bad">считают ${esc(busy.join(", "))} — он будет не чистый.</span>` : "все стоят."} <button class="btn sm go" data-act="baseyes">✓ да</button> <button class="btn sm" data-act="baseno">✗ нет</button></span>`;
   else ctl = `<span class="small mut">◆ эталон</span><span class="seg">${[1, 3, 5].map(n => `<button data-act="base" data-min="${n}" ${busy.length ? `title="сначала ■ Всё стоп: считают ${esc(busy.join(", "))}"` : ""}>${n} мин</button>`).join("")}</span>`;
-  setHTML($("stat"), `<div class="stat"><div class="row"><b class="tm2 ${V.cls}">${V.icon} ${V.word}</b>${tipBtn("static", "вывод статики")}<span class="small mut">${esc(sv.what || "")}</span><span class="sp"></span>
-      <button class="btn sm" data-act="live" data-mac="${first}" title="колебания, Гаусс, спектр — каждую секунду">∿ вживую</button><a class="btn sm" href="/acc" target="acc" title="спектры против коридора эталона, события">подробно ↗</a></div>
+  setHTML($("stat"), `<div class="stat"><div class="row"><b class="tm2 ${V.cls}">${V.icon} ${V.word}</b>${tipBtn("static", "вывод статики")}<span class="small mut">${esc(sv.what || "")}</span></div>
     ${rows}${notes}${warn}
-    <div class="row small"><span>${baseLine(s0)} ${tipBtn("base", "эталон шума")}</span><span class="sp"></span>${ctl}</div></div>`);
+    ${svHTML(d)}
+    <div class="row small baserow"><span class="bl" title="${esc(baseLine(s0).replace(/<[^>]+>/g, ""))}">${baseLine(s0)}</span>${tipBtn("base", "эталон шума")}<span class="sp"></span>${ctl}</div></div>`);
 }
 
-// ---------- «сейчас»: таймер шага и живые итоги ----------
+// ---------- итоги: простые, температура, последняя программа (строки плашки) ----------
 // Простых за шаг: по общей скорости за измеренное время (счётчики агентов — накопительные, в группе — у мастера)
 function primesInRun(r) { const g = (r.gen || {})["все"] || {}; return r.t1 && r.t0 && g.pr_s != null ? Math.round(g.pr_s * (r.t1 - r.t0)) : 0; }
-function renderNow(d) {
-  const p = d.program, running = p && p.state === "running" && p.now;
-  const targets = prog && prog.targets || [], live = targets.map(m => d.gen[m] || {});
-  const prStep = live.reduce((s, g) => s + (g.run ? (g.pr || 0) : 0), 0), rate = live.reduce((s, g) => s + (g.run ? ((g.rate || {}).g_pr_s || 0) : 0), 0);
-  const prDone = prog ? (prog.runs || []).reduce((s, r) => s + primesInRun(r), 0) : 0;
+// Температура агентов строкой: размах, предел, кто у предела
+function tempLine(d) {
   const temps = d.agents.filter(a => alive(a.status) && !isStatic(d, a) && (a.values || {}).temp != null).map(a => a.values.temp);
   const hot = d.agents.filter(a => alive(a.status) && (a.values || {}).ts).map(a => nameOf(d, a.mac));
-  const tline = temps.length ? `${fmt(Math.min(...temps), 0)}–${fmt(Math.max(...temps), 0)} °C · предел ${P.tmax} °C${hot.length ? ` · <span class="warn">${ICONS.hot} у предела: ${esc(hot.join(", "))}</span>` : ""}` : "—";
-  const stat = "";                                      // статика — своей карточкой выше (renderStatic)
-  if (!running) {
-    const last = prog && (prog.runs || []).slice(-1)[0];
-    setHTML($("now"), `<div class="now"><div class="kv"><span>сейчас</span><b>${p && p.state === "running" ? "программа начинается" : "программа не идёт"}</b>
-      ${prog ? `<span>последняя</span><b>№${prog.id} «${esc((prog.program || {}).name || "")}» · ${esc(stateWord(prog.state))} · шагов ${(prog.runs || []).length} · простых ${fmt(prDone)}</b>` : ""}
-      ${last ? `<span>последний шаг</span><b>${esc(last.name)} · ${fmt(primesInRun(last))} простых</b>` : ""}
-      <span>температура</span><b>${tline}</b>${stat}${hwRows()}</div></div>`);
-    return;
-  }
-  const n = p.now, t0 = n.t_meas || n.t0, tot = (n.minutes || 0) * 60, el2 = Math.max(0, Date.now() / 1000 - t0), left = Math.max(0, tot - el2);
-  const sum = w => live.reduce((s, g, i) => s + ((d.compose.wheels || {})[targets[i]] === w && g.run ? (g.pr || 0) : 0), 0);
-  // фаза шага словами: эталон · отдых · установление (агенты принимают настройку) · измерение · ждём итоги
-  const phase = n.baseline ? "◆ пишется эталон" : n.rest ? `${ICONS.rest} отдых перед шагом` : !n.t_meas ? "⏳ установление: агенты принимают настройку" : left > 0 ? "▶ измерение" : n.agent ? "☑ ждём итоги агентов" : "▶ измерение";
-  setHTML($("now"), `<div class="now">
-    <div class="row small"><span class="mut">шаг ${n.n} из ${n.of}${n.control ? " · контроль" : ""}${n.confirm ? " · проверка аномалии" : ""}${n.agent ? " · на агенте" : ""}${n.ro ? ` · ${ICONS.radio} без радио` : ""}</span><span class="sp"></span><span class="mut">${esc(n.name)}</span></div>
-    <div class="row"><span class="tm">${n.rest || !n.t_meas ? phase.split(" ")[0] : fmtDur(left)}</span><span class="small">${phase}</span><div class="bar" style="flex:1"><i style="width:${n.rest || !n.t_meas ? 0 : Math.min(100, 100 * el2 / Math.max(tot, 1))}%"></i></div></div>
-    <div class="kv"><span>простых за шаг</span><b>${fmt(prStep)} <span class="mut small">(К1 ${fmt(sum("1"))} · К2 ${fmt(sum("2"))})</span> · ${fmt(rate, 1)}/с</b>
-      <span>за программу</span><b>${fmt(prDone + prStep)} простых · шагов ${p.done} из ${p.total} · аномалий ${p.anomalies} · испорчено ${p.spoiled}</b>
-      <span>температура</span><b>${tline}</b>${stat}${hwRows()}</div></div>`);
+  return temps.length ? `${fmt(Math.min(...temps), 0)}–${fmt(Math.max(...temps), 0)} °C · предел ${P.tmax} °C${hot.length ? ` · <span class="warn">${ICONS.hot} у предела: ${esc(hot.join(", "))}</span>` : ""}` : "—";
 }
+// Последняя программа одной строкой (для плашки, когда ничего не идёт)
+function lastProgLine() {
+  if (!prog) return "";
+  const prDone = (prog.runs || []).reduce((s, r) => s + primesInRun(r), 0);
+  return `последняя программа №${prog.id} «${esc((prog.program || {}).name || "")}» · ${esc(stateWord(prog.state))} · шагов ${(prog.runs || []).length} · простых ${fmt(prDone)}`;
+}
+// Итоги идущей программы одной строкой (для плашки): простых за шаг по колёсам, за программу, температура
+function runLine(d) {
+  const p = d.program, targets = prog && prog.targets || [], live = targets.map(m => d.gen[m] || {});
+  const prStep = live.reduce((s, g) => s + (g.run ? (g.pr || 0) : 0), 0), rate = live.reduce((s, g) => s + (g.run ? ((g.rate || {}).g_pr_s || 0) : 0), 0);
+  const prDone = prog ? (prog.runs || []).reduce((s, r) => s + primesInRun(r), 0) : 0;
+  const sum = w => live.reduce((s, g, i) => s + ((d.compose.wheels || {})[targets[i]] === w && g.run ? (g.pr || 0) : 0), 0);
+  return `за шаг <b>${fmt(prStep)}</b> простых (К1 ${fmt(sum("1"))} · К2 ${fmt(sum("2"))}) · ${fmt(rate, 1)}/с · за программу ${fmt(prDone + prStep)} · шагов ${p.done} из ${p.total} · аномалий ${p.anomalies} · испорчено ${p.spoiled} · температура ${tempLine(d)}`;
+}
+// ---------- плашка сверху: часы, что идёт сейчас, колёса таблицей (режим, вращение, поле, связь) ----------
+function clockText() { const t = new Date(); return { hm: t.toLocaleTimeString("ru-RU"), day: t.toLocaleDateString("ru-RU", { weekday: "short", day: "2-digit", month: "2-digit" }) }; }
+function renderInfo(d) {
+  const p = d.program, n = p && p.state === "running" && p.now, c = d.compose || {}, ck = clockText();
+  let cur, det, tmr = "", bar = "";
+  if (n) {
+    const t0 = n.t_meas || n.t0, tot = (n.minutes || 0) * 60, el2 = Math.max(0, Date.now() / 1000 - t0), left = Math.max(0, tot - el2);
+    // фаза шага словами: эталон · отдых · установление (агенты принимают настройку) · измерение · ждём итоги
+    const phase = n.baseline ? "◆ пишется эталон" : n.rest ? `${ICONS.rest} отдых перед шагом` : !n.t_meas ? "⏳ установление: агенты принимают настройку" : left > 0 ? "▶ измерение" : n.agent ? "☑ ждём итоги агентов" : "▶ измерение";
+    const meas = !n.rest && n.t_meas;
+    cur = `${ICONS.gen} ${p.id === P.diagId ? "диагностика" : "программа №" + p.id} · шаг ${n.n} из ${n.of}${n.control ? " · контроль" : ""}${n.confirm ? " · проверка аномалии" : ""}`;
+    det = `${phase} · ${esc(n.name)}${n.agent ? " · на агенте" : ""}${n.ro ? ` · ${ICONS.radio} без радио` : ""}`;
+    tmr = meas ? fmtDur(left) : phase.split(" ")[0];
+    bar = `<div class="bar"><i style="width:${meas ? Math.min(100, 100 * el2 / Math.max(tot, 1)) : 0}%"></i></div>`;
+  } else if (c.state === "run") { cur = `${ICONS.gen} пуск с пульта`; det = "режим задан на пульте"; }
+  else if (c.state === "quench") { cur = "≋ тушение с пульта"; det = "агенты гасят счёт"; }
+  else { cur = "■ стоит — программа не идёт"; det = "в таблице — план для «▶ Запустить»"; }
+  const sub = n ? runLine(d) : `${lastProgLine() ? lastProgLine() + " · " : ""}температура ${tempLine(d)}`;
+  const rows = ["1", "2"].map(w => {
+    const md = wheelMode(d, w), sp = spinWords(spinOf(d, w)), fd = fieldOf(w), macs = wheelMacs(d, w);
+    const on = macs.filter(m => alive(agentById(d, m).status)).length;
+    return `<b>колесо ${w}</b>
+      <span><b style="color:var(--${md.role === "gen" ? "gen" : md.role === "abs" ? "abs" : "mut"})">${md.icon} ${md.word}</b>${md.short ? ` · ${esc(md.short)}` : ""}${md.noise ? ` <span class="mut">· ${esc(noiseLabel(md.noise))}</span>` : ""}</span>
+      <span class="${sp.on ? "" : "mut"}">${esc(sp.main)}</span>
+      <span class="${fd.on ? "fon" : "mut"}">${fd.on ? "⇉ " : ""}${esc(fd.word)}</span>
+      <span class="${!macs.length ? "mut" : on === macs.length ? "ok" : on ? "warn" : "bad"}">${on ? "●" : ICONS.off} ${on}/${macs.length}</span>`;
+  }).join("");
+  setHTML($("info"), `<div class="info">
+    <div class="clk"><b id="clock">${ck.hm}</b><span class="small mut" id="day">${ck.day}</span></div>
+    <div class="ist"><div class="row"><span class="cur">${cur}</span><span class="sp"></span>${tmr ? `<b class="tmr" title="до конца измерения">${tmr}</b>` : ""}</div>${bar}<div class="small mut" title="${esc(det.replace(/<[^>]+>/g, ""))}">${det}</div><div class="small" title="${esc(sub.replace(/<[^>]+>/g, ""))}">${sub}</div></div>
+    <div class="wtab"><span></span><span class="hd">${n ? "режим шага" : "режим (план)"}</span><span class="hd">вращение</span><span class="hd">поле</span><span class="hd">связь</span>${rows}</div></div>`);
+}
+setInterval(() => { const el = $("clock"); if (el) { const ck = clockText(); el.textContent = ck.hm; $("day").textContent = ck.day; } }, 1000);
 function restWord() { return ({ none: "без отдыха", fixed: `отдых ${P.restMin} мин`, stable: "отдых до стабилизации", below: `отдых до ${P.restBelow} °C` })[P.restMode] || ""; }
 function renderMidRows() {
-  setHTML($("fields"), optsHTML("P", "fields", FIELDS, P.fields) + `<span class="small mut">в шаге поле включают агенты катушек (⚙ в карточке колеса); на отдыхе и в конце — выкл</span>`);
-  setHTML($("setline"), `<span class="mut">5 · шаг ${tipBtn("step", "шаг")}:</span> <b>${fmt(P.minutes, 1)} мин</b>${P.agentStep ? " · на агенте" : ""}${P.agentStep && P.radioOff ? " · Wi-Fi выкл, где эфир не нужен" : ""}${P.quiet ? " · молчание" : ""}
-    · греться до <b>${P.tmax} °C</b> · ${restWord()} · повторов ${P.repeat}${P.shuffle ? " · случайно" : ""}${P.idleStep ? " · контроль «все стоят»" : ""}${P.baseline ? ` · эталон ${P.baseline} мин` : ""}
-    · ${P.again ? `<b>❗ отклонение статики → повторить шаг ×${P.again}</b>` : "❗ отклонение статики → только тревога"}
-    <span class="sp"></span><button class="btn sm" data-act="exper">изменить…</button>`);
+  setHTML($("fields"), optsHTML("P", "fields", FIELDS, P.fields));
+  // одной строкой (полностью — в подсказке): высота средней колонки нужна рисунку
+  const txt = `<b>${fmt(P.minutes, 1)} мин</b>${P.agentStep ? " · на агенте" : ""}${P.agentStep && P.radioOff ? " · Wi-Fi выкл, где эфир не нужен" : ""}${P.quiet ? " · молчание" : ""}
+    · греться до <b>${P.tmax} °C</b> · ${P.again ? `<b>❗ отклонение статики → повторить шаг ×${P.again}</b>` : "❗ отклонение статики → только тревога"}
+    · ${restWord()} · повторов ${P.repeat}${P.shuffle ? " · случайно" : ""}${P.idleStep ? " · контроль «все стоят»" : ""}${P.baseline ? ` · эталон ${P.baseline} мин` : ""}`;
+  setHTML($("setline"), `<span class="mut">5 · шаг ${tipBtn("step", "шаг")}:</span> <span class="ell" title="${esc(txt.replace(/<[^>]+>/g, "").replace(/\s+/g, " "))}">${txt}</span>
+    <button class="btn sm" data-act="exper">изменить…</button>`);
 }
 
 // ---------- матрица → шаги ----------
@@ -712,14 +858,248 @@ function addMatrix() {
   P.seq = P.seq.concat(steps); save(); ribbonMode = "plan"; renderAll(); note(`✓ добавлено ${steps.length} шагов`, "ok");
 }
 function restSeconds() { return P.restMode === "fixed" ? P.restMin * 60 : P.restMode === "none" ? 0 : Math.min(P.restMax * 60, 180); }
-function seqEstimate() { return P.seq.length * P.repeat * (P.minutes * 60 + 10 + restSeconds()) + P.baseline * 60; }
+const STEP_OV = 3;                                    // на шаг сверх установления: настройка, подтверждение, итоги — около 3 с
+function stepSec(s) { return s.sec || P.minutes * 60; }
+function seqEstimate() {
+  return P.repeat * P.seq.reduce((t, s) => t + stepSec(s) + (s.settle_s != null ? s.settle_s : 10) + STEP_OV + (s.rest === false ? 0 : restSeconds()), 0) + P.baseline * 60;
+}
+
+// Редкое — одним окном: живая схема, обслуживание, прежние экраны (окнами поверх установки)
+const MORE = [
+  ["frame", "/flow", "↻ Как работает", "живая схема: потоки данных установки и протокол группы по шагам, замедленно"],
+  ["diag", "", "✚ Диагностика", "проверить установку: связь, слышимость, скорость, температура, память, датчики"],
+  ["fw", "", "⇪ Прошивка", "обновить агентов по Wi-Fi, новые платы — по USB"],
+  ["frame", "/pult", "⚙ Пульт", "логические группы 1–4 и наборы, пуск / стоп / тушение, свои параметры агентов, журнал"],
+  ["frame", "/watch", "◉ Наблюдение", "статика и поток простых крупно — второй экран, читается издалека"],
+  ["frame", "/old", "☷ Прежняя панель", "все счётчики, графики и параметры агентов — для отладки"],
+  ["frame", "/docs/", "? Документы", "как всё устроено, схемы подключения, параметры, замеры"],
+];
+
+// ---------- серия опыта: вложенные циклы ----------
+// Уровни — что перебираем. Порядок сверху вниз — вложенность: верхний (внешний) меняется реже всех, нижний
+// (внутренний) — каждый сет. Сет — один шаг программы с одним набором параметров. Вращение переключать дороже
+// всего (колёсам нужен разгон) — его разумно ставить выше. Расстояние между колёсами задаётся руками на всю серию.
+const ROLE_PAIR = { g0: ["gen", "idle"], "0g": ["idle", "gen"], gg: ["gen", "gen"], ga: ["gen", "abs"], ag: ["abs", "gen"] };
+const ROT_SHORT = { stop: "■", same: "⟳⟳", back: "⟲⟲", opp: "⟳⟲", only1: "⟳ К1", only2: "⟳ К2" };
+const SER_LEVELS = {
+  rot: { icon: "⟳", title: "вращение колёс", opts: [["stop", "■ стоят"], ["same", "⟳⟳ вместе"], ["back", "⟲⟲ вместе назад"], ["opp", "⟳⟲ навстречу"], ["only1", "⟳ только колесо 1"], ["only2", "⟳ только колесо 2"]] },
+  field: { icon: "⇉", title: "поле катушек (К1 К2)", opts: FIELDS },
+  team: { icon: "⋈", title: "совместная работа", opts: WAYS_GEN },
+  noise: { icon: "∿", title: "шум", opts: NOISES.map(n => [n[0], `${NOISE_ICON[n[0]] || "·"} ${n[1]}`, n[2], n[3] || !n[4]]) },
+  roles: { icon: "⇄", title: "излучение / поглощение", opts: Object.keys(ROLE_PAIR).map(k => [k, ROLE_PAIR[k].map((r, i) => `К${i + 1} ${ICONS[r]}`).join(" · "),
+           ROLE_PAIR[k].map((r, i) => `колесо ${i + 1} ${r === "gen" ? "генерирует" : r === "abs" ? "поглощает (все со всеми)" : "стоит"}`).join(", ")]) },
+};
+const SER_DEF = { order: ["rot", "field", "team", "noise", "roles"], sel: { rot: ["stop"], field: ["off"], team: ["solo"], noise: ["rng"], roles: ["gg"] },
+                  speed: "rpm", rpm: 30, pwm: 30, sec: 30, sRot: 15, sMode: 8, sField: 5, rest: "none", gap: "" };
+function ser() {
+  const S = P.series = { ...SER_DEF, ...(P.series || {}) };
+  S.sel = { ...SER_DEF.sel, ...(S.sel || {}) };
+  S.order = S.order.filter(k => SER_LEVELS[k]).concat(Object.keys(SER_LEVELS).filter(k => !S.order.includes(k)));
+  return S;
+}
+const serOk = (k, v) => { const o = SER_LEVELS[k].opts.find(x => x[0] === v); return !!o && !o[3]; };
+function serVals(S, k) { const v = S.sel[k].filter(x => serOk(k, x)); return v.length ? v : [SER_DEF.sel[k][0]]; }
+function optName(k, v) { const o = SER_LEVELS[k].opts.find(x => x[0] === v); return o ? o[1] : v; }
+const NOISE_SHORT = { rng: "⚄ ГСЧ", all: "Σ все", csi: "≋ CSI", csiping: "↯ пинг", adc: "⏚ АЦП", jit: "⧖ RC", bc: "↺+ обр.", bconly: "↺ обр.", acc: "↕ акс.", mag: "🧲 магн." };
+// Короткая подпись для узкого отрезка разметки
+function optShort(k, v) {
+  return k === "rot" ? ROT_SHORT[v] : k === "field" ? fieldName(v).replace(/ /g, "") : k === "team" ? WAY_SHORT[v]
+    : k === "noise" ? NOISE_SHORT[v] || v : ROLE_PAIR[v].map(r => ICONS[r]).join("");
+}
+function speedWord(S) { return S.speed === "zerog" ? "невесомость" : S.speed === "pwm" ? `ШИМ ${S.pwm} %` : `${fmt(S.rpm, 0)} об/мин`; }
+function rotSpec(v, S) {
+  if (v === "stop") return { pair: "same", mode: "off", dir: 1 };
+  const m = S.speed === "zerog" ? { mode: "zerog" } : S.speed === "pwm" ? { mode: "pwm", pwm: Math.round(S.pwm * 10) } : { mode: "rpm", rpm: S.rpm };
+  return { pair: { same: "same", back: "same", opp: "opposite", only1: "only1", only2: "only2" }[v], dir: v === "back" ? -1 : 1, ...m };
+}
+// Сет словами — короткое имя шага (в программе не длиннее 60 знаков)
+function serName(x, S) {
+  const rot = x.rot === "stop" ? "■ стоят" : `${ROT_SHORT[x.rot]} ${S.speed === "zerog" ? "невес." : S.speed === "pwm" ? S.pwm + "%" : fmt(S.rpm, 0)}`;
+  return `${rot} · поле ${fieldName(x.field)} · ${WAY_SHORT[x.team]} · ${noiseName(x.noise)} · ${ROLE_PAIR[x.roles].map((r, i) => `К${i + 1}${ICONS[r]}`).join(" ")}`;
+}
+// Все сеты по порядку вложенности → шаги программы: своё установление по тому, что сменилось, вращение, отдых
+function serBuild(d, S) {
+  const sets = [...product(S.order.map(k => serVals(S, k)))].map(v => Object.fromEntries(S.order.map((k, i) => [k, v[i]])));
+  const steps = [], skipped = [], outer = S.order[0];
+  let prev = null;
+  for (const x of sets) {
+    const [r1, r2] = ROLE_PAIR[x.roles];
+    if (x.noise.startsWith("bc") && r1 !== "abs" && r2 !== "abs") { skipped.push({ x, why: "обратный шум — только с поглотителем" }); continue; }
+    const way = r => r === "gen" ? x.team : r === "abs" ? "all" : "";
+    const st = makeStep(d, r1, r2, way(r1), way(r2), r1 === "gen" ? x.noise : "", r2 === "gen" ? x.noise : "", x.field);
+    if (!st.groups.length) { skipped.push({ x, why: "на колесе нет агентов" }); continue; }
+    // что сменилось с прошлого сета: вращение (разгон колёс) · режим, шум, роли (группы перезапускаются) · только поле
+    const why = !prev ? (x.rot !== "stop" ? "rot" : "mode") : prev.rot !== x.rot ? "rot"
+      : prev.team !== x.team || prev.noise !== x.noise || prev.roles !== x.roles ? "mode" : "field";
+    const rotW = x.rot === "stop" ? "стоят" : `${optName("rot", x.rot)} · ${speedWord(S)}`;
+    Object.assign(st, { name: serName(x, S), sec: S.sec, minutes: S.sec / 60, settle_s: { rot: S.sRot, mode: S.sMode, field: S.sField }[why],
+                        mot: rotSpec(x.rot, S), rest: S.rest === "each" ? null : S.rest === "outer" ? (!prev || prev[outer] !== x[outer]) : false,
+                        set: x, why });
+    st.layers = { ...st.layers, rot: rotW, ...(S.gap !== "" ? { gap: `${S.gap} см` } : {}) };
+    steps.push(st);
+    prev = x;
+  }
+  return { steps: markControls(steps), skipped, sets };
+}
+function serTime(steps) {
+  const rs = restSeconds(), k = P.repeat;
+  const meas = steps.reduce((t, s) => t + s.sec, 0), settle = steps.reduce((t, s) => t + s.settle_s + STEP_OV, 0);
+  const rest = steps.reduce((t, s) => t + (s.rest === false ? 0 : rs), 0);
+  return { meas: meas * k, settle: settle * k, rest: rest * k, total: (meas + settle + rest) * k + P.baseline * 60, one: meas + settle + rest };
+}
+// Сколько даёт сет такой длины: окна статики (10 с, тревога — от 2 подряд) и простых на группу (по живому темпу или ~170/с)
+function serSecNote(d, sec) {
+  const rates = d ? Object.values(d.gen || {}).filter(g => g.run && (g.rate || {}).g_pr_s).map(g => g.rate.g_pr_s) : [];
+  const r = rates.length ? Math.max(...rates) : 170, n = Math.round(r * sec), win = Math.floor(sec / 10);
+  const st = win < 2 ? `<span class="bad">✗ статика не успеет вывод: окон по 10 с — ${win}, тревога — от 2 подряд</span>`
+    : win < 3 ? `<span class="warn">◐ статика на грани: 2 окна по 10 с</span>` : `<span class="ok">✓ статика: ${win} окон по 10 с</span>`;
+  return `${st} · простых ≈ ${fmt(n)} на группу, темп ±${fmt(100 / Math.sqrt(Math.max(n, 1)), 1)} %`;
+}
+function serHTML() {
+  const S = ser();
+  const seg = (act, list, cur) => `<span class="seg">${list.map(([v, lab]) => `<button class="${String(cur) === String(v) ? "sel" : ""}" data-sact="${act}" data-v="${v}">${lab}</button>`).join("")}</span>`;
+  const num = (k, min, max, step, w) => `<input type="number" data-sk="${k}" min="${min}" max="${max}" step="${step || 1}" style="width:${w || 4}em">`;
+  return `<div class="sergrid">
+      <span class="lh">один сет</span><div class="row">${seg("sec", [[10, "10"], [20, "20"], [30, "30"], [40, "40"], [60, "60"]], S.sec)} ${num("sec", 5, 600, 5)} с <span class="small" id="serSecNote"></span></div>
+      <span class="lh">установление</span><div class="row small">после смены вращения ${num("sRot", 0, 120)} с · режима, шума, ролей ${num("sMode", 0, 60)} с · только поля ${num("sField", 0, 60)} с <span class="mut">— не входит в измерение</span></div>
+      <span class="lh">скорость колёс</span><div class="row">${seg("speed", [["rpm", "об/мин"], ["zerog", "невесомость"], ["pwm", "ШИМ"]], S.speed)}
+        <label class="inl" data-sp="rpm">${num("rpm", 1, 110, 1)} об/мин</label><label class="inl" data-sp="pwm">${num("pwm", 5, 100, 5)} %</label>
+        <span class="small mut" data-sp="zerog">обороты подбираются по датчику обода, пока наверху не станет k = 1</span></div>
+      <span class="lh">расстояние между колёсами</span><div class="row">${num("gap", 0, 500, 1, 5)} см <span class="small mut">ставится руками — записывается в каждый сет серии</span></div>
+      <span class="lh">отдых</span><div class="row">${seg("rest", [["none", "нет"], ["outer", "при смене верхнего уровня"], ["each", "перед каждым сетом"]], S.rest)} <span class="small mut" id="serRestNote"></span></div>
+      <span class="lh">повторов серии</span><div class="row">${num("repeat", 1, 50)} <span class="small mut">вся серия целиком, в том же порядке</span></div>
+    </div>
+    <div class="small mut" style="margin:8px 0 4px">Уровни — что перебираем. <b>Сверху вниз — вложенность</b>: верхний меняется реже всех, нижний — каждый сет. Порядок — тащите за ⠿ (или ▲ ▼); варианты — нажатием.</div>
+    <div id="serLev" class="serlev"></div>
+    <div id="serSum" class="sersum"></div>
+    <div id="serStrip"></div>
+    <div id="serPrev"></div>
+    <div class="row" style="margin-top:8px"><button class="btn go" data-sact="apply">⇊ серию в ленту (заменить план)</button><button class="btn" data-sact="append">＋ добавить в конец плана</button>
+      <span class="small mut">случайный порядок выключится — в серии порядок важен</span></div>`;
+}
+function serRender(B) {
+  const S = ser(), d = D;
+  B.querySelectorAll("[data-sact]").forEach(b => { if (["sec", "speed", "rest"].includes(b.dataset.sact)) b.classList.toggle("sel", String(S[b.dataset.sact]) === b.dataset.v); });
+  B.querySelectorAll("[data-sk]").forEach(i => { if (document.activeElement !== i) i.value = i.dataset.sk === "repeat" ? P.repeat : S[i.dataset.sk]; });
+  B.querySelectorAll("[data-sp]").forEach(l => { l.hidden = l.dataset.sp !== S.speed; });
+  B.querySelector("#serSecNote").innerHTML = serSecNote(d, S.sec);
+  B.querySelector("#serRestNote").textContent = S.rest === "none" ? "" : P.restMode === "none" ? "в «опыт…» отдых выключен — отдыха не будет" : `как: ${restWord()} (в «опыт…»)`;
+  if (!d) return;
+  const R = serBuild(d, S), T = serTime(R.steps), N = R.steps.length, avg = N ? T.one / N : 0;
+  // уровни: варианты, сколько их, как часто меняется уровень и сколько смен за проход
+  const ns = S.order.map(k => serVals(S, k).length);
+  setHTML(B.querySelector("#serLev"), S.order.map((k, i) => {
+    const L = SER_LEVELS[k], inner = ns.slice(i + 1).reduce((a, b) => a * b, 1), outerN = ns.slice(0, i + 1).reduce((a, b) => a * b, 1);
+    const info = ns[i] > 1 ? `×${ns[i]} · меняется ${inner === 1 ? "каждый сет" : "каждые " + plural(inner, "сет", "сета", "сетов")} (≈ ${fmtDur(inner * avg)}) · смен за проход ${outerN - 1}`
+      : `не меняется: ${esc(optName(k, serVals(S, k)[0]))}`;
+    return `<div class="slev" data-k="${k}"><span class="sdrag" title="тащить: выше — реже меняется">⠿</span><b class="snum">${i + 1}</b>
+      <div class="sbody"><div class="row"><b>${L.icon} ${L.title}</b><span class="small ${ns[i] > 1 ? "" : "mut"}">${info}</span><span class="sp"></span>
+        <button class="btn tiny" data-sact="up" data-k="${k}" ${i ? "" : "disabled"} title="выше — реже">▲</button><button class="btn tiny" data-sact="down" data-k="${k}" ${i < S.order.length - 1 ? "" : "disabled"} title="ниже — чаще">▼</button></div>
+        <div class="opts">${L.opts.map(([v, name, note, dis]) => `<span class="sopt ${S.sel[k].includes(v) ? "on" : ""} ${dis ? "dis" : ""}" data-sk2="${k}" data-v="${v}" title="${esc(note || "")}">${esc(name)}</span>`).join("")}</div></div></div>`;
+  }).join(""));
+  const rotCh = R.steps.filter(s => s.why === "rot").length;
+  setHTML(B.querySelector("#serSum"), N ? `<b>${ns.join(" × ")} = ${plural(N, "сет", "сета", "сетов")}</b>${R.skipped.length ? ` <span class="warn">(◐ пропущено ${R.skipped.length}: ${esc([...new Set(R.skipped.map(s => s.why))].join("; "))})</span>` : ""}
+      × повторов ${P.repeat} · <b>≈ ${fmtDur(T.total)}</b> <span class="mut">— измерение ${fmtDur(T.meas)} · установление ${fmtDur(T.settle)}${T.rest ? ` · отдых ≈ ${fmtDur(T.rest)}` : ""}${P.baseline ? ` · эталон ${P.baseline} мин` : ""}</span>
+      ${rotCh ? `<div class="small mut">разгонов колёс за проход: ${rotCh} × ${S.sRot} с = ${fmtDur(rotCh * S.sRot)}${S.order.indexOf("rot") > 0 && ns[S.order.indexOf("rot")] > 1 ? " — поднимите «вращение» выше, разгонов станет меньше" : ""}</div>` : ""}`
+    : `<span class="bad">✗ ни одного сета: ${esc([...new Set(R.skipped.map(s => s.why))].join("; ") || "ничего не выбрано")}</span>`);
+  setHTML(B.querySelector("#serStrip"), serStrip(R.steps, S, T));
+  const chg = (s, p, k) => !p || p.set[k] !== s.set[k];
+  setHTML(B.querySelector("#serPrev"), N ? `<div class="small mut" style="margin:6px 0 2px">первые сеты (жирным — что сменилось):</div><table class="t small">${R.steps.slice(0, 8).map((s, i) => {
+    const p = R.steps[i - 1], c = k => chg(s, p, k) ? "b" : "span";
+    return `<tr><td class="num">${i + 1}</td>${S.order.map(k => `<td><${c(k)}>${esc(optName(k, s.set[k]))}</${c(k)}></td>`).join("")}<td class="mut">${S.sec} с + ${s.settle_s} с ${s.why === "rot" ? "разгон" : s.why === "mode" ? "установл." : "поле"}${s.rest !== false ? " · отдых" : ""}${s.control ? " · контроль" : ""}</td></tr>`;
+  }).join("")}${N > 8 ? `<tr><td></td><td colspan="${S.order.length + 1}" class="mut">… ещё ${N - 8}</td></tr>` : ""}</table>` : "");
+}
+// Разметка серии по времени: строка на уровень, отрезок — пока значение уровня не меняется (подпись, если влезает)
+function serStrip(steps, S, T) {
+  if (!steps.length) return "";
+  const W = 1000, rowH = 22, H = S.order.length * rowH + 18, one = T.one || 1;
+  const xs = [], rs = restSeconds();
+  let t = 0;
+  for (const s of steps) { xs.push(t); t += s.sec + s.settle_s + STEP_OV + (s.rest === false ? 0 : rs); }
+  const X = v => (v / one * W).toFixed(1);
+  let out = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;margin-top:6px" role="img" aria-label="разметка серии по времени: уровни и их смены">`;
+  S.order.forEach((k, li) => {
+    let a = 0, n = 0;
+    for (let i = 1; i <= steps.length; i++) {
+      if (i < steps.length && steps[i].set[k] === steps[a].set[k]) continue;
+      const x0 = xs[a], x1 = i < steps.length ? xs[i] : one, w = (x1 - x0) / one * W, lab = optName(k, steps[a].set[k]);
+      const alt = n++ % 2;
+      out += `<rect x="${X(x0)}" y="${li * rowH}" width="${Math.max(1, w - 1).toFixed(1)}" height="${rowH - 3}" rx="3" fill="${alt ? "var(--idle-bg)" : "var(--card)"}" stroke="var(--line2)"><title>${esc(SER_LEVELS[k].title)}: ${esc(lab)}</title></rect>`;
+      if (w > lab.length * 6.2 + 6) out += `<text x="${(+X(x0) + 4).toFixed(1)}" y="${li * rowH + 13}" font-size="11" fill="var(--ink)">${esc(lab)}</text>`;
+      else if (w > 12) { const sh = optShort(k, steps[a].set[k]); out += `<text x="${(+X(x0) + w / 2).toFixed(1)}" y="${li * rowH + 13}" font-size="10" text-anchor="middle" fill="var(--ink)">${esc(w > sh.length * 6 + 2 ? sh : sh.slice(0, Math.max(1, Math.floor(w / 6.5))))}</text>`; }
+      a = i;
+    }
+  });
+  out += `<text x="0" y="${H - 3}" font-size="10" fill="var(--mut)">0</text><text x="${W}" y="${H - 3}" font-size="10" text-anchor="end" fill="var(--mut)">проход ≈ ${fmtDur(one)}${P.repeat > 1 ? ` · ×${P.repeat}` : ""}</text></svg>`;
+  return out;
+}
+function serBind(B) {
+  B.addEventListener("click", e => {
+    const S = ser(), o = e.target.closest(".sopt");
+    if (o) {
+      if (o.classList.contains("dis")) return;
+      const k = o.dataset.sk2, v = o.dataset.v;
+      S.sel[k] = S.sel[k].includes(v) ? S.sel[k].filter(x => x !== v) : SER_LEVELS[k].opts.map(x => x[0]).filter(x => x === v || S.sel[k].includes(x));
+      save(); serRender(B); return;
+    }
+    const b = e.target.closest("[data-sact]");
+    if (!b) return;
+    const a = b.dataset.sact, i = S.order.indexOf(b.dataset.k);
+    if (a === "sec") S.sec = +b.dataset.v;
+    else if (a === "speed" || a === "rest") S[a] = b.dataset.v;
+    else if (a === "up" && i > 0) S.order.splice(i - 1, 0, S.order.splice(i, 1)[0]);
+    else if (a === "down" && i < S.order.length - 1) S.order.splice(i + 1, 0, S.order.splice(i, 1)[0]);
+    else if (a === "apply" || a === "append") {
+      if (!D) return;
+      const R = serBuild(D, S);
+      if (!R.steps.length) { note("✗ серия пуста — отметьте варианты", "bad"); return; }
+      const bad = checkSteps(R.steps); if (bad) { note("✗ " + bad, "bad"); return; }
+      P.seq = a === "apply" ? R.steps : P.seq.concat(R.steps);
+      P.shuffle = false;
+      save(); ribbonMode = "plan"; renderAll();
+      note(`✓ серия: ${plural(R.steps.length, "сет", "сета", "сетов")} × ${P.repeat} в ленте, ≈ ${fmtDur(seqEstimate())}${S.gap !== "" ? ` · расстояние ${S.gap} см` : ""}`, "ok");
+    }
+    save(); serRender(B);
+  });
+  B.addEventListener("change", e => {
+    const k = e.target.dataset.sk;
+    if (!k) return;
+    const S = ser();
+    if (k === "repeat") P.repeat = Math.max(1, Math.min(50, +e.target.value || 1));
+    else if (k === "gap") S.gap = e.target.value === "" ? "" : Math.max(0, +e.target.value);
+    else S[k] = Math.max(+e.target.min || 0, Math.min(+e.target.max || 1e9, +e.target.value || 0));
+    save(); serRender(B); renderAll();
+  });
+  // перетаскивание уровня за ⠿: пальцем и мышью (pointer events — HTML5 drag на планшете не работает)
+  B.addEventListener("pointerdown", e => {
+    const h = e.target.closest(".sdrag");
+    if (!h) return;
+    e.preventDefault();
+    const row = h.closest(".slev"), list = row.parentNode;
+    h.setPointerCapture(e.pointerId);
+    row.classList.add("dragging");
+    const move = ev => {
+      const rows = [...list.querySelectorAll(".slev")].filter(r => r !== row);
+      const at = rows.find(r => { const bb = r.getBoundingClientRect(); return ev.clientY < bb.top + bb.height / 2; });
+      if (at !== row.nextElementSibling) list.insertBefore(row, at || null);
+    };
+    const up = () => {
+      h.removeEventListener("pointermove", move); h.removeEventListener("pointerup", up); h.removeEventListener("pointercancel", up);
+      row.classList.remove("dragging");
+      ser().order = [...list.querySelectorAll(".slev")].map(r => r.dataset.k);
+      list._h = null;                                 // разметка изменилась руками — перерисовать
+      save(); serRender(B);
+    };
+    h.addEventListener("pointermove", move); h.addEventListener("pointerup", up); h.addEventListener("pointercancel", up);
+  });
+}
 
 // ---------- лента шагов ----------
 // Слои шага в три строки: колесо 1, колесо 2 (роль, способ, свой шум у каждого), поле
 function layText(L, coil) {
   if (!L) return "";
-  const one = (k, w) => `К${k} ${ICONS[w.role] || ICONS.idle}${w.way ? " " + WAY_SHORT[w.way] : ""}${w.noise ? ` <span class="mut">· ${esc(w.noise)}</span>` : ""}`;
-  return `${one(1, L.w1)}<br>${one(2, L.w2)}<br><span class="mut">поле ${coil ? esc(coil["1"] + " " + coil["2"]) : "—"}</span>`;
+  const one = (k, w) => `К${k} ${ICONS[w.role] || ICONS.idle}${w.way ? " " + WAY_SHORT[w.way] : ""}${w.noise ? ` <span class="mut">· ${esc(noiseLabel(w.noise))}</span>` : ""}`;
+  return `${L.rot ? `<span>${L.rot === "стоят" ? "■ стоят" : esc(L.rot)}</span><br>` : ""}${one(1, L.w1)}<br>${one(2, L.w2)}<br><span class="mut">поле ${coil ? esc(coil["1"] + " " + coil["2"]) : "—"}${L.gap ? " · между колёсами " + esc(L.gap) : ""}</span>`;
 }
 async function loadProg(d) {
   const p = d.program;
@@ -737,7 +1117,7 @@ function renderRibbon(d) {
   let body = "";
   if (mode === "plan") {
     head += `<span class="small mut">${P.seq.length ? `${P.seq.length} × повторов ${P.repeat} ≈ ${fmtDur(seqEstimate())} · не запущен` : "пусто — добавьте шаги"}</span>`;
-    body = P.seq.map((s, i) => `<div class="step plan ${s.control ? "ctl" : ""}" data-act="seq" title="${esc(s.name)}"><div class="n">${i + 1}${s.control ? " · контроль" : ""}</div><div>${layText(s.layers, s.coil) || esc(s.name)}</div><div class="mut">${plural(s.groups.length, "группа", "группы", "групп")} · ${fmt(P.minutes, 1)} мин</div></div>`).join("")
+    body = P.seq.map((s, i) => `<div class="step plan ${s.control ? "ctl" : ""}" data-act="seq" title="${esc(s.name)}"><div class="n">${i + 1}${s.control ? " · контроль" : ""}</div><div>${layText(s.layers, s.coil) || esc(s.name)}</div><div class="mut">${plural(s.groups.length, "группа", "группы", "групп")} · ${s.sec ? s.sec + " с" : fmt(P.minutes, 1) + " мин"}</div></div>`).join("")
       || `<span class="mut small">Отметьте слои на колёсах и нажмите «＋ шаг» или «⇊ вся матрица»; порядок и контроль — в «шаги…».</span>`;
   } else if (!prog) {
     body = `<span class="mut small">программа не запускалась</span>`;
@@ -781,6 +1161,25 @@ function renderDlg() {
   if (dlg.kind === "exper") {                       // форма: строится раз, иначе перерисовка сбивала бы ввод
     if (!dlg.built) { T.textContent = "Опыт: шаг, температура, порядок"; B.innerHTML = experForm(); bindExper(B); dlg.built = true; }
     syncExper(B);
+    return;
+  }
+  if (dlg.kind === "frame") {                      // подробная страница — окном поверх установки (без её меню)
+    if (!dlg.built) {
+      let { url, title } = dlg.arg;
+      T.textContent = title;
+      dlg.el.classList.add("wide");
+      if (DEMO) {                                    // опубликованная копия: окна — из комплекта, остальное — только на сервере
+        url = { "/flow": "flow.html", "/pult": "pult.html", "/watch": "watch.html", "/docs/": "index.html" }[url];
+        if (!url) { B.innerHTML = `<div class="mut" style="padding:20px">В демонстрации этого окна нет — оно работает на сервере в сети опыта (статика подробно, отчёт и прежняя панель читают живые данные).</div>`; dlg.built = true; return; }
+      }
+      B.innerHTML = `<iframe class="dlgframe" src="${url}${url.includes("?") ? "&" : "?"}embed=1" title="${esc(title)}"></iframe>
+        <div class="small mut">✕ или клик мимо окна — закрыть · <a href="${url}" target="_blank" rel="noopener">отдельной вкладкой ↗</a></div>`;
+      dlg.built = true;
+    }
+    return;
+  }
+  if (dlg.kind === "series") {
+    if (!dlg.built) { T.textContent = "Серия опыта: вложенные циклы"; B.innerHTML = serHTML(); serBind(B); dlg.built = true; serRender(B); }
     return;
   }
   if (!D) return;
@@ -832,7 +1231,11 @@ const DLG = {
       <span class="small mut">роль (генератор / измеритель) — на пульте, «Агенты»</span></div>` };
   },
   compose: d => {
-    const ags = d.agents.filter(a => !isStatic(d, a) && a.kind !== "M").sort((p, q) => (p.id || 0) - (q.id || 0));
+    // агенты моторов и катушек в подгруппы не входят: без связи их роль не видна — узнаём по месту «катушка» и списку /api/motors
+    const motMacs = ((MOTS || {}).agents || []).map(x => x.mac), isHw = a => a.kind === "M" || isCoil(d, a) || motMacs.includes(a.mac);
+    const ags = d.agents.filter(a => !isStatic(d, a) && !isHw(a)).sort((p, q) => (p.id || 0) - (q.id || 0));
+    const hw = d.agents.filter(a => isHw(a)).sort((p, q) => (p.id || 0) - (q.id || 0))
+      .map(a => `${nameOf(d, a.mac)} — ${isCoil(d, a) ? "катушка колеса " + ((d.compose.wheels || {})[a.mac] || "?") : "моторы"}${alive(a.status) ? "" : " (✗ нет связи)"}`);
     const rows = ags.map(a => {
       const st = stateOf(d, a), w = (d.compose.wheels || {})[a.mac] || "", v = a.values || {};
       return `<tr><td><button class="btn tiny" data-act="agent" data-mac="${a.mac}" title="окно агента: датчики вживую, роль, найти">${nameOf(d, a.mac)}${sensBadges(a).length ? " " + sensBadges(a).join("") : ""}</button></td><td><span class="${st.cls}">${st.icon}</span> ${esc(st.word)}</td><td class="num">${v.temp != null ? fmt(v.temp, 0) + "°" : "—"}</td>
@@ -845,6 +1248,7 @@ const DLG = {
     return { title: "Состав колёс и подгруппы", html: `<div class="small mut" style="margin-bottom:6px">Колесо — где агент стоит. Буква — его подгруппа: на шаге каждая подгруппа считает своей группой (по 1, по 2 … до ${MAX_GROUP}, можно разное число); поглотители другого колеса идут к группе с той же буквой.</div>
       <div class="row" style="margin-bottom:6px">разбить поровну по номерам — ${split("1")} · ${split("2")}</div>
       <table class="t"><tr><th>агент</th><th>сейчас</th><th>°C</th><th>колесо</th><th>подгруппа</th><th></th></tr>${rows}</table>
+      ${hw.length ? `<div class="small" style="margin-top:8px">⚙ агенты моторов и катушек — в группы не входят: ${esc(hw.join(" · "))}</div>` : ""}
       <div class="small mut" style="margin-top:10px">◆ измерители (статика) — меряют всё время, в группы не входят</div>
       ${st.length ? `<table class="t"><tr><th>агент</th><th>чем меряет</th><th>состояние</th><th>°C</th><th></th></tr>${st.map(a => {
         const sw = staticWord(d, a), v = a.values || {};
@@ -863,6 +1267,8 @@ const DLG = {
       ${P.seq.length ? `<table class="t"><tr><th>№</th><th>шаг · группы и агенты</th><th></th><th></th></tr>${rows}</table>` : `<div class="mut">шагов нет</div>`}` };
   },
   diag: d => ({ title: "Диагностика установки", html: diagHTML(d) }),
+  more: () => ({ title: "⋯ Ещё", html: `<div class="morelist">${MORE.map(([act, url, title, note]) =>
+    `<button class="btn" data-act="${act}" ${url ? `data-url="${url}" data-title="${esc(title)}"` : ""}><b>${esc(title)}</b><span class="small mut">${esc(note)}</span></button>`).join("")}</div>` }),
   alarm: d => ({ title: "❗ Отклонение статики — ⚠ проверить", html: alarmHTML(d) }),
   fw: d => {
     const boards = ((d.usb || {}).boards || []).filter(b => b.status !== "online");
@@ -873,7 +1279,7 @@ const DLG = {
       <div class="row" style="margin-top:10px"><button class="btn" data-act="ota">обновить всех на связи по Wi-Fi</button>
       ${boards.length ? `<button class="btn" data-act="usb">прошить по USB: ${boards.map(b => esc(b.port)).join(", ")}</button>` : ""}
       ${vers.length > 1 ? `<span class="warn">◐ на платах разные сборки</span>` : ""}</div>
-      <div class="small mut" style="margin-top:8px">Роли (генератор / измеритель), свои параметры агентов — на <a href="/pult" target="pult">пульте</a>; оси статических — в <a href="/watch" target="watch">наблюдении</a>.</div>` };
+      <div class="small mut" style="margin-top:8px">Роли (генератор / измеритель), свои параметры агентов — на <a href="#" data-act="frame" data-url="/pult" data-title="⚙ Пульт">пульте</a>; оси статических — в <a href="#" data-act="frame" data-url="/watch" data-title="◉ Наблюдение">наблюдении</a>.</div>` };
   },
   noise: (d, id) => {
     const r = noiseRes[id];
@@ -885,11 +1291,12 @@ const DLG = {
       <div class="small mut">Как читать: «СКО» — разброс одного отсчёта; «плотность» — шум на корень из герца, рядом паспорт TDK (65 мкg/√Гц по X/Y, 70 по Z); |a| — модуль ускорения, у неподвижного датчика ≈ 1000 мg; девиация Аллана — насколько точно среднее за τ секунд: падает — усреднение помогает, растёт — начался дрейф (температура, наклон).</div>` };
   },
   live: (d, m) => ({ title: `${live.kind === "mag" ? "Магнитометр" : "Акселерометр"} ${nameOf(d, m)} вживую`, html: liveHTML(d, m) }),
-  noises: () => ({ title: "Откуда берётся каждый шум", html: NOISES.map(n => `<div style="margin:5px 0">${n[3] ? "✗ " : "✓ "}<b>${esc(n[1])}</b>${n[3] ? ` <span class="mut">(пока нельзя)</span>` : ""} — ${esc(n[2])}</div>`).join("")
+  noises: () => ({ title: "Откуда берётся каждый шум", html: NOISES.map(n => `<div style="margin:5px 0">${n[3] ? "✗ " : "✓ "}<b>${NOISE_ICON[n[0]] || ""} ${esc(n[1])}</b>${n[3] ? ` <span class="mut">(пока нельзя)</span>` : ""} — ${esc(n[2])}</div>`).join("")
     + `<div class="small mut" style="margin-top:8px">Несколько источников смешиваются хешем SHA-256: в каждый блок каждый отмеченный источник кладёт не меньше 256 зачтённых бит. Подробно — docs/randomness.md.</div>` }),
 };
 function experForm() {
-  return `<fieldset class="fs"><legend>5 · шаг</legend>
+  return `<div class="row" style="margin-bottom:8px"><button class="btn go" data-act="series">⇅ серия: вложенные циклы…</button><span class="small mut">вращение · поле · совместная работа · шум · излучение/поглощение — порядок вложенности, длина сета, время серии</span></div>
+    <fieldset class="fs"><legend>5 · шаг</legend>
       <label class="inl">длительность, мин <input data-k="minutes" type="number" step="0.5" min="0.5" max="60" style="width:4.5em"></label>
       <label class="inl"><input data-k="quiet" data-t="b" type="checkbox"> молчание телеметрии во время шага</label><br>
       <label class="inl" title="длительность уходит агенту: он сам останавливает счёт, возвращает телеметрию и сдаёт итоги; сервер ждёт «сдали все»"><input data-k="agentStep" data-t="b" type="checkbox"> шаг на агенте: сам останавливается и сдаёт итоги</label>
@@ -1179,10 +1586,15 @@ document.addEventListener("click", async e => {
   }
   const t = e.target.closest("[data-act]");
   if (!t) return;
+  if (t.tagName === "A") e.preventDefault();
   const act = t.dataset.act, mac = t.dataset.mac;
   if (act === "agent") { if (identMode) ident(mac); else openDlg("agent", mac); }
-  else if (["compose", "seq", "exper", "diag", "fw", "noises"].includes(act)) openDlg(act);
-  else if (act === "report") { const w = window.open("/report", "report", "width=1400,height=900"); if (!w) location.href = "/report"; }
+  else if (["compose", "seq", "exper", "diag", "fw", "noises", "series"].includes(act)) openDlg(act);
+  else if (act === "report") openDlg("frame", { url: "/report", title: "☰ Отчёт" });
+  else if (act === "frame") openDlg("frame", { url: t.dataset.url, title: t.dataset.title || "" });
+  else if (act === "more") openDlg("more");
+  else if (act === "svmac") { SV.mac = mac; SV.data = null; renderStatic(D); svTick(); }
+  else if (act === "svax") { SV.ax = t.dataset.v; renderStatic(D); }
   else if (act === "identmode") { identMode = !identMode; $("bIdent").classList.toggle("sel", identMode); note(identMode ? "◉ режим «найти плату»: нажмите на агента — его светодиод замигает" : "режим «найти плату» выключен", "ok"); }
   else if (act === "ident") ident(mac);
   else if (act === "noise") openDlg("noise", +t.dataset.id);
@@ -1310,7 +1722,7 @@ function restJSON() {
 function programJSON(steps) {
   return { name: `планшетка ${new Date().toLocaleString("ru-RU")}`, baseline_min: P.baseline, repeat: P.repeat, shuffle: P.shuffle,
            settle_s: 10, ...restJSON(), z: 4, confirm: P.confirm, redo: 2, again: P.again || 0, metrics: ["pr_s", "cand_s"], targets: "all",
-           steps: steps.map(s => ({ ...s, minutes: P.minutes, quiet: P.quiet, agent: !!P.agentStep,
+           steps: steps.map(s => ({ ...s, minutes: s.sec ? s.sec / 60 : P.minutes, quiet: P.quiet, agent: !!P.agentStep,
                                     groups: s.groups.map(g => ({ ...g, cfg: { ...g.cfg, ...(g.cfg.run === 0 ? {} : { tmax: P.tmax, ro: P.agentStep && P.radioOff ? 1 : 0 }) } })) })) };
 }
 $("bRun").onclick = async () => {
@@ -1318,7 +1730,8 @@ $("bRun").onclick = async () => {
   if (P.confirm && !P.seq.some(s => s.control)) { note("✗ для проверочных пар нужен хотя бы один контрольный шаг", "bad"); return; }
   const bad = checkSteps(P.seq); if (bad) { note("✗ " + bad, "bad"); return; }
   const n = P.seq.length * P.repeat;
-  if (!confirm(`Запустить ${P.seq.length} шагов × ${P.repeat} повторов (${n} шагов по ${P.minutes} мин)${P.shuffle ? ", случайный порядок" : ""}, греться до ${P.tmax} °C${P.agentStep ? ", шаг на агенте" : ""}${P.agentStep && P.radioOff ? ", Wi-Fi выкл где эфир не нужен" : ""}?`)) return;
+  const lens = [...new Set(P.seq.map(s => s.sec ? `${s.sec} с` : `${P.minutes} мин`))].join(" / ");
+  if (!confirm(`Запустить ${P.seq.length} шагов × ${P.repeat} повторов (${n} шагов по ${lens}, ≈ ${fmtDur(seqEstimate())})${P.shuffle ? ", случайный порядок" : ""}, греться до ${P.tmax} °C${P.agentStep ? ", шаг на агенте" : ""}${P.agentStep && P.radioOff ? ", Wi-Fi выкл где эфир не нужен" : ""}?`)) return;
   try { const r = await postJSON("/api/program/start", { program: programJSON(P.seq) }); note(`✓ программа №${r.id} запущена: ${n} шагов`, "ok"); progT = 0; ribbonMode = "auto"; await refresh(); }
   catch (er) { note("✗ " + er.message, "bad"); }
 };
@@ -1409,7 +1822,7 @@ function alarmHTML(d) {
       ${a.step ? `<span>шаг</span><b>${a.n} «${esc(a.step)}»${a.auto ? " · <span class='ok'>программа уже повторяет его сама</span>" : ""}${a.spoiled ? " · <span class='warn'>в шаге была и помеха — он повторится сам</span>" : ""}</b>` : ""}
       <span>причина</span><div>${rs.length ? rs.map(x => `<div>${x.who ? `<b>${esc(x.who)}</b>: ` : ""}${reasonHTML(x.r)}</div>`).join("") : "<span class='mut'>—</span>"}${(a.notes || []).map(n => `<div class="warn">◐ ${esc(n)}</div>`).join("")}</div></div>
     <div style="margin:10px 0">${act}</div>
-    <div class="row">${first ? `<button class="btn" data-act="live" data-mac="${first.mac}">∿ датчик вживую</button>` : ""}<a class="btn" href="/acc" target="acc">◆ статика подробно</a><span class="sp"></span>
+    <div class="row">${first ? `<button class="btn" data-act="live" data-mac="${first.mac}">∿ датчик вживую</button>` : ""}<button class="btn" data-act="frame" data-url="/acc" data-title="◆ Статика подробно">◆ статика подробно</button><span class="sp"></span>
       <button class="btn" data-act="alarmack" title="закрыть окно; «❗» в шапке остаётся, но не мигает">✓ понятно</button><button class="btn" data-act="alarmclear" title="убрать «❗» из шапки и забыть список">убрать «❗»</button></div>
     ${hist ? `<div style="margin-top:8px"><div class="small mut">раньше:</div>${hist}</div>` : ""}
     <div class="small mut" style="margin-top:8px">Отклонение — отличие от эталона держится несколько окон подряд и не объясняется известными линиями (сеть 50 Гц, пинг, обороты колеса). Повтор того же шага проверяет, держится ли эффект. Помеха (↻ толчок, сдвиг, сбой прибора) сама по себе тревогой не считается — такой шаг повторяется и так; но толчок не прячет отклонение, державшееся 2 окна подряд.</div>`;
@@ -1458,7 +1871,7 @@ function renderTop(d) {
 }
 function renderAll() {
   if (!D) return;
-  renderWheel(D, "1"); renderWheel(D, "2"); renderPic(D); renderStatic(D); renderNow(D); renderMidRows(); renderRibbon(D); renderTop(D); renderFoot(); renderDlg();
+  renderWheel(D, "1"); renderWheel(D, "2"); renderInfo(D); renderPic(D); renderStatic(D); renderMidRows(); renderRibbon(D); renderTop(D); renderFoot(); renderDlg();
 }
 async function refresh() {
   D = await getJSON("/api/dash?window=10");
@@ -1468,7 +1881,7 @@ async function refresh() {
   renderAll();
 }
 poll(refresh, 2000);
-setInterval(() => { if (D && ((prog && prog.state === "running") || (diag && diag.state === "running") || D.static_rec)) { renderNow(D); renderRibbon(D); renderTop(D); renderStatic(D); if (dlg && dlg.kind === "diag") renderDlg(); } }, 1000);   // таймеры — каждую секунду
+setInterval(() => { if (D && ((prog && prog.state === "running") || (diag && diag.state === "running") || D.static_rec)) { renderInfo(D); renderRibbon(D); renderTop(D); renderStatic(D); if (dlg && dlg.kind === "diag") renderDlg(); } }, 1000);   // таймеры — каждую секунду
 </script>
 </body>
 </html>

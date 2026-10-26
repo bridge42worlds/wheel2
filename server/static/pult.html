@@ -186,7 +186,7 @@ document.addEventListener("change", async e => {
   const w = e.target.dataset.wall;
   if (w && e.target.value) {
     const v = e.target.value;
-    const macs = D.agents.filter(a => wheelOf(D, a) === w && slotOf(D, a) !== "S").map(a => a.mac);
+    const macs = D.agents.filter(a => wheelOf(D, a) === w && !["S", "coil"].includes(slotOf(D, a)) && a.kind !== "M").map(a => a.mac);   // агент катушки — не в группу
     await saveCompose({ slot: Object.fromEntries(macs.map(m => [m, v])) }, "колесо в группу");
   }
 });

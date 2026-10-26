@@ -1,4 +1,4 @@
-"""Снимок данных сервера для демонстрации пульта и наблюдения в опубликованной копии.
+"""Снимок данных сервера для демонстрации основного экрана, пульта и наблюдения в опубликованной копии.
 
     python tools/demo_capture.py [адрес сервера] [файл]
     по умолчанию http://127.0.0.1:8093 → build/demo/demo.json
@@ -20,6 +20,7 @@ def main():
     snap = {}
     d = get("/api/dash?window=10")
     d["usb"] = {"boards": [], "err": None, "job": None}          # настоящие платы на USB — не публикуются
+    d["agents"] = [a for a in d["agents"] if a.get("status") != "never"]   # из реестра, не выходившие — не показывать
     snap["/api/dash"] = d
     snap["__t"] = d["time"]
     for s in d.get("static") or []:
@@ -36,6 +37,17 @@ def main():
     for a in d["agents"]:
         if a.get("status") != "never":
             snap[f"/api/agent_events?mac={a['mac']}"] = get(f"/api/agent_events?n=25&mac={urllib.parse.quote(a['mac'])}")
+    # основной экран: моторы и катушки, живая статика (Гаусс, спектр, колебания) и поле по датчикам
+    snap["/api/motors"] = get("/api/motors")
+    snap["/api/coils"] = get("/api/coils")
+    for s in d.get("static") or []:
+        snap[f"/api/static/live?mac={s['mac']}"] = get(f"/api/static/live?sec=10&mac={urllib.parse.quote(s['mac'])}")
+    for a in d["agents"]:
+        if a.get("status") != "never" and (a.get("sens") or 0) & 2:
+            try:
+                snap[f"/api/field/live?mac={a['mac']}"] = get(f"/api/field/live?sec=60&mac={urllib.parse.quote(a['mac'])}")
+            except Exception:                          # noqa: BLE001 — поля может не быть
+                pass
     os.makedirs(os.path.dirname(out), exist_ok=True)
     text = json.dumps(snap, ensure_ascii=False, separators=(",", ":"))
     with open(out, "w", encoding="utf-8") as f:

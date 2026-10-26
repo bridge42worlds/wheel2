@@ -44,6 +44,7 @@ class Uplink(private val ctx: Context, private val hub: SensorHub) {
     @Volatile var lastErr = ""
     @Volatile var clockOffset = 0.0            // время сервера минус время телефона, с (из ответа на пакеты)
     @Volatile var accLost = 0L
+    @Volatile var magLost = 0L
     @Volatile var em50: Double? = null         // мкТл: сеть 50 Гц в поле (с поправкой на усреднение телефона)
     @Volatile var em50n: Double? = null        // мкТл: то же на соседних частотах (46, 48, 52, 54 Гц) — уровень шума
     @Volatile var magAvg = 1                   // телефон сам усредняет поле по стольким замерам (у Galaxy A26 — 4)
@@ -124,11 +125,16 @@ class Uplink(private val ctx: Context, private val hub: SensorHub) {
                 accTo += n
             }
         }
-        // магнитометр: раз в 0,5 с
+        // магнитометр: раз в 0,5 с; после обрыва связи — накопленное, до 6 пакетов за раз
         var magTo = magSent
         if (now - lastMag >= 500) {
-            val pk = magPacket()
-            if (pk != null) { lines += pk.first; magTo = pk.second }
+            var k = 0
+            while (k < 6) {
+                val pk = magPacket(magTo) ?: break
+                lines += pk.first
+                magTo = pk.second
+                k++
+            }
         }
         // состояние: раз в секунду
         val telNow = now - lastTel >= 1000
@@ -145,15 +151,25 @@ class Uplink(private val ctx: Context, private val hub: SensorHub) {
         }
     }
 
-    private fun magPacket(): Pair<String, Long>? {
+    /** Пакет поля с замера from: номер первого (i0) и время первого и последнего по часам датчика (mt0, mt1) —
+     *  сервер ставит замеры на свои места и отбрасывает повторы. Кольцо переполнилось — счётчик magLost. */
+    private fun magPacket(fromIn: Long): Pair<String, Long>? {
+        var from = fromIn
+        var mt0 = 0L
+        var mt1 = 0L
         val vals: FloatArray = synchronized(hub.lock) {
             val head = hub.magHead
-            if (head - magSent > hub.magCap) magSent = head - hub.magCap
-            val n = min(400L, head - magSent).toInt()
+            if (head - from > hub.magCap) {             // молчали дольше, чем держит кольцо: пропавшее — считать раз
+                if (from == magSent) { magLost += head - hub.magCap - from; magSent = head - hub.magCap }
+                from = head - hub.magCap
+            }
+            val n = min(400L, head - from).toInt()
             if (n <= 0) return null
+            mt0 = hub.magTs[(from % hub.magCap).toInt()] / 1_000_000
+            mt1 = hub.magTs[((from + n - 1) % hub.magCap).toInt()] / 1_000_000
             FloatArray(n * 3).also { out ->
                 for (q in 0 until n) {
-                    val i = (((magSent + q) % hub.magCap) * 3).toInt()
+                    val i = (((from + q) % hub.magCap) * 3).toInt()
                     for (j in 0..2) out[q * 3 + j] = hub.magRing[i + j]
                 }
             }
@@ -176,8 +192,9 @@ class Uplink(private val ctx: Context, private val hub: SensorHub) {
         val res = hub.mag?.resolution ?: 0f
         val line = "{\"type\":\"mag\",\"mac\":\"$mac\",\"n\":$n,\"hz\":${f3(hub.magRate.hz.takeIf { it > 1 } ?: 50.0)},\"div\":100," +
             "\"step\":${f3(res.toDouble())},\"gain\":0,\"err\":0,\"b\":[${f3(sum[0] / n)},${f3(sum[1] / n)},${f3(sum[2] / n)}]," +
-            "\"babs\":${f3(babs / n)},\"bmin\":${f3(bmin)},\"bmax\":${f3(bmax)},\"t\":${battTemp ?: "null"},\"dev\":\"phone\",\"s\":[$sb]}"
-        return line to magSent + n
+            "\"babs\":${f3(babs / n)},\"bmin\":${f3(bmin)},\"bmax\":${f3(bmax)},\"t\":${battTemp ?: "null"},\"dev\":\"phone\"," +
+            "\"i0\":$from,\"mt0\":$mt0,\"mt1\":$mt1,\"ms\":${SystemClock.elapsedRealtimeNanos() / 1_000_000},\"lost\":$magLost,\"s\":[$sb]}"
+        return line to from + n
     }
 
     private fun telPacket(now: Long): String {
@@ -189,7 +206,7 @@ class Uplink(private val ctx: Context, private val hub: SensorHub) {
         val ph = "{\"model\":\"${esc(Build.MODEL)}\",\"acc\":\"${esc(hub.acc?.name ?: "")}\",\"mag\":\"${esc(hub.mag?.name ?: "")}\"," +
             "\"ahz\":${f3(ahz)},\"mhz\":${f3(mhz)},\"em50\":${em50?.let { f4(it) } ?: "null"},\"em50n\":${em50n?.let { f4(it) } ?: "null"},\"bac\":${bac?.let { f4(it) } ?: "null"}," +
             "\"cell\":${cellDbm ?: "null"},\"batt\":${battPct ?: "null"},\"plug\":${if (plugged) 1 else 0}," +
-            "\"btemp\":${battTemp ?: "null"},\"clip\":${hub.accClip},\"ma\":$magAvg}"
+            "\"btemp\":${battTemp ?: "null"},\"clip\":${hub.accClip},\"ma\":$magAvg,\"mlost\":$magLost,\"bg\":${if (SensorService.running) 1 else 0}}"
         val acc = "{\"ok\":${if (hub.acc != null) 1 else 0},\"odr\":${ahz.roundToInt()},\"avg\":2,\"afs\":8,\"lsb\":${hub.accLsb.roundToInt()}," +
             "\"hz\":${f3(ahz)},\"raw\":${hub.accHead},\"out\":${hub.accHead},\"bad\":0,\"rderr\":0,\"cap\":${hub.accCap}," +
             "\"wait\":$wait,\"lost\":$accLost,\"t\":${battTemp ?: "null"}}"
@@ -240,10 +257,10 @@ class Uplink(private val ctx: Context, private val hub: SensorHub) {
         }
     }
 
-    /** Отправить пакеты; не вышло по одному адресу — попробовать другой (USB ↔ Wi-Fi). */
+    /** Отправить пакеты; не вышло по одному адресу — попробовать другой: свежий из маяка (сервер сменил адрес), USB. */
     private fun post(lines: List<String>): Boolean {
         val body = lines.joinToString("\n").toByteArray(Charsets.UTF_8)
-        val tries = listOfNotNull(url, if (url == USB_URL) beaconUrl else USB_URL).distinct()
+        val tries = listOfNotNull(url, beaconUrl, USB_URL).distinct()
         for (u in tries) {
             try {
                 val c = URL("$u/api/ingest").openConnection() as HttpURLConnection
@@ -344,4 +361,4 @@ class Uplink(private val ctx: Context, private val hub: SensorHub) {
     }
 }
 
-object BuildInfo { const val VERSION = "1.0" }
+object BuildInfo { const val VERSION = "1.1" }      // как versionName в app/build.gradle.kts: поднимать вместе
