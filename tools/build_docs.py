@@ -16,11 +16,12 @@
 все ссылки внутри комплекта; адреса сети опыта и её имя вычищены. Главная страница комплекта —
 index.html без обёртки <html>/<head> (её добавляет площадка публикации), остальные — полные.
 """
-import html, os, re, sys
+import html, os, re, shutil, sys
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 DOCS = os.path.join(ROOT, "docs")
 OUT = os.path.join(DOCS, "html")
+IMG = os.path.join(DOCS, "img")                   # схемы и рисунки: в markdown ![подпись](img/файл.svg)
 
 # порядок и описания страниц; flow — режим живой схемы для кнопки «посмотреть вживую»
 PAGES = [
@@ -44,6 +45,8 @@ PAGES = [
     ("static_watch", "Статические акселерометры", "Роль S: что меряет агент, что считает сервер, эталон шума, линии, "
      "полосы, толчки, вывод «продолжать / повторить / проверить».", ""),
     ("sensors", "Датчики", "Колесо (обороты и невесомость), магнитное поле, статический акселерометр; подключение и пакеты.", ""),
+    ("wiring", "Схемы подключения", "Колесо: питание агентов по шине от своих аккумуляторов, управление катушкой "
+     "(5,1 В, DRV8833); рама: моторы колёс (блок 12 В, агент моторов, два DRV8871). Полярность диодов и конденсаторов.", ""),
 ]
 TITLES = {k: t for k, t, _, _ in PAGES}
 
@@ -88,6 +91,9 @@ th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text
 th { background:var(--soft); font-weight:650; }
 td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
 hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
 li { margin:3px 0; }
 .live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
         text-decoration:none; font-size:14px; margin:0 0 12px; }
@@ -111,6 +117,7 @@ svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--o
 """
 
 LIST_RE = re.compile(r"^(\s*)([*-]|\d+\.)\s+(.*)$")
+IMG_RE = re.compile(r"^!\[([^\]]*)\]\((img/[\w.-]+\.(?:svg|png|jpg))\)\s*$")   # рисунок — отдельной строкой
 
 
 def esc(s):
@@ -270,6 +277,13 @@ def render(md):
             out.append("<hr>")
             i += 1
             continue
+        m = IMG_RE.match(ln.strip())
+        if m:
+            cap, src = m.group(1), m.group(2)
+            out.append(f'<figure><a href="{src}"><img src="{src}" alt="{esc(cap)}" loading="lazy"></a>'
+                       f'<figcaption>{inline(cap)}</figcaption></figure>')
+            i += 1
+            continue
         if ln.lstrip().startswith("|"):
             j = i
             while j < len(lines) and lines[j].lstrip().startswith("|"):
@@ -296,7 +310,8 @@ def render(md):
         j = i
         para = []
         while j < len(lines) and lines[j].strip() and not lines[j].startswith("```") and not re.match(r"^#{1,6}\s", lines[j]) \
-                and not lines[j].lstrip().startswith("|") and not LIST_RE.match(lines[j]) and not re.match(r"^\s*-{3,}\s*$", lines[j]):
+                and not lines[j].lstrip().startswith("|") and not LIST_RE.match(lines[j]) and not re.match(r"^\s*-{3,}\s*$", lines[j]) \
+                and not IMG_RE.match(lines[j].strip()):
             para.append(lines[j].strip())
             j += 1
         out.append("<p>" + inline(" ".join(para)) + "</p>")
@@ -431,8 +446,22 @@ def index_page(readme_md, static=False):
     return page("index", "Обзор", body, toc, "", static)
 
 
+def copy_images(out_dir):
+    """docs/img → <out_dir>/img (только изменённые); список «img/файл»."""
+    if not os.path.isdir(IMG):
+        return []
+    os.makedirs(os.path.join(out_dir, "img"), exist_ok=True)
+    names = sorted(f for f in os.listdir(IMG) if re.match(r"^[\w.-]+\.(?:svg|png|jpg)$", f))
+    for f in names:
+        src, dst = os.path.join(IMG, f), os.path.join(out_dir, "img", f)
+        if not os.path.exists(dst) or open(src, "rb").read() != open(dst, "rb").read():
+            shutil.copyfile(src, dst)
+    return ["img/" + f for f in names]
+
+
 def build(quiet=False):
     os.makedirs(OUT, exist_ok=True)
+    copy_images(OUT)
     n = 0
     for name, title, _, live in PAGES:
         path = os.path.join(DOCS, name + ".md")
@@ -552,8 +581,12 @@ def build_static(out_dir):
     for fn, text in files.items():
         with open(os.path.join(out_dir, fn), "w", encoding="utf-8", newline="\n") as f:
             f.write(text if fn in ("pult.html", "watch.html") else scrub(text, fn))   # экраны проверены в static_screens
-    print(f"комплект: {len(files)} файлов → {os.path.relpath(out_dir, ROOT)} (главная — index.html)")
-    return sorted(files)
+    imgs = copy_images(out_dir)
+    for fn in imgs:
+        if fn.endswith(".svg"):
+            scrub(open(os.path.join(out_dir, fn), encoding="utf-8").read(), fn)
+    print(f"комплект: {len(files) + len(imgs)} файлов → {os.path.relpath(out_dir, ROOT)} (главная — index.html)")
+    return sorted(files) + imgs
 
 
 if __name__ == "__main__":

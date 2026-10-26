@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 470" width="820" height="470" role="img">
+<title>Рама: моторы колёс — блок 12 В, агент моторов, два DRV8871</title>
+<desc>Блок 12 В: плюс на VM двух мостов DRV8871 и на вход DC-DC 5 В, конденсатор 470 мкФ на плюсе у мостов; DC-DC через диод 1N5819 питает агента моторов; D0 и D1 агента на IN1 и IN2 моста колеса 1, D2 и D3 — моста колеса 2; OUT1 и OUT2 мостов на моторы M1 и M2 с керамикой 0,1 мкФ на выводах; все минусы — общие.</desc>
+<style>
+text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d2228}
+.h{font-size:15px;font-weight:600}.t{font-size:13px}.s{font-size:12px;fill:#4a535e}
+.box{fill:#fff;stroke:#1d2228;stroke-width:1.3}
+.p{stroke:#D55E00;stroke-width:2.6;fill:none}.m{stroke:#1d2228;stroke-width:2;fill:none}
+.pl{stroke:#1d2228;stroke-width:2.6;fill:none}.d{fill:none;stroke:#1d2228;stroke-width:1.6}
+.sig{stroke:#0072B2;stroke-width:1.8;fill:none;stroke-dasharray:6 4}
+</style>
+<defs><g id="gnd"><line class="m" x1="0" y1="0" x2="0" y2="8"/><line class="pl" x1="-12" y1="8" x2="12" y2="8"/><line class="pl" x1="-8" y1="13" x2="8" y2="13"/><line class="pl" x1="-4" y1="18" x2="4" y2="18"/></g></defs>
+<rect width="820" height="470" fill="#ffffff"/>
+<text class="h" x="20" y="28">Рама: моторы колёс — блок 12 В, агент моторов, два моста DRV8871</text>
+<rect class="box" x="20" y="160" width="90" height="110" rx="6"/>
+<text class="h" x="65" y="210" text-anchor="middle">12 В</text>
+<text class="s" x="65" y="230" text-anchor="middle">блок питания</text>
+<text class="h" x="65" y="178" text-anchor="middle">+</text>
+<text class="h" x="65" y="262" text-anchor="middle">−</text>
+<path class="p" d="M65 160 V70 H600 V170"/>
+<text class="t" x="182" y="62" text-anchor="middle">плюс +12 В</text>
+<line class="m" x1="65" y1="270" x2="65" y2="282"/><use href="#gnd" x="65" y="282"/>
+<circle cx="150" cy="250" r="24" fill="#fff" stroke="#1d2228" stroke-width="1.6"/>
+<text class="h" x="150" y="255" text-anchor="middle">M1</text>
+<line class="m" x1="171" y1="238" x2="230" y2="238"/><line class="m" x1="171" y1="262" x2="230" y2="262"/>
+<line class="m" x1="200" y1="238" x2="200" y2="245"/><line class="pl" x1="192" y1="245" x2="208" y2="245"/>
+<line class="pl" x1="192" y1="255" x2="208" y2="255"/><line class="m" x1="200" y1="255" x2="200" y2="262"/>
+<circle cx="200" cy="238" r="3" fill="#1d2228"/><circle cx="200" cy="262" r="3" fill="#1d2228"/>
+<text class="s" x="200" y="285" text-anchor="middle">104</text>
+<rect class="box" x="230" y="170" width="100" height="150" rx="6"/>
+<text class="h" x="280" y="214" text-anchor="middle">DRV8871</text>
+<text class="s" x="280" y="290" text-anchor="middle">колесо 1</text>
+<text class="s" x="300" y="188" text-anchor="middle">VM</text><text class="s" x="300" y="312" text-anchor="middle">GND</text>
+<text class="s" x="236" y="242">OUT1</text><text class="s" x="236" y="266">OUT2</text>
+<text class="s" x="324" y="242" text-anchor="end">IN1</text><text class="s" x="324" y="266" text-anchor="end">IN2</text>
+<line class="p" x1="300" y1="70" x2="300" y2="170"/><circle cx="300" cy="70" r="3.5" fill="#D55E00"/>
+<line class="m" x1="300" y1="320" x2="300" y2="332"/><use href="#gnd" x="300" y="332"/>
+<rect class="box" x="390" y="86" width="100" height="54" rx="6"/>
+<text class="h" x="440" y="118" text-anchor="middle">DC-DC 5 В</text>
+<line class="p" x1="410" y1="70" x2="410" y2="86"/><circle cx="410" cy="70" r="3.5" fill="#D55E00"/>
+<line class="m" x1="390" y1="113" x2="370" y2="113"/><use href="#gnd" x="370" y="113"/>
+<line class="p" x1="440" y1="140" x2="440" y2="146"/>
+<polygon class="d" points="430,146 450,146 440,162"/>
+<line class="pl" x1="429" y1="163" x2="451" y2="163" style="stroke-width:3.6"/>
+<line class="p" x1="440" y1="164" x2="440" y2="170"/>
+<text class="s" x="456" y="158">1N5819</text>
+<rect class="box" x="380" y="170" width="120" height="150" rx="6"/>
+<text class="h" x="440" y="214" text-anchor="middle">агент моторов</text>
+<text class="s" x="440" y="290" text-anchor="middle">XIAO ESP32-S3</text>
+<text class="s" x="440" y="188" text-anchor="middle">5V</text><text class="s" x="440" y="312" text-anchor="middle">GND</text>
+<text class="s" x="386" y="242">D0</text><text class="s" x="386" y="266">D1</text>
+<text class="s" x="494" y="242" text-anchor="end">D2</text><text class="s" x="494" y="266" text-anchor="end">D3</text>
+<line class="m" x1="440" y1="320" x2="440" y2="332"/><use href="#gnd" x="440" y="332"/>
+<line class="sig" x1="330" y1="238" x2="380" y2="238"/><line class="sig" x1="330" y1="262" x2="380" y2="262"/>
+<line class="sig" x1="500" y1="238" x2="550" y2="238"/><line class="sig" x1="500" y1="262" x2="550" y2="262"/>
+<line class="p" x1="525" y1="70" x2="525" y2="104"/><circle cx="525" cy="70" r="3.5" fill="#D55E00"/>
+<line class="pl" x1="513" y1="104" x2="537" y2="104"/><path class="pl" d="M513 116 Q525 110 537 116"/>
+<text class="h" x="541" y="102">+</text>
+<line class="m" x1="525" y1="114" x2="525" y2="122"/><use href="#gnd" x="525" y="122"/>
+<text class="s" x="545" y="124">470 мкФ</text>
+<rect class="box" x="550" y="170" width="100" height="150" rx="6"/>
+<text class="h" x="600" y="214" text-anchor="middle">DRV8871</text>
+<text class="s" x="600" y="290" text-anchor="middle">колесо 2</text>
+<text class="s" x="600" y="188" text-anchor="middle">VM</text><text class="s" x="600" y="312" text-anchor="middle">GND</text>
+<text class="s" x="556" y="242">IN1</text><text class="s" x="556" y="266">IN2</text>
+<text class="s" x="644" y="242" text-anchor="end">OUT1</text><text class="s" x="644" y="266" text-anchor="end">OUT2</text>
+<line class="m" x1="600" y1="320" x2="600" y2="332"/><use href="#gnd" x="600" y="332"/>
+<line class="m" x1="650" y1="238" x2="709" y2="238"/><line class="m" x1="650" y1="262" x2="709" y2="262"/>
+<line class="m" x1="680" y1="238" x2="680" y2="245"/><line class="pl" x1="672" y1="245" x2="688" y2="245"/>
+<line class="pl" x1="672" y1="255" x2="688" y2="255"/><line class="m" x1="680" y1="255" x2="680" y2="262"/>
+<circle cx="680" cy="238" r="3" fill="#1d2228"/><circle cx="680" cy="262" r="3" fill="#1d2228"/>
+<text class="s" x="680" y="285" text-anchor="middle">104</text>
+<circle cx="730" cy="250" r="24" fill="#fff" stroke="#1d2228" stroke-width="1.6"/>
+<text class="h" x="730" y="255" text-anchor="middle">M2</text>
+<text class="s" x="20" y="384">⏚ — общий минус: все такие точки соединить вместе, звездой у минуса блока 12 В.</text>
+<text class="s" x="20" y="402">«104» — керамика 0,1 мкФ прямо на выводах мотора; провода к мотору скрутить. 470 мкФ — плюсом к +12 В, рядом с мостами.</text>
+<text class="s" x="20" y="420">1N5819 — полоской к 5V агента. «Вперёд» — по часовой, если смотреть на вал. Агента ставить на неподвижной раме.</text>
+<line class="p" x1="20" y1="448" x2="56" y2="448"/><text class="s" x="64" y="452">плюс</text>
+<line class="m" x1="130" y1="448" x2="166" y2="448"/><text class="s" x="174" y="452">минус</text>
+<line class="sig" x1="246" y1="448" x2="282" y2="448"/><text class="s" x="290" y="452">сигналы 3,3 В</text>
+<circle cx="410" cy="448" r="3.5" fill="#1d2228"/><text class="s" x="420" y="452">точка — провода соединены</text>
+</svg>

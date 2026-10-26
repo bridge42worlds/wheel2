@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 440" width="700" height="440" role="img">
+<title>Колесо: катушка — свои аккумуляторы, 5,1 В, мост DRV8833</title>
+<desc>Аккумулятор 2×18650 через выключатель на DC-DC 5,1 В; шина плюс идёт на VM моста DRV8833, конденсатор 470 мкФ плюсом к ней, и через диод 1N5819 полоской на вывод 5V агента; общий минус на GND моста, минус конденсатора и GND агента; D0 и D1 агента на IN1 и IN2 моста; OUT1 и OUT2 на катушку.</desc>
+<style>
+text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d2228}
+.h{font-size:15px;font-weight:600}.t{font-size:13px}.s{font-size:12px;fill:#4a535e}
+.box{fill:#fff;stroke:#1d2228;stroke-width:1.3}
+.p{stroke:#D55E00;stroke-width:2.6;fill:none}.m{stroke:#1d2228;stroke-width:2;fill:none}
+.pl{stroke:#1d2228;stroke-width:2.6;fill:none}.d{fill:none;stroke:#1d2228;stroke-width:1.6}
+.sig{stroke:#0072B2;stroke-width:1.8;fill:none;stroke-dasharray:6 4}
+</style>
+<rect width="700" height="440" fill="#ffffff"/>
+<text class="h" x="16" y="28">Колесо: катушка — свои аккумуляторы, 5,1 В, мост DRV8833</text>
+<g transform="translate(0,-20)">
+<rect class="box" x="16" y="120" width="68" height="140" rx="6"/>
+<text class="h" x="50" y="186" text-anchor="middle">2×18650</text>
+<text class="s" x="50" y="206" text-anchor="middle">7,4 В</text>
+<text class="h" x="76" y="155" text-anchor="end">+</text>
+<text class="h" x="76" y="235" text-anchor="end">−</text>
+<rect class="box" x="140" y="120" width="80" height="140" rx="6"/>
+<text class="h" x="180" y="186" text-anchor="middle">DC-DC</text>
+<text class="s" x="180" y="206" text-anchor="middle">5,1 В</text>
+<text class="s" x="146" y="154">IN+</text><text class="s" x="146" y="234">IN−</text>
+<text class="s" x="214" y="154" text-anchor="end">OUT+</text><text class="s" x="214" y="234" text-anchor="end">OUT−</text>
+<rect class="box" x="345" y="150" width="120" height="100" rx="6"/>
+<text class="h" x="405" y="226" text-anchor="middle">XIAO ESP32-S3</text>
+<text class="s" x="381" y="170">5V</text><text class="s" x="381" y="244">GND</text>
+<text class="s" x="459" y="174" text-anchor="end">D0</text><text class="s" x="459" y="196" text-anchor="end">D1</text>
+<rect class="box" x="515" y="120" width="110" height="140" rx="6"/>
+<text class="h" x="570" y="238" text-anchor="middle">DRV8833</text>
+<text class="s" x="521" y="140">VM</text><text class="s" x="521" y="174">IN1</text><text class="s" x="521" y="196">IN2</text><text class="s" x="521" y="254">GND</text>
+<text class="s" x="619" y="169" text-anchor="end">OUT1</text><text class="s" x="619" y="219" text-anchor="end">OUT2</text>
+<line class="p" x1="84" y1="150" x2="98" y2="150"/>
+<circle cx="98" cy="150" r="3" fill="#D55E00"/><circle cx="124" cy="150" r="3" fill="#D55E00"/>
+<line class="p" x1="98" y1="150" x2="121" y2="137"/>
+<line class="p" x1="124" y1="150" x2="140" y2="150"/>
+<text class="s" x="111" y="108" text-anchor="middle">выключатель</text>
+<line class="m" x1="84" y1="230" x2="140" y2="230"/>
+<path class="p" d="M220 150 H232 V90 H535 V120"/>
+<path class="m" d="M220 230 H232 V300 H535 V260"/>
+<text class="t" x="440" y="80" text-anchor="middle">плюс +5,1 В</text>
+<text class="t" x="440" y="320" text-anchor="middle">минус (общий)</text>
+<line class="p" x1="262" y1="90" x2="262" y2="186"/>
+<line class="pl" x1="250" y1="186" x2="274" y2="186"/>
+<path class="pl" d="M250 199 Q262 192 274 199"/>
+<line class="m" x1="262" y1="196" x2="262" y2="300"/>
+<text class="h" x="280" y="182">+</text><text class="s" x="279" y="209">470 мкФ</text>
+<circle cx="262" cy="90" r="3.5" fill="#D55E00"/><circle cx="262" cy="300" r="3.5" fill="#1d2228"/>
+<line class="p" x1="375" y1="90" x2="375" y2="104"/>
+<polygon class="d" points="365,104 385,104 375,122"/>
+<line class="pl" x1="364" y1="123" x2="386" y2="123" style="stroke-width:3.6"/>
+<line class="p" x1="375" y1="124" x2="375" y2="150"/>
+<text class="s" x="392" y="108">1N5819</text><text class="s" x="392" y="126">полоска к агенту</text>
+<circle cx="375" cy="90" r="3.5" fill="#D55E00"/>
+<line class="m" x1="375" y1="250" x2="375" y2="300"/>
+<circle cx="375" cy="300" r="3.5" fill="#1d2228"/>
+<line class="sig" x1="465" y1="170" x2="515" y2="170"/>
+<line class="sig" x1="465" y1="192" x2="515" y2="192"/>
+<path class="m" d="M625 165 H650 a6.25 6.25 0 0 1 0 12.5 a6.25 6.25 0 0 1 0 12.5 a6.25 6.25 0 0 1 0 12.5 a6.25 6.25 0 0 1 0 12.5 H625"/>
+<text class="s" x="652" y="152" text-anchor="middle">катушка</text>
+</g>
+<text class="s" x="16" y="340">1N5819 — полоской к выводу 5V агента. 470 мкФ — плюсом к шине +, вплотную к VM и GND моста.</text>
+<text class="s" x="16" y="358">Полоса на банке конденсатора — минус. DRV8833 работает от 5 В (DRV8871 нужно не меньше 6,5 В).</text>
+<text class="s" x="16" y="376">Вывод nSLEEP (EEP) — к 3V3 агента, если модуль его не подтянул. DC-DC выставить на 5,1 В до подключения.</text>
+<text class="s" x="16" y="394">Ток катушки 5 Ом — около 1 А.</text>
+<line class="p" x1="16" y1="420" x2="52" y2="420"/><text class="s" x="60" y="424">плюс</text>
+<line class="m" x1="126" y1="420" x2="162" y2="420"/><text class="s" x="170" y="424">минус</text>
+<line class="sig" x1="242" y1="420" x2="278" y2="420"/><text class="s" x="286" y="424">сигналы 3,3 В</text>
+<circle cx="400" cy="420" r="3.5" fill="#1d2228"/><text class="s" x="410" y="424">точка — провода соединены</text>
+</svg>

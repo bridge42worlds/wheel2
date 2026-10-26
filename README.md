@@ -88,7 +88,8 @@ Russian. Licence: MIT ([LICENSE](LICENSE)).
 Источники случайности и замеры — [docs/randomness.md](docs/randomness.md).
 Совместный режим агентов — [docs/group_protocol.md](docs/group_protocol.md).
 Рассеяние простых сетом B — [docs/scatter.md](docs/scatter.md).
-Датчики: колесо, магнитное поле — [docs/sensors.md](docs/sensors.md).
+Датчики: колесо, магнитное поле — [docs/sensors.md](docs/sensors.md). Схемы подключения
+(шина агентов и катушка на колесе, моторы на раме) — [docs/wiring.md](docs/wiring.md).
 Статические акселерометры: эталон шума, спектр, тревоги, «продолжать или повторить», второй экран `/acc` —
 [docs/static_watch.md](docs/static_watch.md).
 Программа автоматического эксперимента — [docs/program.md](docs/program.md).

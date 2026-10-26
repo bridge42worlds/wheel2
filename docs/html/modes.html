@@ -45,6 +45,9 @@ th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text
 th { background:var(--soft); font-weight:650; }
 td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
 hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
 li { margin:3px 0; }
 .live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
         text-decoration:none; font-size:14px; margin:0 0 12px; }
@@ -75,7 +78,7 @@ svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--o
 <div class="layout">
   <aside>
     <h4>Документы</h4>
-    <ul><li><a href="index.html">Обзор</a></li><li><a href="modes.html" class=cur>Режимы</a></li><li><a href="ui_concept.html">Концепт: пульт и наблюдение</a></li><li><a href="how_it_works.html">Как всё работает</a></li><li><a href="group_protocol.html">Сообща: протокол группы</a></li><li><a href="scatter.html">Рассеяние: сет B</a></li><li><a href="randomness.html">Откуда берётся случайность</a></li><li><a href="thermal.html">Температура агентов</a></li><li><a href="program.html">Программа эксперимента</a></li><li><a href="static_watch.html">Статические акселерометры</a></li><li><a href="sensors.html">Датчики</a></li></ul>
+    <ul><li><a href="index.html">Обзор</a></li><li><a href="modes.html" class=cur>Режимы</a></li><li><a href="ui_concept.html">Концепт: пульт и наблюдение</a></li><li><a href="how_it_works.html">Как всё работает</a></li><li><a href="group_protocol.html">Сообща: протокол группы</a></li><li><a href="scatter.html">Рассеяние: сет B</a></li><li><a href="randomness.html">Откуда берётся случайность</a></li><li><a href="thermal.html">Температура агентов</a></li><li><a href="program.html">Программа эксперимента</a></li><li><a href="static_watch.html">Статические акселерометры</a></li><li><a href="sensors.html">Датчики</a></li><li><a href="wiring.html">Схемы подключения</a></li></ul>
     <h4>На этой странице</h4><ul class="toc"><li class="l2"><a href="#1-состояния-установки-одна-кнопка">1. Состояния установки (одна кнопка)</a></li><li class="l2"><a href="#2-генерация-сет-a-как-ищутся-простые">2. Генерация (сет A): как ищутся простые</a></li><li class="l2"><a href="#3-шум-откуда-берётся-число">3. Шум: откуда берётся число</a></li><li class="l2"><a href="#4-поглощение-сет-b-что-делается-с-простым">4. Поглощение (сет B): что делается с простым</a></li><li class="l2"><a href="#5-статические-акселерометры-роль-s">5. Статические акселерометры (роль S)</a></li><li class="l2"><a href="#6-телеметрия-сколько-агенты-говорят">6. Телеметрия: сколько агенты говорят</a></li><li class="l2"><a href="#7-автоматический-эксперимент-программа">7. Автоматический эксперимент (программа)</a></li><li class="l2"><a href="#8-тепло-отдых-спринт">8. Тепло, отдых, спринт</a></li><li class="l2"><a href="#9-надёжность-агентов">9. Надёжность агентов</a></li></ul>
   </aside>
   <main class="doc">

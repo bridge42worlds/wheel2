@@ -978,7 +978,7 @@ def cfg_line(c):
             f" bg={','.join(str(i) for i in c.get('bg', []))}"          # сет B — всегда, пустой тоже:
             f" bm={','.join(m.replace(':', '') for m in c.get('bm', []))}")   # иначе агент помнит старый
     if c.get("mode") == 1:
-        line += " grp=" + ",".join(str(i) for i in c["grp"])
+        line += " grp=" + ",".join(str(i) for i in c.get("grp") or [])   # пусто — стоп без группы
         if c.get("gm"):                    # MAC участников: агенты узнают о новых без перепрошивки
             line += " gm=" + ",".join(m.replace(":", "") for m in c["gm"])
     return line
@@ -1121,6 +1121,9 @@ def apply_control(targets, cfg, own=None, force=False, remember=True, label=None
         if not targets:
             raise ValueError("нет агентов с прошивкой prime_lab")
         eff = {m: validate_cfg({**cfg, **own.get(m, {})}) for m in targets}
+        for m in targets:                          # измерителю, агенту моторов и катушки группа не нужна: прошивка
+            if eff[m]["role"] in (2, 3):           # отвергает «сообща» без списка группы (grp missing)
+                eff[m]["mode"] = 0
         set_a = [m for m in targets if eff[m]["role"] == 0]
         set_b = [m for m in targets if eff[m]["role"] == 1]
         by_id = {agents[m]["id"]: m for m in targets}
@@ -1133,7 +1136,12 @@ def apply_control(targets, cfg, own=None, force=False, remember=True, label=None
             for m in targets:
                 eff[m]["bg"] = ids_b
                 eff[m]["bm"] = [by_id[i] for i in ids_b]
-        if cfg["mode"] == 1:                           # группа — все выбранные из сета A, по порядку номеров
+        # группа — все выбранные из сета A, по порядку номеров. Остановке (run 0) группа не нужна: стоп перед
+        # прошивкой по Wi-Fi одному агенту катушки при «сообща» в общих настройках отказывал (25.10.2026)
+        if cfg["mode"] == 1 and not set_a and not cfg.get("run"):
+            for m in targets:                      # стоп без генераторов — без группы
+                eff[m]["mode"] = 0
+        if cfg["mode"] == 1 and (set_a or cfg.get("run")):
             ids = sorted(agents[m]["id"] for m in set_a)
             if not ids:
                 raise ValueError("режим «сообща»: нет ни одного агента с ролью «генерация»")
@@ -2641,6 +2649,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_file(os.path.join(DOCS_HTML, "index.html"), "text/html; charset=utf-8")
         if u.path.startswith("/docs/") and u.path.endswith(".html"):
             return self.send_file(os.path.join(DOCS_HTML, os.path.basename(u.path)), "text/html; charset=utf-8")
+        if u.path.startswith("/docs/img/") and u.path.endswith(".svg"):    # схемы в документации
+            return self.send_file(os.path.join(DOCS_HTML, "img", os.path.basename(u.path)), "image/svg+xml")
         if u.path == "/fw/prime_lab.bin":                # образ прошивки для агентов (OTA)
             return self.send_file(os.path.join(FW_DIR, "prime_lab.ino.bin"), "application/octet-stream")
         if u.path == "/api/agent_events":                # история ошибок агента (рейтинг)

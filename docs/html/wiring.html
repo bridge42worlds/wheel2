@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Схемы подключения: колесо и моторы · Колесо-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Колесо-2 · документация</a>
+  <nav><a href="/plan" target="plan">▦ Планшетка</a><a href="/acc" target="acc">◆ Статика</a><a href="/watch" target="watch">◉ Наблюдение</a><a href="/report" target="report">☰ Отчёт</a><a href="/pult" target="pult">⚙ Пульт</a><a href="/" target="old">☷ Подробно</a><a href="/flow" target="flow">↻ Схема</a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Документы</h4>
+    <ul><li><a href="index.html">Обзор</a></li><li><a href="modes.html">Режимы</a></li><li><a href="ui_concept.html">Концепт: пульт и наблюдение</a></li><li><a href="how_it_works.html">Как всё работает</a></li><li><a href="group_protocol.html">Сообща: протокол группы</a></li><li><a href="scatter.html">Рассеяние: сет B</a></li><li><a href="randomness.html">Откуда берётся случайность</a></li><li><a href="thermal.html">Температура агентов</a></li><li><a href="program.html">Программа эксперимента</a></li><li><a href="static_watch.html">Статические акселерометры</a></li><li><a href="sensors.html">Датчики</a></li><li><a href="wiring.html" class=cur>Схемы подключения</a></li></ul>
+    <h4>На этой странице</h4><ul class="toc"><li class="l2"><a href="#колесо-питание-агентов-по-шине">Колесо: питание агентов по шине</a></li><li class="l2"><a href="#колесо-управление-катушкой">Колесо: управление катушкой</a></li><li class="l2"><a href="#рама-моторы-колёс">Рама: моторы колёс</a></li></ul>
+  </aside>
+  <main class="doc">
+
+<h1>Схемы подключения: колесо и моторы</h1>
+<p>На установке три контура питания, проводами между собой не связанных: агенты говорят с сервером по Wi‑Fi, общий минус между контурами не нужен.</p>
+<div class="tw"><table><thead><tr><th>контур</th><th>где</th><th>питание</th><th>что управляет</th></tr></thead><tbody>
+<tr><td>шина агентов</td><td>на колесе</td><td>свои 2×18650 → DC‑DC 5,1 В</td><td>ничего: аккумуляторы и выключатель</td></tr>
+<tr><td>катушка</td><td>на колесе</td><td>свои 2×18650 → DC‑DC 5,1 В</td><td>агент катушки (роль M) через мост DRV8833</td></tr>
+<tr><td>моторы</td><td>на раме</td><td>блок 12 В; агенту — DC‑DC 5 В</td><td>агент моторов №10 (роль M) через два DRV8871</td></tr>
+</tbody></table></div>
+<p><b>Обозначения на схемах.</b> Оранжевая толстая линия — плюс, тёмная — минус, синий пунктир — сигналы 3,3 В от агента к мосту, точка — провода соединены (без точки линии просто пересекаются). Подписи + и − стоят у каждого вывода питания.</p>
+<p><b>Полярность деталей.</b></p>
+<ul><li><b>Диод 1N5819</b>: черта на символе = <b>полоска на корпусе</b> = катод. Полоской — к выводу 5V агента, другим концом — к плюсу питания. Наоборот — агент не включится (диод закрыт), но и не сгорит.</li><li><b>Электролит 470 мкФ</b>: полоса с минусами на банке — <b>минус</b>, длинная нога — плюс. Плюсом — к плюсу питания. Наоборот электролит греется и может вздуться.</li><li><b>Керамика 104</b> (0,1 мкФ) полярности не имеет.</li></ul>
+<p>Зачем диод перед агентом: питание с USB при прошивке по кабелю не уходит обратно в шину, а перепутанный плюс не сожжёт плату. Падение на 1N5819 около 0,3 В — на 5V агента приходит около 4,8 В, этого XIAO ESP32‑S3 хватает.</p>
+<h2 id="колесо-питание-агентов-по-шине">Колесо: питание агентов по шине<a class="anc" href="#колесо-питание-агентов-по-шине">#</a></h2>
+<figure><a href="img/wiring_wheel_bus.svg"><img src="img/wiring_wheel_bus.svg" alt="Колесо: агенты обода питаются от своих аккумуляторов по шине 5,1 В, каждый — через свой 1N5819" loading="lazy"></a><figcaption>Колесо: агенты обода питаются от своих аккумуляторов по шине 5,1 В, каждый — через свой 1N5819</figcaption></figure>
+<ul><li>Два 18650 последовательно (7,4 В, заряженные — 8,4 В) → выключатель → понижающий DC‑DC на 5,1 В → шина вдоль обода: плюс и минус.</li><li>Каждый агент: плюс шины → 1N5819 (полоской к агенту) → вывод 5V; GND агента — прямо на минус шины.</li><li>Ток: агент в работе берёт до 0,3 А, при включении Wi‑Fi — короткие броски. Шесть агентов — 1,5–2 А, DC‑DC на 3 А идёт с запасом. Электролит 470 мкФ у выхода DC‑DC сглаживает броски; при длинной шине можно поставить ещё 220–470 мкФ у дальних плат, после диода.</li><li>Плюс и минус шины ведите рядом, скрученной парой. <b>Кольцом вокруг катушки шину не замыкать</b>: замкнутый виток вдоль тороида ловит поле катушки и сам становится витком.</li><li>Порядок: DC‑DC выставить на 5,1 В без нагрузки (мультиметр на OUT+ / OUT−) → выключить → подключить шину → включить.</li></ul>
+<h2 id="колесо-управление-катушкой">Колесо: управление катушкой<a class="anc" href="#колесо-управление-катушкой">#</a></h2>
+<figure><a href="img/wiring_wheel_coil.svg"><img src="img/wiring_wheel_coil.svg" alt="Колесо: катушка — свои аккумуляторы, один DC-DC 5,1 В на мост DRV8833 и агента катушки" loading="lazy"></a><figcaption>Колесо: катушка — свои аккумуляторы, один DC-DC 5,1 В на мост DRV8833 и агента катушки</figcaption></figure>
+<ul><li>Свой блок 2×18650 и свой DC‑DC 5,1 В, отдельно от шины агентов: броски тока катушки не попадают в питание датчиков на ободе.</li><li>С одного DC‑DC — и мост (вывод VM), и агент катушки (через 1N5819, полоской к агенту). Минус общий: DC‑DC, электролит, GND моста, GND агента.</li><li>Мост — <b>DRV8833</b> (питание 2,7–10,8 В, до 1,5 А на канал). DRV8871 от 5 В не включится: ему нужно не меньше 6,5 В. Таблица входов у них одинаковая, прошивка не меняется.</li><li>Агент: D0 → IN1, D1 → IN2; выходы моста OUT1 / OUT2 — на концы катушки. Вывод nSLEEP (на некоторых модулях EEP) — к 3V3 агента, если модуль не подтянул его сам; без этого мост молчит.</li><li>Электролит 470 мкФ — вплотную к VM и GND моста.</li><li>Ток: тороид в один слой (около 5 Ом) — около 1 А, поле внутри около 1,7 мТл; в два слоя (около 11 Ом) — около 0,45 А.</li><li>Управление: агент в роли M, место «катушка» своего колеса. Сервер (<code>server/coils.py</code>) раз в секунду шлёт <code>MOT a=±доля b=0 r=5000 w=5</code>: знак — направление поля (+ / −), 1000 — постоянный ток; нет команды 5 с — агент снимает ток. На планшетке — слой «поле катушки» (выкл / + / −).</li><li>Проверено на агенте катушки №13 с мостом без катушки: мультиметр на OUT1 / OUT2 показывает смену знака при переключении + / − (30 % и 100 %, по 10 с). Под нагрузкой (катушка, около 1 А) — проверить, что агент не перезагружается при включении и смене направления.</li></ul>
+<h2 id="рама-моторы-колёс">Рама: моторы колёс<a class="anc" href="#рама-моторы-колёс">#</a></h2>
+<figure><a href="img/wiring_motors.svg"><img src="img/wiring_motors.svg" alt="Рама: блок 12 В на два моста DRV8871 и через DC-DC 5 В на агента моторов" loading="lazy"></a><figcaption>Рама: блок 12 В на два моста DRV8871 и через DC-DC 5 В на агента моторов</figcaption></figure>
+<ul><li>Блок 12 В: плюс — на VM обоих мостов DRV8871 (6,5–45 В, до 3,6 А, предел тока задаёт резистор на модуле) и на вход DC‑DC 5 В агента моторов. Электролит 470 мкФ на +12 В рядом с мостами.</li><li>Агент моторов №10 стоит <b>на неподвижной раме</b>: D0 → IN1, D1 → IN2 моста колеса 1; D2 → IN1, D3 → IN2 моста колеса 2. Питание агента — DC‑DC 5 В → 1N5819 (полоской к агенту) → 5V.</li><li>Моторы 36GP‑555 (12 В, редуктор 112 об/мин) — на OUT1 / OUT2 своих мостов. Керамика 104 прямо на выводах мотора гасит помехи щёток; провода к мотору скрутить.</li><li>Все минусы (⏚ на схеме) — блок, мосты, DC‑DC, агент — соединить <b>звездой у минуса блока 12 В</b>, а не цепочкой от моста к мосту.</li><li>«Вперёд ▶» — по часовой стрелке, если смотреть на вал спереди. Если моторы стоят зеркально и «вместе» крутит колёса в разные стороны — у второго поменять провода OUT1 / OUT2.</li><li>Режимы, разгон, сторож и обратная связь по оборотам — в <a href="sensors.html">sensors.md</a>, раздел «Моторы колёс».</li></ul>
+  </main>
+</div>
+<footer>Страница собрана из docs/wiring.md командой tools/build_docs.py — правьте markdown. Ссылки на живую схему и панель
+работают, когда документация открыта с сервера (http://&lt;сервер&gt;:8090/docs/).</footer>
+</body>
+</html>

@@ -507,8 +507,8 @@ parameter keys:
    RC jitter, back-noise of the absorber mixed in / only it; CSI from the whole air, accelerometer,
    magnetometer — later; chip temperature — rejected (see § 3). The ⓘ button lists where each noise
    comes from;
-4. **coil field** of wheels 1 and 2 — off / + / − (switching will come with DRV8871 bridges; for now
-   the field state is recorded in the step);
+4. **coil field** of wheels 1 and 2 — off / + / − (switched by the coil agent through a DRV8833 bridge;
+   wiring in [wiring.md](../wiring.md), in Russian);
 5. **step** — duration, telemetry silence, step on the agent, Wi-Fi off, temperature limit, rest,
    repeats, random order, control step "everybody stands" (only static sensors measure), noise
    baseline before the start.
@@ -629,6 +629,5 @@ sensors against their baseline, a statistical guard over the primes, experiment 
 * Temperature sensors of different boards differ by a few degrees.
 * Not yet connected but usable as external sources: the ICM-42688 accelerometer and the MLX90393
   magnetometer on the rim, the camera and microphone of the Sense board, a Geiger counter.
-* Coming next in the firmware: a control agent per wheel (coil polarity via DRV8871, current and
-  voltage via INA219, bus power), sensors as noise sources, CSI from the whole air, one-to-one
+* Coming next in the firmware: sensors as noise sources, CSI from the whole air, one-to-one
   absorption, "identical numbers" group variant.

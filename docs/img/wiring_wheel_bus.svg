@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 480" width="820" height="480" role="img">
+<title>Колесо: питание агентов — шина 5,1 В</title>
+<desc>Аккумулятор 2×18650 через выключатель на вход DC-DC 5,1 В; с выхода — шина плюс и шина минус вдоль колеса, конденсатор 470 мкФ у DC-DC; каждый агент получает плюс через диод 1N5819 полоской к выводу 5V, минус — прямо с шины.</desc>
+<style>
+text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d2228}
+.h{font-size:15px;font-weight:600}.t{font-size:13px}.s{font-size:12px;fill:#4a535e}
+.box{fill:#fff;stroke:#1d2228;stroke-width:1.3}
+.p{stroke:#D55E00;stroke-width:2.6;fill:none}.m{stroke:#1d2228;stroke-width:2;fill:none}
+.pl{stroke:#1d2228;stroke-width:2.6;fill:none}.d{fill:none;stroke:#1d2228;stroke-width:1.6}
+</style>
+<rect width="820" height="480" fill="#ffffff"/>
+<text class="h" x="20" y="28">Колесо: питание агентов — отдельные аккумуляторы, шина 5,1 В</text>
+<rect class="box" x="20" y="120" width="70" height="130" rx="6"/>
+<text class="h" x="55" y="180" text-anchor="middle">2×18650</text>
+<text class="s" x="55" y="200" text-anchor="middle">7,4 В</text>
+<text class="h" x="82" y="150" text-anchor="end">+</text>
+<text class="h" x="82" y="233" text-anchor="end">−</text>
+<line class="p" x1="90" y1="145" x2="104" y2="145"/>
+<circle cx="104" cy="145" r="3" fill="#D55E00"/><circle cx="130" cy="145" r="3" fill="#D55E00"/>
+<line class="p" x1="104" y1="145" x2="127" y2="132"/>
+<line class="p" x1="130" y1="145" x2="150" y2="145"/>
+<text class="s" x="117" y="110" text-anchor="middle">выключатель</text>
+<line class="m" x1="90" y1="228" x2="150" y2="228"/>
+<rect class="box" x="150" y="110" width="90" height="150" rx="6"/>
+<text class="h" x="195" y="180" text-anchor="middle">DC-DC</text>
+<text class="s" x="195" y="200" text-anchor="middle">5,1 В, 3 А</text>
+<text class="s" x="156" y="149">IN+</text><text class="s" x="156" y="232">IN−</text>
+<text class="s" x="234" y="149" text-anchor="end">OUT+</text><text class="s" x="234" y="232" text-anchor="end">OUT−</text>
+<path class="p" d="M240 145 H255 V70 H800"/>
+<path class="m" d="M240 228 H255 V330 H800"/>
+<text class="t" x="560" y="58" text-anchor="middle">шина + (5,1 В)</text>
+<text class="t" x="560" y="350" text-anchor="middle">шина − (общий минус)</text>
+<line class="p" x1="280" y1="70" x2="280" y2="186"/>
+<line class="pl" x1="268" y1="186" x2="292" y2="186"/>
+<path class="pl" d="M268 199 Q280 192 292 199"/>
+<line class="m" x1="280" y1="196" x2="280" y2="330"/>
+<text class="h" x="297" y="183">+</text><text class="s" x="297" y="207">470 мкФ</text>
+<circle cx="280" cy="70" r="3.5" fill="#D55E00"/><circle cx="280" cy="330" r="3.5" fill="#1d2228"/>
+<g id="ag" transform="translate(24,0)">
+<line class="p" x1="371" y1="70" x2="371" y2="120"/>
+<polygon class="d" points="361,120 381,120 371,138"/>
+<line class="pl" x1="360" y1="139" x2="382" y2="139" style="stroke-width:3.6"/>
+<line class="p" x1="371" y1="140" x2="371" y2="180"/>
+<circle cx="371" cy="70" r="3.5" fill="#D55E00"/>
+<rect class="box" x="340" y="180" width="62" height="70" rx="5"/>
+<text class="s" x="346" y="194">5V</text><text class="s" x="346" y="244">GND</text>
+<line class="m" x1="371" y1="250" x2="371" y2="330"/>
+<circle cx="371" cy="330" r="3.5" fill="#1d2228"/>
+</g>
+<text class="t" x="395" y="219" text-anchor="middle">агент 1</text>
+<use href="#ag" x="72"/><text class="t" x="467" y="219" text-anchor="middle">агент 2</text>
+<use href="#ag" x="144"/><text class="t" x="539" y="219" text-anchor="middle">агент 3</text>
+<use href="#ag" x="216"/><text class="t" x="611" y="219" text-anchor="middle">агент 4</text>
+<use href="#ag" x="288"/><text class="t" x="683" y="219" text-anchor="middle">агент 5</text>
+<use href="#ag" x="360"/><text class="t" x="755" y="219" text-anchor="middle">агент 6</text>
+<text class="s" x="20" y="380">Диод 1N5819 — полоской (на символе — черта) к выводу 5V агента.</text>
+<text class="s" x="20" y="398">Электролит 470 мкФ — плюсом к шине +; полоса на банке — минус.</text>
+<text class="s" x="20" y="416">Плюс и минус шины ведите рядом, скрученной парой; кольцом вокруг катушки шину не замыкать.</text>
+<text class="s" x="20" y="434">Платы подключать при выключенном питании.</text>
+<line class="p" x1="20" y1="460" x2="56" y2="460"/><text class="s" x="64" y="464">плюс</text>
+<line class="m" x1="130" y1="460" x2="166" y2="460"/><text class="s" x="174" y="464">минус</text>
+<circle cx="250" cy="460" r="3.5" fill="#1d2228"/><text class="s" x="260" y="464">точка — провода соединены</text>
+</svg>
