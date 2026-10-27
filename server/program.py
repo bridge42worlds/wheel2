@@ -269,6 +269,19 @@ def _mot(m, i):
     return out
 
 
+def _axes(a):
+    """Словарь параметров эксперимента: {order, title, icon, values, names} — только строки, без лишнего."""
+    if not isinstance(a, dict) or not isinstance(a.get("order"), list):
+        return None
+    order = [str(k)[:12] for k in a["order"]][:12]
+    sub = lambda d: d if isinstance(d, dict) else {}
+    return {"order": order,
+            "title": {k: str(sub(a.get("title")).get(k, k))[:40] for k in order},
+            "icon": {k: str(sub(a.get("icon")).get(k, ""))[:4] for k in order},
+            "values": {k: [str(v)[:60] for v in (sub(a.get("values")).get(k) or [])][:64] for k in order},
+            "names": {k: {str(v)[:60]: str(n)[:80] for v, n in list(sub(sub(a.get("names")).get(k)).items())[:64]} for k in order}}
+
+
 def validate(prog):
     """Проверить программу; вернуть нормализованную. ValueError — что не так."""
     if not isinstance(prog, dict):
@@ -284,6 +297,9 @@ def validate(prog):
            "redo": max(0, min(5, int(prog.get("redo", 2)))),
            # пауза перед каждым повтором (кроме первого): всё стоит, ждём «продолжить» — замена аккумуляторов
            "pause_repeat": bool(prog.get("pause_repeat")),
+           # пропала связь с агентами опыта и за 30 с не вернулась (сели аккумуляторы, выключили питание) — пауза
+           # с причиной, а не пустые повторы; после «продолжить» испорченный опыт повторится
+           "pause_lost": bool(prog.get("pause_lost", True)),
            # отклонение статики за шаг (вывод «⚠ проверить»: держится без известной причины) — повторить тот же шаг
            # сразу, до again раз подряд, чтобы не пропустить эффект; 0 — только тревога на планшетке
            "again": max(0, min(5, int(prog.get("again", 0)))),
@@ -301,7 +317,10 @@ def validate(prog):
            "seed": int(prog["seed"]) if prog.get("seed") is not None else random.randrange(1 << 30),
            # показатели, названные до запуска (точное имя или начало: "pr_s", "band"): только они проверяются
            # на аномалию, и поправка на их число мягче; пусто — все показатели (разведка)
-           "metrics": [str(x)[:40] for x in (prog.get("metrics") or []) if str(x).strip()][:20]}
+           "metrics": [str(x)[:40] for x in (prog.get("metrics") or []) if str(x).strip()][:20],
+           # эксперимент с планшетки: параметры опыта (вращение, скорость, поле, роли, совместная работа, шум) —
+           # порядок вложенности, названия и значения словами; по ним отчёт считает «что влияет»
+           "axes": _axes(prog.get("axes"))}
     if 0 < out["baseline_min"] < 1:
         raise ValueError("эталон — не меньше 1 минуты (или 0 — взять уже записанный)")
     if out["rest"] == "below" and not (out["rest_below"] and 20 <= out["rest_below"] <= 80):
@@ -330,7 +349,10 @@ def validate(prog):
                 # дольше смены поля) и отдых только там, где меняется внешний уровень серии
                 "mot": _mot(s.get("mot"), i),
                 "settle_s": max(0.0, min(300.0, float(s["settle_s"]))) if s.get("settle_s") is not None else None,
-                "rest": bool(s["rest"]) if s.get("rest") is not None else None}
+                "rest": bool(s["rest"]) if s.get("rest") is not None else None,
+                # параметры опыта ключами (эксперимент с планшетки): {"rot": "rl", "speed": "rpm:30", "field": "p0", …}
+                "set": {str(k)[:12]: (None if v is None else str(v)[:60]) for k, v in list(s["set"].items())[:12]}
+                       if isinstance(s.get("set"), dict) else None}
         if s.get("groups") is not None:
             gl = s.get("groups")
             if not isinstance(gl, list) or not gl:
@@ -397,6 +419,7 @@ class Runner:
         self.stop = threading.Event()
         self.resume = threading.Event()            # «продолжить» после паузы
         self.pause_req = None                      # просьба встать на паузу перед следующим шагом (села пара)
+        self.stop_after = False                    # «стоп после опыта»: доработать опыт и остановиться
         self.lock = threading.Lock()
         os.makedirs(store_dir, exist_ok=True)
 
@@ -429,6 +452,8 @@ class Runner:
                                   "runs": len(x.get("runs", [])), "anomalies": len(x.get("anomalies", {})),
                                   "confirmed": sum(1 for v in (x.get("verdicts") or {}).values() if v["confirmed"]),
                                   "spoiled": sum(1 for r in x.get("runs", []) if r.get("spoiled")),
+                                  "left": len(x.get("plan") or []) - len(x.get("runs") or []),
+                                  "continued": len(x.get("continued") or []),
                                   "checks": sum(1 for r in x.get("runs", [])
                                                 if (r.get("watch") or {}).get("verdict") == "check")})
                 except Exception:
@@ -459,30 +484,93 @@ class Runner:
                 plan += [{"step": i, "repeat": r + 1} for i in order]
             x = {"id": pid, "created": round(time.time(), 3), "state": "running", "program": prog, "plan": plan,
                  "runs": [], "anomalies": {}, "verdicts": {}, "confirming": [], "t_start": None, "t_stop": None,
-                 "note": "", "now": None,
+                 "note": "", "now": None, "rig": self.h["rig"]() if self.h.get("rig") else None,
                  # основа шагов — настройки панели на момент старта; шаги их не портят, в конце — вернуть
                  "base": {"cfg": self.h["base_cfg"](), "own": self.h["base_own"]()}}
             self.active = x
             self.stop.clear()
+            self.stop_after, self.pause_req = False, None
         self.store(x)
         threading.Thread(target=self._run, args=(x,), daemon=True).start()
         self.h["log"](f"[prog] №{pid} «{prog['name']}»: {len(plan)} шагов")
         return pid
 
-    def request_stop(self):
-        if not self.active:
+    def continue_program(self, pid, busy):
+        """Продолжить остановленную или прерванную программу с первого невыполненного опыта: те же опыты,
+        план и зерно; итоги — в ту же запись (результаты считают все опыты вместе). Эталон заново не пишется."""
+        if busy:
+            raise ValueError(busy)
+        with self.lock:
+            if self.active:
+                raise ValueError("программа уже идёт — сначала остановите её")
+            x = self.get(pid)
+            if x.get("state") == "running":
+                raise ValueError("программа идёт")
+            done = len(x.get("runs") or [])
+            left = len(x.get("plan") or []) - done
+            if left <= 0:
+                raise ValueError("все опыты программы выполнены — продолжать нечего")
+            x.setdefault("continued", []).append({"t": round(time.time(), 3), "at": done, "left": left,
+                                                  "was": x.get("state"), "note": x.get("note") or ""})
+            x.update(state="running", now=None, t_stop=None, note="")
+            self.rng = random.Random(int(x["program"].get("seed") or 0) + done)
+            self.pause_req, self.stop_after = None, False
+            self.active = x
+            self.stop.clear()
+        self.store(x)
+        threading.Thread(target=self._run, args=(x, done), daemon=True).start()
+        self.h["log"](f"[prog] №{x['id']}: продолжение с опыта {done + 1}, осталось {left}")
+        return x["id"]
+
+    def mark_interrupted(self):
+        """Запуск сервера: программа, оставшаяся «идёт» (сервер перезапустился посреди неё), — «прервана»;
+        её можно продолжить с первого невыполненного опыта."""
+        if not os.path.isdir(self.dir):
+            return
+        for fn in os.listdir(self.dir):
+            if not fn.endswith(".json"):
+                continue
+            try:
+                x = json.load(open(os.path.join(self.dir, fn), encoding="utf-8"))
+            except Exception:
+                continue
+            if x.get("state") == "running":
+                x.update(state="interrupted", now=None)
+                x["note"] = x.get("note") or "прервана перезапуском сервера"
+                self.store(x)
+                self.h["log"](f"[prog] №{x['id']}: при запуске сервера была «идёт» — прервана, можно продолжить")
+
+    def request_stop(self, now=True, cancel=False):
+        """Стоп: now — сразу (идущий опыт обрывается, помечается «прерван» и при продолжении повторится);
+        иначе — после текущего опыта (на паузе — сразу); cancel — снять просьбу «после опыта»."""
+        x = self.active
+        if not x:
             raise ValueError("программа не идёт")
-        self.stop.set()
+        if cancel:
+            self.stop_after = False
+            return "cancel"
+        if now or (x.get("now") or {}).get("pause") or (x.get("now") or {}).get("baseline"):
+            self.stop.set()
+            return "now"
+        self.stop_after = True
+        return "after"
 
     def request_pause(self, why):
         if self.active:
             self.pause_req = why
 
     def request_resume(self):
+        """«Продолжить»: на паузе — дальше; пауза только попрошена (опыт ещё идёт) — просьбу снять."""
         x = self.active
-        if not x or not (x.get("now") or {}).get("pause"):
-            raise ValueError("программа не на паузе")
-        self.resume.set()
+        if not x:
+            raise ValueError("программа не идёт")
+        if (x.get("now") or {}).get("pause"):
+            self.resume.set()
+            return "resume"
+        if self.pause_req:
+            self.pause_req = None
+            return "cancel"
+        raise ValueError("программа не на паузе")
 
     def request_again(self, body):
         """Тревога статики на планшетке: {n} — повторить шаг n (номер в плане, с 1) с теми же настройками сразу
@@ -518,19 +606,21 @@ class Runner:
                 "done": len(x["runs"]), "total": len(x["plan"]), "anomalies": len(x["anomalies"]),
                 "spoiled": sum(1 for r in x["runs"] if r.get("spoiled")),
                 "alerts": len(al), "last_alert": al[-1] if al else None, "again": x["program"].get("again", 0),
+                "pause_req": self.pause_req, "stop_req": self.stop_after, "left": len(x["plan"]) - len(x["runs"]),
                 "again_wait": len(x.get("again_req") or []),
                 "last": None if not last else {"name": last["name"], "watch": last.get("watch"),
                                                "spoiled": last.get("spoiled")}}
 
-    def _run(self, x):
+    def _run(self, x, start=0):
         prog = x["program"]
         macs = self.h["targets"](prog["targets"])
         x["targets"] = macs
-        x["t_start"] = round(time.time(), 3)
+        if not start:
+            x["t_start"] = round(time.time(), 3)
         try:
             if not macs:
                 raise RuntimeError("нет агентов")
-            if prog["baseline_min"]:                       # эталон шума: основные группы стоят
+            if prog["baseline_min"] and not start:         # эталон шума: основные группы стоят (продолжению — уже есть)
                 x["now"] = {"n": 0, "of": len(x["plan"]), "name": f"эталон шума статических, {prog['baseline_min']:g} мин",
                             "control": False, "t0": round(time.time(), 3), "minutes": prog["baseline_min"],
                             "baseline": True}
@@ -540,8 +630,12 @@ class Runner:
                 x["baseline"] = self.h["baseline"](prog["baseline_min"], self.stop)
                 self.store(x)
                 self.h["log"](f"[prog] №{x['id']}: эталон записан")
-            i, rep = 0, 1
+            i = start
+            rep = (x["plan"][start].get("repeat") or 1) if start < len(x["plan"]) else 1
             while i < len(x["plan"]) and not self.stop.is_set():
+                if self.stop_after:                             # «стоп после опыта»: опыт доработан — всё
+                    self.stop.set()
+                    break
                 item = x["plan"][i]
                 st = prog["steps"][item["step"]]
                 if prog.get("pause_repeat") and (item.get("repeat") or 0) > rep:   # начинается следующий повтор
@@ -570,15 +664,32 @@ class Runner:
                 x["runs"].append(run)
                 # шаг испорчен: статические говорят «повторить» (толчок, сдвиг, сбой прибора) или кто-то
                 # не подтвердил настройку (считал не то) — в сравнение не идёт, повторяется сразу
-                why = ("статические: повторить" if (run.get("watch") or {}).get("verdict") == "repeat"
+                why = ("прерван: стоп посреди опыта" if run.get("cut")
+                       else "замолчали посреди опыта (питание?)" if run.get("silent")
+                       else "статические: повторить" if (run.get("watch") or {}).get("verdict") == "repeat"
                        else "не подтвердили настройку" if run.get("not_confirmed")
                        else "не сдали итоги" if run.get("not_done")
                        else "не вышли из молчания" if run.get("not_seen") else None)
                 if why:
                     run["spoiled"], run["spoiled_why"] = True, why
-                    if item.get("redo", 0) < prog["redo"] and not self.stop.is_set():
+                    # оборванный стопом опыт повторяется всегда — при продолжении программы он идёт первым
+                    redo = run.get("cut") or (item.get("redo", 0) < prog["redo"] and not self.stop.is_set())
+                    if redo:
                         x["plan"].insert(i + 1, {**item, "redo": item.get("redo", 0) + 1})
                         self.h["log"](f"[prog] №{x['id']}: шаг «{st['name']}» испорчен ({why}) — повторяю")
+                    # пропала связь (сели аккумуляторы, выключили питание): кто за 30 с не вернулся — пауза с причиной,
+                    # а не пустые повторы; после «продолжить» этот опыт повторится
+                    lost = run.get("not_confirmed") or run.get("silent") or run.get("not_done") or run.get("not_seen") or []
+                    if lost and prog.get("pause_lost", True) and self.h.get("seen") and not self.stop.is_set():
+                        still = self.h["seen"](lost, time.time(), 30)
+                        if still and not self.stop.is_set():
+                            nm = self.h.get("name") or (lambda m: m[-5:])
+                            more = f" и ещё {len(still) - 6}" if len(still) > 6 else ""
+                            self.pause_req = self.pause_req or (f"нет связи с {', '.join(nm(m) for m in still[:6])}{more}: "
+                                                                "проверьте питание (аккумуляторы) и продолжите")
+                            if not redo:
+                                x["plan"].insert(i + 1, {**item, "redo": item.get("redo", 0) + 1})
+                            self.h["log"](f"[prog] №{x['id']}: {self.pause_req} — пауза перед следующим опытом")
                 # тревога: статика за шаг «⚠ проверить» — отклонение от эталона держится без известной причины.
                 # Записать (планшетка звенит и показывает окно) и, если велено, повторить тот же шаг сразу
                 # Толчок в том же шаге делает вывод «повторить» (шаг испорчен и повторится по redo), но держащееся
@@ -687,7 +798,9 @@ class Runner:
                 "again": item.get("again", 0), "again_why": item.get("why"),
                 "cid": applied[0]["cid"] if applied else None, "cids": [a["cid"] for a in applied],
                 "groups": [{"targets": a["targets"], "cid": a["cid"], "label": a["label"]} for a in applied] if st.get("groups") else None,
-                "coil": st.get("coil"), "mot": st.get("mot"), "layers": st.get("layers"), "t_apply": round(t_apply, 3)}
+                "coil": st.get("coil"), "mot": st.get("mot"), "layers": st.get("layers"), "set": st.get("set"), "t_apply": round(t_apply, 3),
+                # установка руками на момент шага (расстояние между колёсами) — в отчёт и сравнение
+                "rig": self.h["rig"]() if self.h.get("rig") else None}
         bad = []
         for a in applied:
             bad += self.h["confirmed"](a["targets"], a["cid"], 20)
@@ -716,6 +829,12 @@ class Runner:
         else:
             self.stop.wait(st["minutes"] * 60)
         t1 = time.time()
+        cut = self.stop.is_set() and (t1 - t0 < (dur["dur"] - settle if dur else st["minutes"] * 60) - 1)
+        silent = []
+        gap = self.h["tel_gap"]() if self.h.get("tel_gap") else 6   # сколько секунд без пакета — «замолчал» (редкая телеметрия — дольше)
+        if gap and not st["quiet"] and not cut and self.h.get("seen"):   # кто замолчал посреди опыта (питание?)
+            gens = [m for a in applied if a["cfg"].get("run") for m in a["targets"] if m not in fixed]
+            silent = self.h["seen"](gens, t1 - gap, 0) if gens else []
         not_seen = []
         if st["quiet"] and dur:                                # агент сам вернул телеметрию; повтор настройки запустил бы счёт заново
             pass
@@ -729,9 +848,12 @@ class Runner:
         if dur:                                                # шаг на агенте: окно — ровно срок агента, от применения до его
             t0, t1, snap0 = t_apply, t_apply + dur["dur"], None   # остановки; счётчики с нуля — снимок на t0 не нужен
         snap = self.h["snapshot"](macs)
+        stat = self.h["metrics"](t0, t1)
         return {**head, "t0": round(t0, 3), "t1": round(t1, 3), "not_confirmed": bad, "not_seen": not_seen, "not_done": not_done,
+                "cut": cut, "silent": silent,
                 "agents": snap, "gen": gen_metrics(snap, t1 - t0, snap0),
-                "static": self.h["metrics"](t0, t1), "watch": self.h["verdict"](t0, t1),
+                "static": stat, "watch": self.h["verdict"](t0, t1),
+                "snames": {m: self.h["name"](m) for m in (stat or {})} if self.h.get("name") else {},
                 "field": self.h["field"](t0, t1) if self.h.get("field") else {}}
 
     def _pause(self, x, macs, rep, why=None):

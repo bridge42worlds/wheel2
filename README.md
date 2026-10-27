@@ -26,17 +26,18 @@ null programs are clean, and 511,000 primes in the run of 2026-10-07 are within 
 |---|---|
 | `firmware/prime_lab/` | agent firmware (Arduino, ESP32 core 3.3.7): noise sources, trial division + Miller–Rabin, group protocols, absorption, thermal regulator, watchdogs, OTA updates with rollback, static-sensor role, motor and coil role |
 | `firmware/libraries/` | shared agent code, sensor drivers (ICM-42688-P, ADXL355, MLX90393) |
-| `server/` | `monitor.py` — server on the Python 3 standard library (numpy for the static sensors): telemetry, commands, experiment programs and series, statistics, motors and coils, web pages; `static/` — the pages |
+| `server/` | `monitor.py` — server on the Python 3 standard library (numpy for the static sensors): telemetry, commands, experiments (programs), statistics, motors and coils, web pages; `static/` — the pages |
 | `phone/` | Android app that turns a phone into a static sensor (accelerometer ~500 Hz, magnetometer), runs as a foreground service |
 | `tools/` | build and flashing, OTA, simulators, test runs, statistics of the prime stream, documentation |
 | `docs/` | documentation (Russian) with wiring diagrams; in English: [overview](docs/en/how_it_works.md), [preamble](docs/en/preamble.md) |
 | `registry/devices.csv` | board numbers and MACs |
 
-The server's main screen is `http://<server>:8090/` ("Installation"): both wheels with their agents,
-modes, rotation and coil field, the static sensors with live Gaussian/spectrum, the step ribbon,
-nested-loop experiment series and the run controls; everything detailed opens as windows on top
-(static sensors in depth, report, console, live view, the animated model "how it works", the old
-panel). Documentation in HTML — `/docs/`.
+The server's main screen is `http://<server>:8090/` ("Installation"): a large live diagram of the rig —
+agents on both wheels with what each does and its temperature, flashes when primes are found, rim rpm
+and direction, coil field and |B|, batteries, primes flowing to the absorbers — the static sensors with
+live Gaussian/spectrum, the experiment (parameters of a run in nested loops → the list of runs) and the
+run controls; everything detailed opens as windows on top (experiment, static sensors in depth, results
+"what matters", console, live view, the animated model "how it works", the old panel). Documentation in HTML — `/docs/`.
 
 **Quick start**
 
@@ -89,7 +90,7 @@ Licence: MIT ([LICENSE](LICENSE)).
 | папка | что внутри |
 |---|---|
 | `firmware/` | прошивки агентов (`prime_lab` — общая), библиотеки датчиков |
-| `server/` | сервер `monitor.py`, программы и серии, статика, моторы, катушки; `static/` — страницы |
+| `server/` | сервер `monitor.py`, эксперименты (программы), статика, моторы, катушки; `static/` — страницы |
 | `phone/` | приложение Android: телефон — статический датчик, меряет службой |
 | `tools/` | сборка, заливка, OTA, имитаторы, прогоны, документация, публикация |
 | `docs/` | документация, схемы подключения (`docs/img/`), HTML (`docs/html/`) |
@@ -99,18 +100,20 @@ Licence: MIT ([LICENSE](LICENSE)).
 номер коммита git и сообщает его при старте.
 
 **Основной экран** — `http://<сервер>:8090/` («Установка», запуск — `tools/monitor.cmd`): оба колеса с
-агентами, режимы, вращение и поле, статика с живыми Гауссом и спектром, лента шагов, серии вложенными
-циклами, запуск; подробное — окнами поверх (статика подробно, отчёт, пульт, наблюдение, живая схема
-«как работает», прежняя панель). Меню — «Установка» и «Документы» (`/docs/`).
+агентами — **схема установки вживую**: дело и температура каждого агента, вспышки найденных простых,
+обороты и направление по датчику обода, поле и |B|, аккумуляторы, простые к поглотителям; статика с живыми
+Гауссом и спектром, **эксперимент** (параметры опыта вложенными циклами → список опытов), лента опытов,
+запуск; подробное — окнами поверх (эксперимент, статика подробно, результаты «что влияет», пульт,
+наблюдение, живая схема «как работает», прежняя панель). Меню — «Установка» и «Документы» (`/docs/`).
 
 Документация:
 
 * [Преамбула](docs/preamble.md) — зачем этот опыт; авторы — bridge42worlds, Λura13 (DeepSeek), Остов (Claude).
 * [Как всё работает](docs/how_it_works.md) — установка целиком, агент, шум, групповой режим,
-  поглощение, температура, основной экран, опыт и серии, параметры, данные, прошивка, инструменты.
+  поглощение, температура, основной экран, эксперимент и результаты, параметры, данные, прошивка, инструменты.
 * [Режимы](docs/modes.md) · [Схемы подключения](docs/wiring.md) · [Датчики, телефон, моторы и
-  катушки](docs/sensors.md) · [Статика: эталон и слежение](docs/static_watch.md) · [Программа и
-  серии](docs/program.md) · [Групповой режим](docs/group_protocol.md) · [Поглощение](docs/scatter.md) ·
+  катушки](docs/sensors.md) · [Статика: эталон и слежение](docs/static_watch.md) · [Эксперимент и
+  программа](docs/program.md) · [Групповой режим](docs/group_protocol.md) · [Поглощение](docs/scatter.md) ·
   [Откуда берётся случайность](docs/randomness.md) · [Температура агентов](docs/thermal.md) ·
   [Спецификация и смета](docs/spec.md).
 * Приложения: [А. История изменений](docs/history.md) · [Б. Концепт пульта и наблюдения](docs/ui_concept.md).

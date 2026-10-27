@@ -54,7 +54,7 @@ REGISTRY = os.path.join(ROOT, "registry", "devices.csv")
 
 def set_data_dir(path):
     """Папка данных: сырьё, управление, сессии, программы, статические."""
-    global DATA, RAW_DIR, CONTROL, COMMANDS, SESS_DIR, SESS_INDEX, PROG_DIR, PRIME_DIR
+    global DATA, RAW_DIR, CONTROL, COMMANDS, SESS_DIR, SESS_INDEX, PROG_DIR, PRIME_DIR, RIG_FILE
     DATA = path
     RAW_DIR = os.path.join(DATA, "raw")
     PRIME_DIR = os.path.join(DATA, "primes")
@@ -63,6 +63,7 @@ def set_data_dir(path):
     SESS_DIR = os.path.join(DATA, "sessions")
     SESS_INDEX = os.path.join(SESS_DIR, "index.json")
     PROG_DIR = os.path.join(DATA, "programs")
+    RIG_FILE = os.path.join(DATA, "rig.json")           # установка руками: расстояние между колёсами
 
 
 set_data_dir(os.path.join(ROOT, "data"))
@@ -1717,6 +1718,36 @@ def rest_tick():
 batteries = Batteries(lambda: os.path.join(DATA, "battery.json"), log=lambda text: print(text, flush=True))
 
 
+rig = {"gap_cm": None, "t": None, "hist": []}      # установка руками: расстояние между колёсами, см, и его история
+
+
+def rig_load():
+    try:
+        d = json.load(open(RIG_FILE, encoding="utf-8"))
+        rig.update(gap_cm=d.get("gap_cm"), t=d.get("t"), hist=d.get("hist") or [])
+    except (OSError, ValueError):
+        pass
+
+
+def rig_set(gap):
+    """Расстояние между колёсами (ставится руками): пишется в каждый шаг программы и сессию; изменения — в историю."""
+    g = None if gap in (None, "") else round(float(gap), 1)
+    if g is not None and not 0 <= g <= 500:
+        raise ValueError("расстояние между колёсами: 0–500 см")
+    with lock:
+        was = rig["gap_cm"]
+        rig.update(gap_cm=g, t=round(time.time(), 1))
+        rig["hist"] = (rig["hist"] + [{"t": rig["t"], "gap_cm": g, "was": was}])[-500:]
+        body = json.dumps(rig, ensure_ascii=False)
+    with open(RIG_FILE, "w", encoding="utf-8") as f:
+        f.write(body)
+    print(f"[rig] расстояние между колёсами: {was} → {g} см", flush=True)
+
+
+def rig_brief():
+    return {"gap_cm": rig["gap_cm"], "t": rig["t"]}
+
+
 def battery_label(mac):
     """Чей INA219: шина колеса (агент на шине) или катушка (агент катушки)."""
     with lock:
@@ -2388,6 +2419,7 @@ def dash(window, metrics, t0=None, t1=None):
                "fw": fw_info(), "ota_key": bool(ota_key()), "compose": cmp, "presets": PRESETS, "slots": SLOTS,
                "usb": usb_brief(), "rest_rot": rest_brief(), "tele": control.get("tele", 0), "guard": guard_brief()})
     st["battery"] = battery_brief()
+    st["rig"] = rig_brief()
     return st
 
 
@@ -2633,7 +2665,7 @@ def session_start(body):
          "created": round(time.time(), 3), "state": "new", "targets": targets, "targets_ids": ids,
          "cfg": cfg, "own": own, "quiet": bool(body.get("quiet")),
          "duration_s": int(round(minutes * 60)), "steps": [], "t_start": None, "t_stop": None,
-         "summary": None, "note": ""}
+         "summary": None, "note": "", "rig": rig_brief()}
     stop = threading.Event()
     session_active["s"], session_active["stop"] = x, stop
     session_store(x)
@@ -2729,6 +2761,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(watch.spectrum(q.get("mac", "").lower(), int(q.get("n", 6))))
         if u.path == "/api/motors":                    # моторы колёс: режимы, что шлём, что на мостах
             return self.send_json(motors_state())
+        if u.path == "/api/rig":                       # установка руками: расстояние между колёсами и история изменений
+            with lock:
+                body = {**rig_brief(), "hist": list(rig["hist"][-50:])}
+            return self.send_json(body)
         if u.path == "/api/battery":                   # аккумуляторы контуров (INA219): напряжение, ток, осталось
             return self.send_json(battery_brief())
         if u.path == "/api/coils":                     # катушки колёс: поле, кто задал, агенты катушек
@@ -2830,9 +2866,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json({"ok": True, "n": k, "bad": bad, "t": round(t, 3)})
         if u.path not in ("/api/control", "/api/session/start", "/api/session/stop", "/api/compose",
                           "/api/program/start", "/api/program/stop", "/api/program/again", "/api/program/resume",
+                          "/api/program/pause", "/api/program/continue",
                           "/api/static/baseline", "/api/ota",
                           "/api/usb", "/api/rest_rot", "/api/telemetry", "/api/ident", "/api/motors", "/api/coils",
-                          "/api/battery"):
+                          "/api/battery", "/api/rig"):
             return self.send_error(404)
         try:
             n = int(self.headers.get("Content-Length", 0))
@@ -2851,6 +2888,9 @@ class Handler(BaseHTTPRequestHandler):
                     watch.rec_clear(body.get("macs", "all"))
                     return self.send_json({"ok": True})
                 raise ValueError("action: start, stop или clear")
+            if u.path == "/api/rig":                    # {gap_cm}: расстояние между колёсами, см (пусто — не задано)
+                rig_set(body.get("gap_cm"))
+                return self.send_json({"ok": True, **rig_brief()})
             if u.path == "/api/battery":                # ёмкость пары по умолчанию: {cap: мА·ч}
                 batteries.set_cap(body.get("cap"))
                 return self.send_json({"ok": True, **battery_brief()})
@@ -2903,12 +2943,22 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/program/start":
                 busy = "идёт сессия — сначала остановите её" if session_active["s"] is not None else None
                 return self.send_json({"ok": True, "id": runner.start(body.get("program"), busy)})
-            if u.path == "/api/program/stop":
-                runner.request_stop()
+            if u.path == "/api/program/stop":            # {now} — сразу; иначе после опыта; {cancel} — снять просьбу
+                return self.send_json({"ok": True, "did": runner.request_stop(bool(body.get("now")), bool(body.get("cancel")))})
+            if u.path == "/api/program/resume":          # пауза: аккумуляторы заменены — дальше (или снять просьбу о паузе)
+                return self.send_json({"ok": True, "did": runner.request_resume()})
+            if u.path == "/api/program/pause":           # пауза по кнопке: после текущего опыта всё стоит, ждём «продолжить»
+                x = runner.active
+                if not x:
+                    raise ValueError("программа не идёт")
+                if (x.get("now") or {}).get("pause"):
+                    raise ValueError("программа уже на паузе")
+                runner.request_pause(str(body.get("why") or "по кнопке «пауза»")[:120])
+                print(f"[prog] №{x['id']}: оператор просит паузу после опыта", flush=True)
                 return self.send_json({"ok": True})
-            if u.path == "/api/program/resume":          # пауза между повторами: аккумуляторы заменены — дальше
-                runner.request_resume()
-                return self.send_json({"ok": True})
+            if u.path == "/api/program/continue":        # остановленная или прерванная программа — с первого невыполненного опыта
+                busy = "идёт сессия — сначала остановите её" if session_active["s"] is not None else None
+                return self.send_json({"ok": True, "id": runner.continue_program(int(body.get("id") or 0), busy)})
             if u.path == "/api/program/again":           # тревога статики: {n} — повторить шаг, {auto} — повторять сам
                 return self.send_json({"ok": True, **runner.request_again(body)})
             if u.path == "/api/session/stop":
@@ -2979,6 +3029,12 @@ def _prog_done(pairs):
         return [m for m, cid in pairs if m in agents and (agents[m]["gen"] or {}).get("done") != cid]
 
 
+def _agent_name(mac):
+    """«№8» по реестру; неизвестный — хвост MAC."""
+    a = agents.get(mac)
+    return f"№{a['id']}" if a and a.get("id") else mac[-5:]
+
+
 def _prog_temps(macs):
     with lock:
         return {m: (agents[m].get("values") or {}).get("temp") for m in macs if m in agents}
@@ -3015,7 +3071,11 @@ runner = Runner({"apply": lambda t, c, o, f: apply_all(t, c, o, f), "confirmed":
                  "base_own": lambda: dict(control.get("own") or {}),
                  "rest": lambda macs: _prog_rest(macs), "temps": lambda macs: _prog_temps(macs),
                  "done": _prog_done,
-                 "seen": _prog_seen, "log": lambda text: print(text, flush=True)}, PROG_DIR)
+                 "seen": _prog_seen, "rig": lambda: rig_brief(), "name": lambda mac: _agent_name(mac),
+                 # опыт кончился — кто из генераторов молчал дольше этого, тот «замолчал» (обычная телеметрия раз в
+                 # секунду; редкая — раз в 10 с; молчание телеметрии — проверять нечем)
+                 "tel_gap": lambda: None if control.get("tele") == 2 else 25 if control.get("tele") == 1 else 6,
+                 "log": lambda text: print(text, flush=True)}, PROG_DIR)
 
 
 def watch_ticker():
@@ -3075,6 +3135,8 @@ def main():
         print(f"[srv] данные: {DATA}", flush=True)
     load_control()
     sessions_load()
+    rig_load()
+    runner.mark_interrupted()                          # «идёт» с прошлого запуска — прервана, можно продолжить
     try:                                               # документация в HTML — всегда как в markdown
         sys.path.insert(0, os.path.join(ROOT, "tools"))
         import build_docs

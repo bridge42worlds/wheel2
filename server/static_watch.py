@@ -784,8 +784,11 @@ class Watch:
                 known = {f["known"] for f in finds if f.get("known")}
                 if not v:
                     v = "check" if held else ("ok" if self._base(s) is not None else "nobase")
+                # главное число отрезка: самое большое отклонение от эталона (|z|) без известной причины
+                zs = [abs(f["z"]) for f in finds if CLS[f["kind"]] == "dev" and not f.get("known") and f.get("z") is not None]
+                zs += [abs(f["z"]) for f in integ if f.get("z") is not None]
                 per[mac] = {"verdict": v, "reasons": rs, "windows": len(ws), "known": sorted(known),
-                            "base": self._base(s) is not None, "held": n_held}
+                            "base": self._base(s) is not None, "held": n_held, "zmax": round(max(zs), 2) if zs else 0.0}
             order = ["repeat", "check", "ok", "nobase", "nodata"]
             vs = [p["verdict"] for p in per.values()]
             overall = next((x for x in order if x in vs), "nodata")

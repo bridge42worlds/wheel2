@@ -6,7 +6,7 @@ in Russian.*
 
 The whole rig as it is now (2026-10-26): what it consists of, what each agent does, how the server and
 the main screen work, which parameters exist. Topic documents (Russian): modes, wiring, group mode,
-absorption, randomness, static sensors, sensors/phone/motors, programs and series, temperature; how the
+absorption, randomness, static sensors, sensors/phone/motors, experiments and programs, temperature; how the
 rig got here — appendix A, change history.
 
 ---
@@ -25,7 +25,7 @@ rig got here — appendix A, change history.
 * **Static sensors** between the wheels: accelerometer #8 at the centre of the axis, a **phone** #9 next
   to it (measures and sends over Wi-Fi on its own).
 * **Server** — `server/monitor.py` on a laptop in the experiment network: receives telemetry, checks
-  primes, analyses the static sensors, runs programs and series, drives motors and coils, writes
+  primes, analyses the static sensors, runs experiments (programs), drives motors and coils, writes
   everything to disk. Python 3 standard library; numpy for the static sensors. Start: `tools/monitor.cmd`.
 * **"Installation" screen** — `http://<server>:8090/` in a browser, tablet or phone.
 * **Registry** — `registry/devices.csv`: number, MAC and label of every board.
@@ -166,53 +166,78 @@ into their noise — a loop through the air.
 **▦ Installation** and **? Documents**. Colour is never the only cue: every state has an icon and a word
 (Okabe–Ito palette).
 
-* **Header**: link state, running program, ❗ static alarm, 🔔 sound; buttons "find board", "experiment…",
-  "⇅ series…", "⟳ rotation…", "◆ static", "☰ report", "⋯ more"; "▶ Run N steps · ≈ time",
-  "⏹ Stop after step", "■ Stop all" (program, all counting, motors, coils).
-* **Wheel columns** (left and right): "now" — subgroups as chips (state icon and word, number, rate or °C
-  with a bar to the limit, A/M — sensors), the coil line with manual "off / + / −", rim rpm and the rpm
-  needed for weightlessness; "experiment plan" — layers: role (generation / absorption / stands), way
-  (selfish / group), noise — each with its icon.
-* **Plate** above the drawing: clock, what is running (step N of M with a countdown and progress bar, a
-  console start or quench, "standing"), step and program totals or the last program, temperature; on tall
-  screens a wheel table (mode, rotation, field, link).
-* **Drawing of the rig**: two wheels — agents around the rim by subgroup (arc with letter and "▶ 4/6"),
-  inside — mode (role colour with icon), way, noise, rpm with direction (⟳ forward, ⟲ backward) and field;
-  with the field on the rim is blue with arrows along the field. Under each wheel — the **coil agent**,
-  bottom centre — the **motor agent**, between the wheels — the static sensors.
-* **Static card**: verdict in large type (✓ as reference — continue · ⚠ deviation — check · ↻ interference
-  or instrument — repeat · ◌ no reference · ○ no data) and for which span, each sensor with reasons in words,
-  **live Gaussian, spectrum and oscillations** over 10 s of the chosen sensor and axis (shape in words:
-  Gaussian / tails / stepped; SD, skewness, kurtosis, knocks), the reference and its recording.
-* **Plan rows**: "4 · coil field" (off, ++, +−, −+, −−) and "5 · step" (length, temperature, rest,
-  repeats, control, what to do on a static deviation).
-* **Step ribbon** at the bottom: "plan" (what "Run" will send) or "program #…" — steps in order, control
-  steps hatched, the current one framed, finished ones with primes, rate and the static verdict in words.
-* **Windows** over the screen: agent (click a chip or a circle: "∿ live" — oscillations, Gaussian, spectrum
-  for all axes, windows up to 15 min; "🧲 field live"; sensor noise and accuracy; role; find), "composition…",
-  "steps…", "experiment…", "⇅ series…", "⟳ rotation…", "◆ static in depth", "☰ report", "⋯ more": ↻ how it
-  works (live view), diagnostics, firmware, console, observation, old panel, documents.
+* **Header**: link state, running program, ❗ static alarm, 🔔 sound; buttons "find board", "✎ Experiment…",
+  "⟳ motors by hand…", "◆ static", "☰ results", "⋯ more"; "▶ Run N runs · ≈ time" (or "↻ Continue #… ·
+  N more" for a stopped or interrupted program), while running — "⏸ Pause" / "▶ Continue", "⏹ Stop after
+  run" (press again to cancel), "■ Stop all" (at once: program, all counting, motors, coils).
+* **Rig diagram** — on the left, large, everything live. Two wheels, agents around the rim by subgroup:
+  number, an icon of what it does (▶ counting, ▼ absorbing, ⏸ not counting, ✗ no link) and temperature; an
+  arc around the agent — temperature from 40 °C to the limit (dashed near the limit); outside — primes per
+  second or a word. A **flash "+N"** — the agent found primes since the last poll; **waves** — an absorber
+  emits frames into the air. The subgroup arc with its letter and "▶ 4/6"; **running green** — the subgroup
+  counts together. Inside the wheel — what the agents do and how many primes (Σ and rate), **rim rpm** with
+  k and the rpm needed for weightlessness, **coil field and |B|** from the magnetometer on the wheel. A
+  dashed ring around the wheel runs at the real speed, an arrow above it shows the direction (⟳ forward,
+  ⟲ backward); with the field on the rim is blue and the dashes and arrows run along the field. Above the
+  wheel — the **bus battery** (INA219: voltage, charge left, minutes left), below it — the coil agent,
+  manual field buttons (off / + / −) and the **coil battery**. Between the wheels — static sensors,
+  "↔ … cm" (tap to enter the distance), the motor agent, "⚙ composition…"; an arc on top — primes going to
+  the absorbers of the other wheel, below — back noise. Animation phase follows the clock (the 2 s redraw
+  does not jerk it); with "reduce motion" in the system — no animation.
+* **On the right**: the "now" plate — clock, what is running (run N of M with a countdown and progress
+  bar, a console start or quench, "standing"), totals or the last program, temperature; the **static
+  card** — verdict in large type (✓ as reference — continue · ⚠ deviation — check · ↻ interference or
+  instrument — repeat · ◌ no reference · ○ no data), each sensor with reasons in words, **live Gaussian,
+  spectrum and oscillations** over 10 s, the reference and its recording; the **experiment** line — runs ×
+  repeats, time, what varies, "✎ change…".
+* **Run ribbon** at the bottom: "plan" (the experiment's runs — what "Run" will send) or "program #…" —
+  runs in order, control runs hatched, the current one framed, finished ones with primes, rate and the
+  static verdict in words.
+* **Windows** over the screen: agent (tap a circle: "∿ live" — oscillations, Gaussian, spectrum for all
+  axes, windows up to 15 min; "🧲 field live"; sensor noise and accuracy; role; find), "composition…",
+  "✎ Experiment…" (§ 9), "⟳ motors by hand…" (§ 9), "◆ static in depth", "☰ results" (§ 9), "⋯ more":
+  ↻ how it works (live view), diagnostics, firmware, console, observation, old panel, documents.
 * **❗ Static alarm**: verdict "⚠ check" — three beeps, a blinking "❗" in the header and a window with the
   reason and "↻ repeat the step once more"; the program can repeat such a step by itself.
 
 ---
 
-## 9. Experiment: steps, series, program, rotation
+## 9. Experiment: runs, program, results, rotation
 
-* **Step** — one setting of the rig for a given time: every subgroup is its own group with its own config
-  number, agents outside the step's groups stand and cool down. Steps are built from the layers.
-* **Series** ("⇅ series…") — nested loops over five levels: ⟳ wheel rotation (stand, together, together
-  backward, towards each other, only one), ⇉ coil field, ⋈ cooperation, ∿ noise, ⇄ emission/absorption.
-  Order top to bottom is the nesting (the top level changes least often), levels are dragged; set length
-  10–60 s (**30 s recommended**: the static analysis gets 3 windows of 10 s, and a verdict needs two in a
-  row); settling time depends on what changed (rotation 15 s, mode 8 s, field 5 s); the distance between
-  the wheels is entered by hand and stored in every set; the window shows the number of sets, the time,
-  wheel spin-ups and a timeline of the series.
-* **Program** — the steps or the series on "▶ Run": noise reference first, repeats, random order (off for
-  a series), rest, rotation and field per step, comparison of experiment against control under a criterion
-  named in advance, pairwise re-checks of a found anomaly, repeats of spoiled steps and steps with a static
-  deviation. **Report** — all steps with modes, primes, static verdict; CSV export.
-* **Rotation** ("⟳ rotation…"): wheels separately / together / towards each other / only one; mode — stand,
+* **Experiment** — a list of runs, gone through "repeats" times. A **run** is one set of parameters:
+  ⟳ **wheel rotation** — each wheel stands, forward or backward, a 3 × 3 table (row — wheel 1, column —
+  wheel 2; ⟳⟲ towards each other, ⟳⟳ together, ⟳■ only one); ⏲ **speed** — rpm, PWM or weightlessness
+  (not varied for standing wheels); ⇉ **coil field** — each coil off / + / −, also 3 × 3; ⇄ **emission /
+  absorption**; ⋈ **cooperation** — selfish, cascade, one number for all, relay; ∿ **noise** — sources as
+  icons, varied as all together, all but one (exclusion), one by one (inclusion); all three — 2N + 1.
+* **"✎ Experiment…" window**: parameters on the left — tick the values; **the order of the cards is the
+  loop nesting** (the top one changes least often; drag by ⠿ or ▲ ▼). On the right, immediately, **the list
+  of runs**: varying parameters as columns (bold — what changed), constant ones above, each run's start
+  time and what precedes it; a tick removes a run. Above the list — runs × repeats, time and end time, the
+  hottest agent's temperature, whether the batteries last, a timeline. Below — run length (**30 s
+  recommended**), settling by what changed (rotation 15 s, role / way / noise 8 s, field only 5 s), the
+  distance between the wheels, repeats and order (by nesting or shuffled per repeat), rest, temperature
+  limit, batteries and a pause between repeats; control and checks; run details.
+* **Control** — a run without influence: wheels standing, field off. Every run with rotation or field is
+  compared with its own control — the same mode and noise.
+* **Program** — the list of runs on "▶ Run": noise reference first, repeats, rest, rotation and field per
+  run, comparison with control under a criterion named in advance, pairwise re-checks of a found anomaly,
+  repeats of spoiled runs and runs with a static deviation. Each run's parameters are stored (`set`, `axes`).
+* **Pause and continue**: "⏸ Pause" — after the current run everything stands (coils off, wheels stopped,
+  agents cool down), "▶ Continue" goes on from the same place. The program also pauses by itself: batteries
+  low (INA219), agents of the run lost for more than 30 s (power gone), before a repeat if asked; the reason
+  is shown. A run whose agents went silent, or which "■ Stop all" cut, is spoiled and repeated. A stopped,
+  failed or interrupted (server restart) program can be continued from the first run not done — results go
+  into the same record.
+* **Results** ("☰ results"): **what matters** — each parameter **other things being equal**: a run with a
+  value is compared with runs where the parameter is at its reference (first value: wheels standing, field
+  off …) and all other parameters are the same; Δ ± error and a verdict — ✓ no difference / ◐ possible
+  (2–3 σ) / ❗ difference (over 3 σ); metric of choice: primes/s, candidates/s, agent temperature, |B|,
+  share of runs with a static deviation; the verdict uses Student's t with the number of pairs. A **pivot** of
+  any two parameters. Below — the **run protocol**: each run's parameters, verdict (spoiled · anomaly · static
+  deviation · like control), the main static value (noise over the run, difference from its own control,
+  max z against the reference, sensor verdict) and anomaly yes/no; per-agent table; CSV.
+* **Motors by hand** ("⟳ motors by hand…", outside the experiment): wheels separately / together / towards each other / only one; mode — stand,
   PWM, rpm or **weightlessness** (rpm adjusted until the rim sensor shows k = ω²r/g = 1; at r = 450 mm —
   44.6 rpm), direction reversal on a timer; in rpm and weightlessness modes — PI on the rim rpm.
 

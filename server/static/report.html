@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Колесо-2 · отчёт</title>
+<title>Колесо-2 · результаты</title>
 <link rel="stylesheet" href="/ui.css">
 <style>
-/* Журнал-отчёт планшетки: все шаги программы с параметрами (слои) и итогами — по агентам простые и
-   температура, статика, аномалии, разведка (scan). Второе окно к /plan. */
+/* Результаты экспериментов планшетки: «что влияет» — каждый параметр опыта при прочих равных и сводная
+   таблица; ниже все опыты программы с параметрами и итогами — по агентам простые и температура, статика,
+   аномалии, разведка (scan). Второе окно к /plan. */
 .wrap { padding:8px 10px; }
 .sel { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:8px; }
 table.t td, table.t th { padding:3px 6px; vertical-align:top; }
@@ -17,14 +18,22 @@ tr.spoiled td { opacity:.6; }
 .sum { margin:8px 0; }
 details { margin-top:8px; }
 .lay { color:var(--mut); font-size:.85em; }
+.ana { margin:4px 0 12px; display:flex; flex-direction:column; gap:6px; }
+.ana table.t { width:auto; min-width:min(100%, 760px); }
+.ana tr.axh td { background:var(--idle-bg); }
+.ana .piv td.c { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.ana select { font:inherit; }
 </style>
 </head>
 <body>
-<div class="top"><div class="row"><b>Колесо-2 · отчёт</b><span id="conn" class="small"></span><span id="nav"></span><span class="sp"></span></div></div>
+<div class="top"><div class="row"><b>Колесо-2 · результаты</b><span id="conn" class="small"></span><span id="nav"></span><span class="sp"></span></div></div>
 <div class="wrap">
   <div class="sel"><label>программа <select id="pSel"></select></label><button class="btn" id="bCsv">⇩ CSV</button><span class="small mut" id="pInfo"></span></div>
   <div class="sum" id="sum"></div>
+  <section class="ana" id="ana"></section>
+  <div class="small mut">все опыты программы по порядку:</div>
   <div style="overflow:auto"><table class="t" id="tbl"></table></div>
+  <details><summary>по агентам: простых в секунду и температура в каждом опыте</summary><div style="overflow:auto" id="agt"></div></details>
   <details><summary>Аномалии, проверки и разведка</summary><div id="anom"></div></details>
 </div>
 <div class="foot" id="foot"><span class="mut">…</span></div>
@@ -34,17 +43,58 @@ details { margin-top:8px; }
 "use strict";
 let list = [], cur = null, curId = null;
 const roleIcon = r => ICONS[r] || ICONS.idle;
-const wayShort = w => ({ solo: "эгоист.", cascade: "каскад", same: "одинак.", all: "все со всеми", pair: "1:1" })[w] || w || "";
+const wayShort = w => ({ solo: "эгоист.", cascade: "каскад", one: "одно число", relay: "эстафета", same: "одинак.", all: "все со всеми", pair: "1:1" })[w] || w || "";
 function layText(L, coil) {
   if (!L) return "";
-  return `К1 ${roleIcon(L.w1.role)}${L.w1.way ? " " + wayShort(L.w1.way) : ""}${L.w1.noise ? " · " + esc(L.w1.noise) : ""} | К2 ${roleIcon(L.w2.role)}${L.w2.way ? " " + wayShort(L.w2.way) : ""}${L.w2.noise ? " · " + esc(L.w2.noise) : ""}${coil ? ` | поле ${esc(coil["1"])} ${esc(coil["2"])}` : ""}`;
+  return `${L.rot ? esc(L.rot === "стоят" ? "без вращения" : L.rot) + " | " : ""}К1 ${roleIcon(L.w1.role)}${L.w1.way ? " " + wayShort(L.w1.way) : ""}${L.w1.noise ? " · " + esc(L.w1.noise) : ""} | К2 ${roleIcon(L.w2.role)}${L.w2.way ? " " + wayShort(L.w2.way) : ""}${L.w2.noise ? " · " + esc(L.w2.noise) : ""}${coil ? ` | поле ${esc(coil["1"])} ${esc(coil["2"])}` : ""}`;
 }
-// Статика за шаг: вердикт словом и главные причины по датчикам (r.watch — static_watch.verdict)
-function watchCell(r) {
-  const w = r.watch, sv = w && STATIC_VERDICT[w.verdict];
-  if (!sv) return "<span class='mut'>—</span>";
-  const why = Object.entries(w.sensors || {}).flatMap(([m, p]) => (p.reasons || []).slice(0, 1).map(x => `${esc(m.slice(-5))}: ${esc(x)}`));
-  return `<span class="${sv.cls}">${sv.icon} ${sv.word}</span>${why.length ? `<div class="small mut">${why.slice(0, 2).join("; ")}</div>` : ""}${(w.notes || []).map(n => `<div class="small warn">◐ ${esc(n)}</div>`).join("")}`;
+// ---------- протокол опыта: итог, главное статики, аномалия ----------
+// Главное статики за опыт — по каждому датчику: шум (СКО по трём осям, мg), насколько он отличается от шума того
+// же датчика в своих контрольных опытах (control_for; нет — во всех контрольных) и самое большое отклонение от
+// эталона без известной причины (max z, static_watch); рядом — вывод датчика словом.
+const noiseOf = m => m && m.sd_x != null ? Math.sqrt(((m.sd_x || 0) ** 2 + (m.sd_y || 0) ** 2 + (m.sd_z || 0) ** 2) / 3) : null;   // мкg
+function ctlNoise(x, r, mac) {
+  const cs = (x.runs || []).filter(c => c.control && !c.spoiled && c !== r && (!r.control_for || c.name === r.control_for));
+  const v = cs.map(c => noiseOf((c.static || {})[mac])).filter(q => q != null);
+  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+}
+const VW = { ok: ["✓", "ok", "как эталон"], check: ["⚠", "warn", "отклонение"], repeat: ["↻", "warn", "помеха"], nobase: ["◌", "mut", "нет эталона"], nodata: ["○", "mut", "нет данных"] };
+function sname(x, mac) {
+  for (const r of x.runs || []) if (r.snames && r.snames[mac]) return r.snames[mac];
+  return mac.startsWith("gen:") ? mac.slice(4) : mac.slice(-5);
+}
+function statRows(x, r) {
+  return Object.entries(r.static || {}).filter(([, m]) => m).map(([mac, m]) => {
+    const nz = noiseOf(m), c = r.control ? null : ctlNoise(x, r, mac), ws = ((r.watch || {}).sensors || {})[mac] || {};
+    return { mac, name: sname(x, mac), nz, d: nz != null && c ? (nz / c - 1) * 100 : null, z: ws.zmax, v: ws.verdict, why: (ws.reasons || [])[0] };
+  });
+}
+function statMain(x, r) {
+  const S = statRows(x, r);
+  if (!S.length) return `<span class="mut">—</span>`;
+  return S.slice(0, 2).map(q => {
+    const vw = VW[q.v];
+    return `<div><b>${esc(q.name)}</b> шум ${q.nz != null ? fmt(q.nz / 1000, 3) + " мg" : "—"}${q.d != null ? ` <span class="${Math.abs(q.d) >= 5 ? "warn" : "mut"}">(${q.d >= 0 ? "+" : "−"}${fmt(Math.abs(q.d), 1)} % к контролю)</span>` : r.control ? ` <span class="mut">(контроль)</span>` : ""}
+      · <span title="самое большое отклонение от эталона за опыт без известной причины, в σ">max z ${q.z != null ? fmt(q.z, 1) : "—"}</span>${vw ? ` · <span class="${vw[1]}" title="${esc(q.why || "")}">${vw[0]} ${vw[2]}</span>` : ""}</div>`;
+  }).join("") + (S.length > 2 ? `<div class="small mut">ещё ${S.length - 2} — в CSV</div>` : "");
+}
+// Итог опыта одним словом: испорчен · аномалия (подтвердилась / нет / проверяется) · отклонение статики · как контроль
+function runVerdict(x, r, i) {
+  const an = (x.anomalies || {})[String(i)], vd = (x.verdicts || {})[String(i)];
+  if (r.spoiled) return { cls: "bad", w: "✗ испорчен", d: r.spoiled_why || "" };
+  if (an) return vd ? (vd.confirmed ? { cls: "bad", w: "❗ аномалия подтвердилась", d: `${vd.same} из ${vd.of} проверок` } : { cls: "warn", w: "◐ аномалия не подтвердилась", d: `${vd.same} из ${vd.of}` })
+    : { cls: "warn", w: "◐ аномалия — проверяется", d: "" };
+  if (r.alert || (r.watch || {}).verdict === "check") return { cls: "warn", w: "⚠ отклонение статики", d: "" };
+  if (r.control) return { cls: "ok", w: "✓ контроль", d: "" };
+  return { cls: "ok", w: r.scan ? "✓ как контроль" : "✓ без замечаний", d: "" };
+}
+function anomOf(x, r, i) {
+  const an = (x.anomalies || {})[String(i)], sc = (r.scan || [])[0];
+  if (an) return { yes: true, html: `<b class="bad">❗ да</b><div class="small">${an.slice(0, 2).map(h => `${esc(sname(x, h.mac))}/${esc(h.metric)} t ${fmtZ(h.z)}`).join("; ")}</div>`,
+                   text: "да: " + an.map(h => `${sname(x, h.mac)}/${h.metric} t ${h.z}`).join("; ") };
+  if (sc) return { yes: false, html: `нет <span class="small mut">· max |t| ${fmtZ(sc.z)} (${esc(sname(x, sc.mac))}/${esc(sc.metric)})</span>`, text: `нет (max |t| ${sc.z})` };
+  const w = r.control ? "контроль" : r.spoiled ? "—" : "не сравнивался";
+  return { yes: false, html: `<span class="mut">${w}</span>`, text: w };
 }
 async function loadList() {
   const r = await getJSON("/api/programs");
@@ -76,41 +126,196 @@ function fieldText(f) {
 function render() {
   const x = cur, prog = x.program || {}, steps = prog.steps || [], runs = x.runs || [], plan = x.plan || [];
   const ags = agentsOf(x);
-  $("pInfo").textContent = `${runs.length} из ${plan.length} шагов · повторов ${prog.repeat}${prog.shuffle ? ", случайно" : ""} · отдых ${prog.rest === "stable" ? "до стабилизации" : prog.rest || "нет"} · зерно ${prog.seed ?? "—"}`;
+  $("pInfo").textContent = `${runs.length} из ${plan.length} опытов${(x.continued || []).length ? ` · продолжалась ${x.continued.length} раз` : ""}${(x.pauses || []).length ? ` · пауз ${x.pauses.length}` : ""} · повторов ${prog.repeat}${prog.shuffle ? ", случайно" : ""} · отдых ${prog.rest === "stable" ? "до стабилизации" : prog.rest || "нет"} · зерно ${prog.seed ?? "—"}`;
   const ok = runs.filter(r => !r.spoiled);
   const ctl = ok.filter(r => r.control).length;
   $("sum").innerHTML = `выполнено <b>${runs.length}</b> · испорчено <b>${runs.filter(r => r.spoiled).length}</b> · контрольных <b>${ctl}</b> · аномалий <b>${Object.keys(x.anomalies || {}).length}</b> · подтвердилось <b>${Object.values(x.verdicts || {}).filter(v => v.confirmed).length}</b> · простых всего <b>${fmt(Math.round(ok.reduce((s, r) => s + ((((r.gen || {})["все"] || {}).pr_s || 0) * (r.t1 - r.t0)), 0)))}</b> за <b>${fmt(runs.reduce((s, r) => s + (r.t1 - r.t0), 0) / 60, 0)}</b> мин счёта${x.state === "running" ? ` · <span class="ok">идёт</span>` : ""}`;
-  const head = `<tr><th>№</th><th>шаг</th><th>начало</th><th>мин</th><th>простых</th><th>всего пр/с</th>${ags.map(a => `<th>${esc(a)}<br><span class="small mut">пр/с · °C</span></th>`).join("")}<th>статика</th><th>поле<br><span class="small mut">|B| мкТл ± СКО</span></th><th>разведка (max |t|)</th><th>итог</th></tr>`;
+  // протокол: по каждому опыту — параметры, итог, главное статики, аномалия, простые, температура, поле
+  const head = `<tr><th>№</th><th>опыт · параметры</th><th>итог</th><th>статика: главное</th><th>аномалия</th><th class="num">простых</th><th class="num">пр/с</th><th class="num">°C</th><th>поле |B|<br><span class="small mut">мкТл ± СКО</span></th></tr>`;
   const rows = runs.map((r, i) => {
-    const st = steps[r.step] || {}, g = r.gen || {}, all = g["все"] || {}, it = plan[i] || {};
-    const sc = (r.scan || [])[0];
-    const an = (x.anomalies || {})[String(i)], vd = (x.verdicts || {})[String(i)];
+    const st = steps[r.step] || {}, g = r.gen || {}, all = g["все"] || {}, it = plan[i] || {}, v = runVerdict(x, r, i), a = anomOf(x, r, i);
     const marks = [r.control ? "контроль" : "", r.confirm ? "проверка аномалии" : "", it.redo ? `передел ${it.redo}` : "", it.repeat ? `повторение ${it.repeat}` : "", it.again ? `↻ повтор ${it.why === "оператор" ? "по просьбе" : "после отклонения"}` : ""].filter(Boolean);
+    const temps = Object.entries(g).filter(([k, m]) => k !== "все" && m && m.temp != null).map(([, m]) => m.temp);
     return `<tr class="${r.control ? "ctl" : ""} ${r.spoiled ? "spoiled" : ""}"><td>${i + 1}</td>
-      <td>${esc(r.name)}${marks.length ? ` <span class='small mut'>(${marks.join(" · ")})</span>` : ""}<div class="lay">${layText(st.layers || r.layers, st.coil || r.coil)}</div>${(st.groups || []).length ? `<div class="lay">${st.groups.map(g => esc(g.label) + " (" + g.targets.length + ")").join("; ")}</div>` : ""}</td>
-      <td class="small">${new Date(r.t0 * 1000).toLocaleTimeString("ru-RU")}</td><td class="num">${fmt((r.t1 - r.t0) / 60, 1)}</td><td class="num">${all.pr_s != null ? fmt(Math.round(all.pr_s * (r.t1 - r.t0))) : "—"}</td><td class="num">${fmt(all.pr_s, 1)}</td>
-      ${ags.map(a => { const m = g[a] || {}; return `<td class="num">${m.pr_s != null ? fmt(m.pr_s, 1) : "—"}${m.temp != null ? ` · ${fmt(m.temp, 0)}°` : ""}</td>`; }).join("")}
-      <td>${watchCell(r)}</td>
-      <td class="small">${fieldText(r.field) || "<span class='mut'>—</span>"}</td>
-      <td class="small">${sc ? `${esc(sc.mac)}/${esc(sc.metric)} t ${fmtZ(sc.z)} (p ${esc(sc.p)}, из ${sc.tests})` : "—"}</td>
-      <td>${r.alert ? `<b class="bad">❗ отклонение статики</b><br>` : ""}${r.spoiled ? `<span class="bad">✗ испорчен: ${esc(r.spoiled_why || "")}</span>` : an ? `<span class="warn">◐ аномалия${vd ? (vd.confirmed ? " · <b>подтвердилась</b>" : " · не подтвердилась") : ""}</span>` : `<span class="ok">✓</span>`}</td></tr>`;
+      <td>${esc(r.name)}${marks.length ? ` <span class='small mut'>(${marks.join(" · ")})</span>` : ""}<div class="lay">${new Date(r.t0 * 1000).toLocaleTimeString("ru-RU")} · ${fmt((r.t1 - r.t0) / 60, 1)} мин${r.rig && r.rig.gap_cm != null ? ` · между колёсами ${fmt(r.rig.gap_cm, 1)} см` : ""} · ${layText(st.layers || r.layers, st.coil || r.coil)}</div></td>
+      <td><span class="${v.cls}">${v.w}</span>${v.d ? `<div class="small">${esc(v.d)}</div>` : ""}</td><td class="small">${statMain(x, r)}</td><td>${a.html}</td>
+      <td class="num">${all.pr_s != null ? fmt(Math.round(all.pr_s * (r.t1 - r.t0))) : "—"}</td><td class="num">${fmt(all.pr_s, 1)}</td>
+      <td class="num">${temps.length ? fmt(Math.min(...temps), 0) + (Math.max(...temps) - Math.min(...temps) >= 1 ? "–" + fmt(Math.max(...temps), 0) : "") : "—"}</td>
+      <td class="small">${fieldText(r.field) || "<span class='mut'>—</span>"}</td></tr>`;
   }).join("");
   $("tbl").innerHTML = head + rows;
+  // по агентам: простых в секунду и температура в каждом опыте
+  $("agt").innerHTML = `<table class="t"><tr><th>№</th><th>опыт</th>${ags.map(a => `<th>${esc(a)}<br><span class="small mut">пр/с · °C</span></th>`).join("")}</tr>${runs.map((r, i) =>
+    `<tr class="${r.control ? "ctl" : ""} ${r.spoiled ? "spoiled" : ""}"><td>${i + 1}</td><td class="small">${esc(r.name)}</td>${ags.map(a => { const m = (r.gen || {})[a] || {}; return `<td class="num">${m.pr_s != null ? fmt(m.pr_s, 1) : "—"}${m.temp != null ? ` · ${fmt(m.temp, 0)}°` : ""}</td>`; }).join("")}</tr>`).join("")}</table>`;
+  renderAna(x);
   const an = Object.entries(x.anomalies || {});
   $("anom").innerHTML = an.length ? an.map(([i, hits]) => `<div><b>шаг ${+i + 1}</b>: ${hits.map(h => `${esc(h.mac)}/${esc(h.metric)} t ${fmtZ(h.z)} (p_adj ${esc(h.p_adj)}, n ${h.n})`).join("; ")}${(x.verdicts || {})[i] ? ` → ${(x.verdicts || {})[i].confirmed ? "<b>подтвердилась</b>" : "не подтвердилась"} (${(x.verdicts || {})[i].same} из ${(x.verdicts || {})[i].of})` : ""}</div>`).join("")
     : `<div class="mut small">аномалий по критерию не найдено; в колонке «разведка» — самый большой t каждого опытного шага</div>`;
 }
+// ---------- что влияет: параметры опыта против результата ----------
+// Опыт с конструктора эксперимента несёт свои параметры (step.set): вращение, скорость, поле, излучение/поглощение,
+// совместная работа, шум. Влияние параметра — «при прочих равных»: каждый опыт со значением v сравнивается с
+// опытами, где этот параметр — опора (первое значение: колёса стоят, поле выкл …), а все остальные параметры те же.
+// Среднее отношение (или разность) по таким парам и его стандартная ошибка — Δ ± SE; |Δ| / SE ≥ 3 — заметно,
+// 2–3 — возможно. Испорченные опыты — мимо. Сравнений много — случайное «◐» бывает: проверять повтором.
+const avgOf = L => L.length ? L.reduce((a, b) => a + b, 0) / L.length : null;
+const sdOf = L => { if (L.length < 2) return null; const m = avgOf(L); return Math.sqrt(L.reduce((s, v) => s + (v - m) ** 2, 0) / (L.length - 1)); };
+const MET = {
+  pr: { name: "простых в секунду, все", rel: true, d: 1, get: r => ((r.gen || {})["все"] || {}).pr_s },
+  cand: { name: "кандидатов в секунду, все", rel: true, d: 0, get: r => ((r.gen || {})["все"] || {}).cand_s },
+  temp: { name: "температура агентов, °C", rel: false, unit: "°C", d: 1, get: r => avgOf(Object.entries(r.gen || {}).filter(([k, m]) => k !== "все" && m && m.temp != null).map(([, m]) => m.temp)) },
+  field: { name: "|B| магнитометров, мкТл", rel: false, unit: "мкТл", d: 1, get: r => avgOf(Object.values(r.field || {}).map(x => ((x.stats || {})["|B|"] || {}).mean).filter(v => v != null)) },
+  stat: { name: "статика: доля опытов «⚠ проверить», %", rel: false, unit: "п.п.", d: 0, scale: 100, get: r => r.watch ? (r.watch.verdict === "check" ? 1 : 0) : null },
+};
+let anaMet = "pr", anaRow = null, anaCol = null, anaMode = "val";
+const setOf = (x, r) => r.set || (((x.program || {}).steps || [])[r.step] || {}).set || null;
+function anaRows(x) { return (x.runs || []).filter(r => !r.spoiled).map(r => ({ r, s: setOf(x, r) })).filter(o => o.s); }
+// Параметры программы: порядок, названия, значения словами (program.axes); старые — по самим опытам
+function axesOf(x, rows) {
+  const A = (x.program || {}).axes || {}, order = A.order || [...new Set(rows.flatMap(o => Object.keys(o.s)))];
+  return order.map(k => {
+    const seen = [...new Set(rows.map(o => o.s[k]).filter(v => v != null))];
+    const pre = ((A.values || {})[k] || []).filter(v => seen.includes(v));
+    return { k, title: (A.title || {})[k] || k, icon: (A.icon || {})[k] || "", vals: pre.concat(seen.filter(v => !pre.includes(v))),
+             name: v => ((A.names || {})[k] || {})[v] || v };
+  }).filter(a => a.vals.length);
+}
+function effect(rows, a, v, M) {
+  const k = a.k, ref = a.vals[0], S = M.scale || 1;
+  // «остальные те же»: у вращения скорость не сравнивается — у стоящих колёс её нет
+  const rest = o => Object.keys(o.s).filter(q => q !== k && !(k === "rot" && q === "speed")).sort().map(q => q + "=" + o.s[q]).join("|");
+  const base = {};
+  rows.filter(o => o.s[k] === ref).forEach(o => { const y = M.get(o.r); if (y != null) (base[rest(o)] = base[rest(o)] || []).push(y); });
+  const own = rows.filter(o => o.s[k] === v).map(o => ({ o, y: M.get(o.r) })).filter(z => z.y != null), ys = own.map(z => z.y);
+  const res = { n: ys.length, mean: ys.length ? avgOf(ys) * S : null, sd: sdOf(ys) != null ? sdOf(ys) * S : null, d: null };
+  if (v !== ref) {
+    const ds = own.map(z => { const b = base[rest(z.o)]; if (!b) return null; const mb = avgOf(b); return M.rel ? (mb > 0 && z.y > 0 ? Math.log(z.y / mb) : null) : z.y - mb; })
+      .filter(q => q != null && isFinite(q));
+    if (ds.length) {
+      const m = avgOf(ds), se = ds.length > 1 ? sdOf(ds) / Math.sqrt(ds.length) : null, sc = M.rel ? 100 : S;
+      res.d = { m: M.rel ? (Math.exp(m) - 1) * 100 : m * sc, se: se == null ? null : se * sc, n: ds.length };
+    }
+  }
+  return res;
+}
+// Двусторонняя вероятность |T| ≥ |t| для Стьюдента с df степенями свободы (как t_p в server/program.py):
+// при 3–4 парах «4 σ» ещё не открытие — порог по вероятности, а не по σ
+function betacf(a, b, x) {
+  const fpmin = 1e-300;
+  let c = 1, d = 1 - (a + b) * x / (a + 1);
+  d = 1 / (Math.abs(d) < fpmin ? fpmin : d);
+  let h = d;
+  for (let m = 1; m <= 300; m++) {
+    const m2 = 2 * m;
+    let aa = m * (b - m) * x / ((a - 1 + m2) * (a + m2));
+    d = 1 + aa * d; d = 1 / (Math.abs(d) < fpmin ? fpmin : d); c = 1 + aa / c; c = Math.abs(c) < fpmin ? fpmin : c; h *= d * c;
+    aa = -(a + m) * (a + b + m) * x / ((a + m2) * (a + 1 + m2));
+    d = 1 + aa * d; d = 1 / (Math.abs(d) < fpmin ? fpmin : d); c = 1 + aa / c; c = Math.abs(c) < fpmin ? fpmin : c;
+    const de = d * c; h *= de;
+    if (Math.abs(de - 1) < 3e-14) break;
+  }
+  return h;
+}
+function lgamma(z) {                       // Ланцош
+  const g = [676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+  if (z < 0.5) return Math.log(Math.PI / Math.abs(Math.sin(Math.PI * z))) - lgamma(1 - z);
+  z -= 1;
+  let x = 0.99999999999980993;
+  g.forEach((q, i) => { x += q / (z + i + 1); });
+  const t = z + g.length - 0.5;
+  return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(x);
+}
+function betai(a, b, x) {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  const bt = Math.exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * Math.log(x) + b * Math.log(1 - x));
+  return x < (a + 1) / (a + b + 2) ? bt * betacf(a, b, x) / a : 1 - bt * betacf(b, a, 1 - x) / b;
+}
+const tP = (t, df) => df <= 0 ? 1 : betai(df / 2, 0.5, df / (df + t * t));
+function verdictOf(d) {
+  if (!d) return `<span class="mut">нет пары с опорой</span>`;
+  if (d.se == null || d.n < 3) return `<span class="mut">мало пар (${d.n}) — нужны повторы</span>`;
+  const p = tP(d.m / Math.max(d.se, 1e-9), d.n - 1), pw = p < 0.001 ? "< 0,001" : fmt(p, p < 0.01 ? 3 : 2);
+  return p <= 0.0027 ? `<b class="bad">❗ отличие · p ${pw}</b>` : p <= 0.05 ? `<span class="warn">◐ возможно · p ${pw}</span>` : `<span class="ok">✓ не отличается</span> <span class="small mut">p ${pw}</span>`;
+}
+function renderAna(x) {
+  const rows = anaRows(x), el = $("ana");
+  if (!rows.length) {
+    el.innerHTML = (x.runs || []).length ? `<div class="small mut">У опытов этой программы нет разметки параметров (собрана до конструктора эксперимента) — сравнение по параметрам недоступно, смотрите таблицу ниже.</div>` : "";
+    return;
+  }
+  const axes = axesOf(x, rows), vary = axes.filter(a => a.vals.length > 1), M = MET[anaMet], S = M.scale || 1;
+  const dW = d => d ? `${d.m >= 0 ? "+" : "−"}${fmt(Math.abs(d.m), 1)}${M.rel ? " %" : " " + M.unit}${d.se != null ? ` ± ${fmt(d.se, 1)}` : ""}` : "—";
+  let h = `<div class="row"><b>Что влияет</b><span class="small mut">${rows.length} опытов с параметрами · испорченные не учтены</span><span class="sp"></span>
+    <label class="small">показатель <select data-ana="met">${Object.entries(MET).map(([k, m]) => `<option value="${k}" ${k === anaMet ? "selected" : ""}>${m.name}</option>`).join("")}</select></label></div>`;
+  if (!vary.length) h += `<div class="small mut">все параметры постоянные — сравнивать нечего; разброс повторов — в таблице ниже</div>`;
+  else {
+    h += `<div style="overflow:auto"><table class="t"><tr><th>параметр · значение</th><th class="num">опытов</th><th class="num">среднее ± разброс</th><th class="num">к опоре при прочих равных</th><th>вывод</th></tr>`;
+    for (const a of vary) {
+      h += `<tr class="axh"><td colspan="5"><b>${esc(a.icon)} ${esc(a.title)}</b> <span class="small mut">опора — «${esc(a.name(a.vals[0]))}»</span></td></tr>`;
+      for (const v of a.vals) {
+        const e = effect(rows, a, v, M), ref = v === a.vals[0];
+        h += `<tr><td>${esc(a.name(v))}${ref ? ` <span class="small mut">(опора)</span>` : ""}</td><td class="num">${e.n}</td>
+          <td class="num">${e.mean != null ? fmt(e.mean, M.d) : "—"}${e.sd != null ? ` ± ${fmt(e.sd, M.d)}` : ""}</td>
+          <td class="num">${ref ? "" : dW(e.d)}${e.d && !ref ? ` <span class="small mut">(пар ${e.d.n})</span>` : ""}</td><td>${ref ? "" : verdictOf(e.d)}</td></tr>`;
+      }
+    }
+    h += `</table></div>`;
+    // сводная таблица: строки × столбцы, среднее показателя или отличие от первого столбца
+    const ar = vary.find(a => a.k === anaRow) || vary[0], ac = vary.find(a => a.k === anaCol && a.k !== ar.k) || vary.find(a => a !== ar) || null;
+    const opt = (sel, skip) => vary.filter(a => a !== skip).map(a => `<option value="${a.k}" ${a === sel ? "selected" : ""}>${esc(a.icon)} ${esc(a.title)}</option>`).join("");
+    h += `<div class="row small"><b>Сводная</b> строки <select data-ana="row">${opt(ar)}</select>${ac ? ` столбцы <select data-ana="col">${opt(ac, ar)}</select>` : ""}
+      <span class="seg"><button class="${anaMode === "val" ? "sel" : ""}" data-ana="mode" data-v="val">среднее</button><button class="${anaMode === "rel" ? "sel" : ""}" data-ana="mode" data-v="rel">к первому столбцу</button></span></div>`;
+    const cols = ac ? ac.vals : [null], cell = (rv, cv) => {
+      const ys = rows.filter(o => o.s[ar.k] === rv && (cv == null || o.s[ac.k] === cv)).map(o => M.get(o.r)).filter(y => y != null);
+      return { m: ys.length ? avgOf(ys) * S : null, n: ys.length };
+    };
+    const grid = ar.vals.map(rv => cols.map(cv => cell(rv, cv)));
+    const shown = grid.map(row => row.map((c, j) => {
+      if (c.m == null) return null;
+      if (anaMode === "val" || !ac) return c.m;
+      const f = row[0].m;
+      return f == null ? null : M.rel ? (f > 0 ? (c.m / f - 1) * 100 : null) : c.m - f;
+    }));
+    const flat = shown.flat().filter(v => v != null), lo = Math.min(...flat), hi = Math.max(...flat);
+    const unit = anaMode === "rel" && ac ? (M.rel ? " %" : " " + M.unit) : "";
+    h += `<div style="overflow:auto"><table class="t piv"><tr><th>${esc(ar.icon)} ${esc(ar.title)}${ac ? ` \\ ${esc(ac.icon)} ${esc(ac.title)}` : ""}</th>${cols.map(cv => `<th class="num">${cv == null ? "все" : esc(ac.name(cv))}</th>`).join("")}</tr>
+      ${ar.vals.map((rv, i) => `<tr><td>${esc(ar.name(rv))}</td>${shown[i].map((v, j) => {
+        const c = grid[i][j], pct = v == null || hi === lo ? 0 : Math.round(6 + 36 * (v - lo) / (hi - lo));
+        return `<td class="c" style="${pct ? `background:color-mix(in srgb, var(--on) ${pct}%, transparent)` : ""}" title="опытов ${c.n}">${v == null ? "—" : (anaMode === "rel" && ac && v > 0 ? "+" : "") + fmt(v, anaMode === "rel" && ac ? 1 : M.d) + unit} <span class="small mut">(${c.n})</span></td>`;
+      }).join("")}</tr>`).join("")}</table></div>`;
+  }
+  h += `<div class="small mut">«При прочих равных»: каждый опыт сравнивается с опытами, где этот параметр — опора (первое значение), а все остальные параметры те же; Δ — среднее отношение (для температуры, поля и статики — разность), ± — стандартная ошибка по парам. вывод — по Стьюденту с числом пар: ❗ — p ≤ 0,0027 (как 3 σ), ◐ — p ≤ 0,05. Сравнений много — одно-два «◐» бывают случайно: проверять повтором. Яркость в сводной — от меньшего к большему, число всегда рядом; в скобках — сколько опытов.</div>`;
+  if (el._h !== h) { el._h = h; el.innerHTML = h; }      // опрос раз в 5 с: без изменений — не трогать (открытый список не закроется)
+}
+document.addEventListener("change", e => {
+  const a = e.target.dataset && e.target.dataset.ana;
+  if (!a || !cur) return;
+  if (a === "met") anaMet = e.target.value; else if (a === "row") anaRow = e.target.value; else if (a === "col") anaCol = e.target.value;
+  renderAna(cur);
+});
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-ana='mode']");
+  if (b && cur) { anaMode = b.dataset.v; renderAna(cur); }
+});
 $("pSel").onchange = () => { curId = +$("pSel").value; loadProg(); };
 $("bCsv").onclick = () => {
   if (!cur) return;
   const x = cur, steps = (x.program || {}).steps || [], ags = agentsOf(x);
   const esc2 = s => `"${String(s ?? "").replace(/"/g, '""')}"`;
-  const lines = [["№", "шаг", "контроль", "начало", "мин", "простых", "всего пр/с", ...ags.flatMap(a => [a + " пр/с", a + " °C"]), "статика", "поле", "испорчен", "слои"].map(esc2).join(";")];
+  const A = (x.program || {}).axes || {}, axk = A.order || [];
+  const smacs = [...new Set((x.runs || []).flatMap(r => Object.keys(r.static || {}).filter(m => (r.static || {})[m])))];
+  const lines = [["№", "опыт", "контроль", "итог", "аномалия", "начало", "мин", "простых", "всего пр/с", ...ags.flatMap(a => [a + " пр/с", a + " °C"]), "статика",
+    ...smacs.flatMap(m => [`${sname(x, m)}: шум, мкg`, `${sname(x, m)}: к контролю, %`, `${sname(x, m)}: max z`]), "поле", "испорчен", "между колёсами, см", ...axk.map(k => (A.title || {})[k] || k), "слои"].map(esc2).join(";")];
   (x.runs || []).forEach((r, i) => {
     const st = steps[r.step] || {}, g = r.gen || {};
-    lines.push([i + 1, r.name, r.control ? 1 : 0, new Date(r.t0 * 1000).toISOString(), ((r.t1 - r.t0) / 60).toFixed(2), (g["все"] || {}).pr_s != null ? Math.round(g["все"].pr_s * (r.t1 - r.t0)) : "", ((g["все"] || {}).pr_s ?? "").toString().replace(".", ","),
+    const SR = Object.fromEntries(statRows(x, r).map(q => [q.mac, q])), num = v => v == null ? "" : String(Math.round(v * 100) / 100).replace(".", ",");
+    lines.push([i + 1, r.name, r.control ? 1 : 0, runVerdict(x, r, i).w, anomOf(x, r, i).text, new Date(r.t0 * 1000).toISOString(), ((r.t1 - r.t0) / 60).toFixed(2), (g["все"] || {}).pr_s != null ? Math.round(g["все"].pr_s * (r.t1 - r.t0)) : "", ((g["все"] || {}).pr_s ?? "").toString().replace(".", ","),
       ...ags.flatMap(a => [((g[a] || {}).pr_s ?? "").toString().replace(".", ","), ((g[a] || {}).temp ?? "").toString().replace(".", ",")]),
-      r.watch ? r.watch.verdict : "", fieldText(r.field).replace(/<br>/g, "; "), r.spoiled ? r.spoiled_why : "", layText(st.layers || r.layers, st.coil || r.coil).replace(/<[^>]+>/g, "")].map(esc2).join(";"));
+      r.watch ? r.watch.verdict : "", ...smacs.flatMap(m => { const q = SR[m] || {}; return [num(q.nz), num(q.d), num(q.z)]; }),
+      fieldText(r.field).replace(/<br>/g, "; "), r.spoiled ? r.spoiled_why : "", r.rig && r.rig.gap_cm != null ? String(r.rig.gap_cm).replace(".", ",") : "",
+      ...axk.map(k => { const v = (setOf(x, r) || {})[k]; return v == null ? "" : ((A.names || {})[k] || {})[v] || v; }),
+      layText(st.layers || r.layers, st.coil || r.coil).replace(/<[^>]+>/g, "")].map(esc2).join(";"));
   });
   const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `program_${x.id}.csv`; a.click();

@@ -12,13 +12,21 @@
        |f| считает тот же WheelTracker, что в прошивке;
   №2 (127.0.0.2) — с MLX90393: поле катушки 340 мкТл вдоль трубки плюс поле
        Земли 50 мкТл, вращающееся с колесом;
-  три статических (127.0.0.3–5, MAC …5a, …5b, …5c) — роль S: 500 Гц (1000 Гц,
+  три статических №40–42 (127.0.0.3–5, MAC …5a, …5b, …5c) — роль S: 500 Гц (1000 Гц,
        среднее по 2), тяжесть по z, белый шум 70 мкg/√Гц; у второго всегда
        линия сети 50 Гц. По расписанию (с запуска):
          каждые 75 с, начиная со 180-й, — толчок у всех сразу (15 Гц, 15 мg);
          300–420 с — линия 37 Гц 400 мкg по z у первого;
          480–540 с — у третьего значения кратны 256 (грубый режим датчика).
        Первые три минуты чистые — успеть записать эталон.
+  --gens N — ещё N простых генераторов (№21…, 127.0.0.6…). У первых двух — аккумулятор
+       шины (INA219: напряжение садится под нагрузкой).
+  --mot — агент моторов №30 и агенты катушек №31, №32 (роль 3, 127.0.0.30–32): команды
+       MOT a=… b=… r=… w=… — мосты плавно идут к цели, нет команд w с — встают (сторож);
+       в телеметрии mot. Катушкой агент становится по составу: место «coil» и колесо.
+Все генераторы, получив run=1, «считают»: простые и кандидаты растут (сообща — медленнее),
+поглотитель (role=1) принимает простые и выпускает кадры; под счётом агент греется к 63 °C,
+стоя — остывает к 46 °C. Новый номер настройки (cid) — счётчики с нуля, как в прошивке.
 """
 import argparse, base64, json, math, os, random, socket, sys, threading, time
 
@@ -30,6 +38,8 @@ from analysis import G, WheelTracker   # noqa: E402
 ap = argparse.ArgumentParser()
 ap.add_argument("seconds", nargs="?", type=float, default=300)
 ap.add_argument("--port", type=int, default=5005)
+ap.add_argument("--gens", type=int, default=0, help="ещё N простых генераторов (№21…)")
+ap.add_argument("--mot", action="store_true", help="агент моторов №30 и агенты катушек №31, №32")
 ARGS = ap.parse_args()
 DUR = ARGS.seconds
 SRV = ("127.0.0.1", ARGS.port)
@@ -57,6 +67,30 @@ class Agent:
         self.tx.bind((ip, 0))
         self.seq = 0
         self.t0 = time.time()
+        self.n = {"pr": 0.0, "cand": 0.0, "prx": 0.0, "stx": 0.0}
+        self.cid_seen, self.temp, self.t_cnt, self.bat = 0, 46.0, time.time(), None
+
+    def count(self):
+        """Счёт за время с прошлой телеметрии: простые у генератора, принятые простые и кадры у поглотителя."""
+        now = time.time()
+        dt, self.t_cnt = now - self.t_cnt, now
+        if self.cfg["cid"] != self.cid_seen:
+            self.cid_seen = self.cfg["cid"]
+            self.n = {k: 0.0 for k in self.n}
+        run = self.cfg.get("run") == 1
+        if run and self.cfg.get("role") == 1:
+            self.n["prx"] += random.uniform(15, 25) * dt
+            self.n["stx"] += random.uniform(8, 12) * dt
+        elif run:
+            rate = (8 if self.cfg.get("mode") == 1 else 28) * random.uniform(0.7, 1.3)
+            self.n["pr"] += rate * dt
+            self.n["cand"] += rate * 22 * dt
+        self.temp += ((63.0 if run else 46.0) - self.temp) * (1 - math.exp(-dt / 40))
+        if self.bat is not None:                     # пара 18650 под нагрузкой: садится, ток — по делу агентов
+            self.bat["i"] = (1400.0 if run else 600.0) * random.uniform(0.95, 1.05)
+            self.bat["v"] -= self.bat["i"] / 1000 * dt * 0.00012
+            self.bat["q"] += self.bat["i"] * dt / 3600
+            self.bat["n"] += 1
 
     def head(self, typ):
         ms = int((time.time() - self.t0) * 1000)
@@ -84,10 +118,15 @@ class Agent:
         self.tx.sendto(json.dumps(ack).encode(), SRV)
 
     def tel(self, sens=0, extra=None):
+        self.count()
         p = self.head("tel")
-        p.update({"rssi": -40, "temp": 45.0, "heap": 160000, "cpu0": 3.0, "cpu1": 0.0, "rf": 1, "st": 1,
-                  "work": 100.0, "ts": 0, "udpf": 0, "wdisc": 0, "wrsn": 0, "age": 1.0, "cand": 0, "pr": 0,
-                  "txr": self.cfg["txp"], "tls": self.cfg["tl"], "sens": sens, **self.cfg})
+        p.update({"rssi": -40, "temp": round(self.temp, 1), "heap": 160000, "cpu0": 3.0, "cpu1": 0.0, "rf": 1, "st": 1,
+                  "work": 100.0, "ts": 0, "udpf": 0, "wdisc": 0, "wrsn": 0, "age": 1.0,
+                  "txr": self.cfg["txp"], "tls": self.cfg["tl"], "sens": sens, **self.cfg,
+                  **{k: int(v) for k, v in self.n.items()}})
+        if self.bat is not None:
+            p["bat"] = {"v": round(self.bat["v"], 3), "i": round(self.bat["i"], 1), "q": round(self.bat["q"], 2),
+                        "n": self.bat["n"], "a": 64, "err": 0}
         if extra:
             p.update(extra)
         self.send(p)
@@ -182,6 +221,61 @@ def run_mag(ag):
             buf = []
 
 
+def run_gen(ag):
+    """Простой генератор: только телеметрия раз в tp и счёт по команде."""
+    nxt = time.time() + random.uniform(0, 1)
+    while not stop.is_set():
+        ag.poll_cmd()
+        if time.time() >= nxt:
+            nxt += ag.cfg["tp"] / 1000
+            ag.tel(0)
+            ag.seq += 1
+        time.sleep(0.02)
+
+
+def run_mot(ag):
+    """Агент моторов или катушки (роль 3): MOT a=… b=… r=… w=… — цель мостов в ‰ со знаком, разгон r мс до
+    полной, сторож w с; CFG — как у всех. Телеметрия раз в tp: mot = {a: [цель, сейчас, состояние], b: …}."""
+    ag.cfg.update({"role": 3, "run": 0})
+    tgt, cur, ramp, wd = {"a": 0, "b": 0}, {"a": 0.0, "b": 0.0}, 500, 5
+    t_cmd, wdf, last, nxt = time.time(), 0, time.time(), time.time()
+    while not stop.is_set():
+        try:
+            data, _ = ag.rx.recvfrom(4096)
+            toks = data.decode().split()
+            kv = dict(t.partition("=")[::2] for t in toks[1:])
+            if toks and toks[0] == "MOT":
+                for w in ("a", "b"):
+                    if w in kv:
+                        tgt[w] = max(-1000, min(1000, int(float(kv[w]))))
+                ramp, wd = int(float(kv.get("r", ramp))), max(1, int(float(kv.get("w", wd))))
+                t_cmd, wdf = time.time(), 0
+            else:
+                for k, v in kv.items():
+                    if k in ag.cfg:
+                        try:
+                            ag.cfg[k] = int(v)
+                        except ValueError:
+                            pass
+                ag.cfg["role"] = 3
+                ack = {"v": 2, "type": "ack", "mac": ag.mac, "id": ag.id, "cid": ag.cfg["cid"], "ok": 1, "err": ""}
+                ag.tx.sendto(json.dumps(ack).encode(), SRV)
+        except socket.timeout:
+            pass
+        now = time.time()
+        dt, last = now - last, now
+        if now - t_cmd > wd and (tgt["a"] or tgt["b"]):          # сторож: команд не было — мосты встают
+            tgt, wdf = {"a": 0, "b": 0}, 1
+        for w in ("a", "b"):
+            stp = 1000 * dt / max(0.05, ramp / 1000)
+            cur[w] += max(-stp, min(stp, tgt[w] - cur[w]))
+        if now >= nxt:
+            nxt = now + ag.cfg["tp"] / 1000
+            st = lambda w: 0 if not tgt[w] and abs(cur[w]) < 1 else 2 if abs(cur[w] - tgt[w]) < 1 else 1 if abs(tgt[w]) > abs(cur[w]) else 3
+            ag.tel(0, {"mot": {"a": [tgt["a"], round(cur["a"]), st("a")], "b": [tgt["b"], round(cur["b"]), st("b")], "wdf": wdf}})
+            ag.seq += 1
+
+
 def run_static(ag, k):
     """Статический акселерометр, роль S: отсчёты осей пакетами "acc" по 140, tel раз в tp.
     В молчании отсчёты копятся (кольцо 12288), переполнилось — старые пропадают, как в прошивке."""
@@ -256,13 +350,22 @@ def main():
     sys.stdout.reconfigure(encoding="utf-8")
     a1 = Agent("127.0.0.1", "68:ee:8f:51:a0:18", 1, "prime_lab")
     a2 = Agent("127.0.0.2", "68:ee:8f:51:ae:20", 2, "prime_lab")
-    st = [Agent(f"127.0.0.{3 + k}", f"68:ee:8f:00:00:5{'abc'[k]}", 0, "prime_lab") for k in range(3)]
+    st = [Agent(f"127.0.0.{3 + k}", f"68:ee:8f:00:00:5{'abc'[k]}", 40 + k, "prime_lab") for k in range(3)]   # статические №40–42
     ths = [threading.Thread(target=run_imu, args=(a1,), daemon=True),
            threading.Thread(target=run_mag, args=(a2,), daemon=True)]
     ths += [threading.Thread(target=run_static, args=(a, k), daemon=True) for k, a in enumerate(st)]
+    for k in range(ARGS.gens):
+        g = Agent(f"127.0.0.{6 + k}", f"68:ee:8f:00:01:{k:02x}", 21 + k, "prime_lab")
+        if k < 2:
+            g.bat = {"v": 8.15 - 0.5 * k, "i": 600.0, "q": 0.0, "n": 0}
+        ths.append(threading.Thread(target=run_gen, args=(g,), daemon=True))
+    if ARGS.mot:
+        for k, aid in enumerate((30, 31, 32)):
+            ths.append(threading.Thread(target=run_mot, args=(Agent(f"127.0.0.{30 + k}", f"68:ee:8f:00:02:{aid:02x}", aid, "prime_lab"),), daemon=True))
     for th in ths:
         th.start()
-    print(f"имитация {DUR:.0f} с на порт {SRV[1]}: №1 колесо, №2 поле, статические …5a …5b …5c", flush=True)
+    print(f"имитация {DUR:.0f} с на порт {SRV[1]}: №1 колесо, №2 поле, статические …5a …5b …5c"
+          + (f", генераторы №21–{20 + ARGS.gens}" if ARGS.gens else "") + (", моторы №30, катушки №31 №32" if ARGS.mot else ""), flush=True)
     time.sleep(DUR)
     stop.set()
     print("конец", flush=True)
