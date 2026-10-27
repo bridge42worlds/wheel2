@@ -17,7 +17,13 @@
 .topbar .btn { padding:.3em .75em; }
 .cols2 { display:grid; grid-template-columns:minmax(0, 1fr) clamp(360px, 27vw, 540px); gap:8px; min-height:0; }
 .picp { padding:4px 6px; gap:2px; }
-.pichead { font-size:.9em; flex-wrap:nowrap; }
+.pichead { font-size:.9em; flex-wrap:nowrap; min-height:1.9em; }
+.pichead .small { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+/* настройка с нуля: шаги до запуска справа */
+.setup { border:1px solid var(--on); border-radius:9px; padding:8px 10px; background:var(--card); display:flex; flex-direction:column; gap:7px; }
+.setup .it { display:grid; grid-template-columns:1.4em minmax(0, 1fr) auto; gap:2px 8px; align-items:start; border-top:1px solid var(--line); padding-top:5px; }
+.setup .it .ic { font-size:1.15em; font-weight:700; line-height:1.2; }
+.setup .it .ac { display:flex; gap:4px; flex-wrap:wrap; justify-content:flex-end; max-width:15em; }
 .pichead .mut { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
 /* плашка «сейчас»: часы · что идёт · таймер */
 .info { display:grid; grid-template-columns:auto minmax(0, 1fr); gap:4px 14px; align-items:center; border:1px solid var(--line); border-radius:9px; padding:6px 10px; background:var(--card); }
@@ -168,7 +174,7 @@ label.inl { display:inline-flex; align-items:center; gap:4px; margin:2px 10px 2p
     <button class="btn big halt" id="bHalt" title="Всё стоп сразу: программа, счёт у всех агентов, моторы, катушки выкл">■ Всё стоп</button>
   </div></header>
   <main class="cols2">
-    <section class="panel picp"><div class="row pichead"><b>Схема установки</b><button type="button" class="tip" data-tip="pic" aria-label="как читать схему">ⓘ</button><span class="small mut">нажатие на агента, катушку, моторы, ↔ — подробности</span></div>
+    <section class="panel picp"><div class="row pichead" id="pichead"></div>
       <div class="pic" id="pic"></div></section>
     <section class="panel mid" id="mid">
       <div id="info"></div>
@@ -187,6 +193,7 @@ label.inl { display:inline-flex; align-items:center; gap:4px; margin:2px 10px 2p
 // ---------- пояснения ⓘ: что это и зачем — по нажатию (на планшете подсказки title не видны) ----------
 const TIPS = {
   pic: ["Схема установки", "Всё вживую. Колесо: агенты по ободу — номер, значок дела (▶ считает, ▼ поглощает, ⏸ не считает, ✗ нет связи) и температура; дуга вокруг агента — температура от 40 °C до предела (пунктир — у предела); снаружи — простых в секунду или слово. Вспышка и «+N» — агент нашёл простые с прошлого опроса (раз в 2 с); волны — поглотитель выпускает кадры в эфир. Буква с дугой — подгруппа и сколько в ней делают главное; бегущий пунктир между агентами — группа считает сообща. Пунктир вокруг колеса бежит, стрелка над ним — колесо крутится и куда; в середине — обороты по датчику обода и k (k = 1 — невесомость наверху). Синий обод со стрелками — поле катушки, |B| — по магнитометру на колесе. Над колесом — аккумулятор шины, под ним — агент катушки, кнопки поля вручную и аккумулятор катушки. Между колёсами — измерители, расстояние (нажмите — задать), моторы; дуга сверху — простые идут к поглотителям другого колеса."],
+  setup: ["Настройка установки", "Нажмите плату — она выделится синим кольцом, места подсветятся. Нажмите место: колесо 1 или 2 (генератор; на плату на колесе — в её подгруппу), катушку под колесом или моторы посередине внизу (агент роли M), измерители посередине (статика), «свободные» внизу (снять с колеса). Если роль меняется (генератор · моторы и катушки · измеритель), плата перезапустится ≈ 15 с — спросим. «◉ мигнуть» — найти выбранную плату по светодиоду. Новые платы — «⇪ прошить по USB» в шагах справа; после прошивки они появляются в «свободных». Справа — шаги с нуля до запуска с кнопками."],
   roles: ["Излучение / поглощение", "Что делает каждое колесо в опыте. ▶ генерация — агенты ищут простые из шума. ▼ поглощение — получают простые другого колеса и выпускают в эфир, смешав со своим шумом (рассеяние). ⏸ стоит — не считают, остывают. Отмеченных вариантов несколько — перебираются все."],
   ways: ["Совместная работа", "Как агенты колеса считают. Эгоистичный — каждый сам набирает шум, складывает число и проверяет. Каскад — числа из кусочков шума всех агентов подгруппы, проверяют все сразу. Одно число на всех — одно число на группу, его проверяют все (~10 простых/с). Эстафета — число из шума всех, проверяет один, ход по кругу."],
   rot: ["Вращение колёс", "Каждое колесо: ■ стоит, ⟳ вперёд (по часовой, если смотреть на вал спереди), ⟲ назад. Строка таблицы — колесо 1, столбец — колесо 2: ⟳⟲ — навстречу, ⟳⟳ — вместе, ⟳■ — крутится одно. «только …» отмечает группу сразу (например, только навстречу). Колёса разгоняются за время установления опыта."],
@@ -560,8 +567,136 @@ function arrowArc(cx, cy, r, a0, a1, o) {
   return `<path d="M ${x0.toFixed(1)} ${y0.toFixed(1)} A ${r} ${r} 0 0 ${sweep} ${x1.toFixed(1)} ${y1.toFixed(1)}" fill="none" ${o}/>
     <path d="M ${hx(9, 0)} ${hy(9, 0)} L ${hx(-3, 6)} ${hy(-3, 6)} L ${hx(-3, -6)} ${hy(-3, -6)} Z" ${o.replace(/stroke-width="[^"]*"/, "").replace(/stroke="([^"]*)"/, 'fill="$1" stroke="none"')}/>`;
 }
+// ---------- настройка установки с нуля: свободные платы, «выбрать — поставить», шаги до запуска ----------
+// Режим «⚙ Настройка»: нажатие на плату выбирает её (синее кольцо), места подсвечиваются — колесо 1 / 2 (генератор),
+// катушка К1 / К2 и моторы (роль M), измерители (статика), «свободные»; нажатие на место ставит плату туда (на плату
+// на колесе — в её подгруппу). Смена роли (генератор · моторы и катушки · измеритель) перезапускает плату ≈ 15 с — с
+// подтверждением. Справа — шаги «с нуля до запуска». Без режима свободные платы видны внизу схемы, место — в окне агента.
+const SETUP = { on: false, pick: null };
+const isHwAgent = (d, a) => a.kind === "M" || isCoil(d, a) || ((MOTS || {}).agents || []).some(x => x.mac === a.mac) || ((d.own || {})[a.mac] || {}).role === 3;
+const roleOf = (d, a) => isStatic(d, a) ? 2 : isHwAgent(d, a) ? 3 : 0;
+// Где плата сейчас: колесо, катушка колеса, моторы, измерители или свободна
+function zoneOf(d, a) {
+  if (isStatic(d, a)) return "static";
+  const w = (d.compose.wheels || {})[a.mac] || "";
+  if (isCoil(d, a)) return "coil" + w;
+  if (isHwAgent(d, a)) return "motor";
+  return w ? "w" + w : "free";
+}
+const DEST = { w1: ["⟳", "колесо 1", 0], w2: ["⟳", "колесо 2", 0], coil1: ["⇉", "катушка К1", 3], coil2: ["⇉", "катушка К2", 3],
+               motor: ["⚙", "моторы", 3], static: ["◆", "измеритель", 2], free: ["○", "свободна", 0] };
+const ROLE_W = { 0: "генератором", 2: "измерителем (статика)", 3: "агентом моторов и катушек (роль M)" };
+// Свободные: выходили на связь, генераторы, ни на каком колесе (новые прошитые и снятые с колёс)
+function freeAgents(d) {
+  return d.agents.filter(a => a.status !== "never" && a.dev !== "phone" && zoneOf(d, a) === "free").sort((p, q) => (p.id || 0) - (q.id || 0));
+}
+// Поставить плату: состав (колесо, место, подгруппа) и, если нужно, новая роль — плата перезапустится
+async function placeAgent(mac, dest, sub) {
+  const d = D, a = agentById(d, mac), [, word, need] = DEST[dest], cur = roleOf(d, a);
+  if (a.dev === "phone") { note("📱 телефон — всегда измеритель", "warn"); return; }
+  if (zoneOf(d, a) === dest && (!sub || subOf(d, mac) === sub)) { SETUP.pick = null; renderAll(); return; }
+  const reboot = need !== cur;
+  if (reboot && !alive(a.status)) { note(`✗ ${nameOf(d, mac)} не на связи — роль не сменить: включите плату`, "bad"); return; }
+  if (reboot) {
+    const g = d.gen[mac] || {}, acc = (a.sens || 0) & 1 || (Array.isArray(g.i2c) && g.i2c.some(x => x === 0x1D || x === 0x53 || x === 0x68 || x === 0x69));
+    if (!confirm(`${nameOf(d, mac)} → ${word}: плата перезапустится ${ROLE_W[need]} (≈ 15 с)${cur === 0 ? "; счёт простых на ней прекратится" : ""}.${need === 2 && !acc ? "\n◐ Акселерометра у платы не видно — мерить будет нечем." : ""}`)) return;
+  }
+  const w = dest[0] === "w" ? dest[1] : dest.startsWith("coil") ? dest.slice(-1) : "";
+  const curSlot = (d.compose.slot || {})[mac] || "idle";
+  const slot = dest.startsWith("coil") ? "coil" : dest === "static" ? "S" : curSlot === "S" || curSlot === "coil" ? "idle" : curSlot;
+  const body = { wheels: { [mac]: w }, slot: { [mac]: slot } };
+  if (dest[0] === "w") body.sub = { [mac]: sub || (wheelGroups(d, w)[0] || {}).letter || "а" };
+  try {
+    await postJSON("/api/compose", body);
+    if (reboot) {
+      const own = { ...((d.own || {})[mac] || {}), role: need };
+      await postJSON("/api/control", { targets: [mac], cfg: { ...(d.common || d.default), run: 0 }, own: { [mac]: own }, force: true });
+      restarting[mac] = Date.now();
+    }
+    SETUP.pick = null;
+    note(`✓ ${nameOf(d, mac)} → ${word}${body.sub ? ", подгруппа " + body.sub[mac] : ""}${reboot ? " — перезапускается (≈ 15 с)" : ""}`, "ok");
+    await refresh();
+  } catch (er) { note("✗ " + er.message, "bad"); }
+}
+// Нажатие на плату в режиме настройки: выбрать; выбранную ещё раз — отпустить; другую — поставить выбранную туда же
+function setupTap(mac, el) {
+  const zone = el.dataset.zone || "";
+  if (!SETUP.pick || zone === "free" && SETUP.pick !== mac) { SETUP.pick = mac; renderAll(); return; }
+  if (SETUP.pick === mac) { SETUP.pick = null; renderAll(); return; }
+  if (zone) placeAgent(SETUP.pick, zone, zone[0] === "w" ? subOf(D, mac) : null);
+}
+// Строка над схемой: обычная — подпись и «⚙ Настройка»; в настройке — что выбрано и что делать
+function renderPicHead(d) {
+  const p = SETUP.on && SETUP.pick ? agentById(d, SETUP.pick) : null;
+  const html = !SETUP.on
+    ? `<b>Схема установки</b>${tipBtn("pic", "как читать схему")}<span class="small mut">нажатие на агента, катушку, моторы, ↔ — подробности</span><span class="sp"></span>
+       <button class="btn sm" data-act="setup" title="Расставить платы по местам (колёса, катушки, моторы, измерители) и пройти шаги до запуска">⚙ Настройка</button>`
+    : p ? `<b class="on">⚙ ${esc(nameOf(d, SETUP.pick))} выбрана</b><span class="small">→ нажмите место: колесо, катушку, моторы, измерители или «свободные» — или плату там, куда поставить</span><span class="sp"></span>
+       <button class="btn sm" data-act="identpick" title="светодиод платы мигнёт 20 с — найти её на колесе">◉ мигнуть</button><button class="btn sm" data-act="agentpick">подробно…</button><button class="btn sm" data-act="unpick">✕</button>
+       <button class="btn sm sel" data-act="setup">✓ готово</button>`
+    : `<b class="on">⚙ Настройка установки</b>${tipBtn("setup", "настройка")}<span class="small">нажмите плату (на колесе, внизу в «свободных», катушку, моторы, измеритель), потом — куда её поставить</span><span class="sp"></span>
+       <button class="btn sm sel" data-act="setup">✓ готово</button>`;
+  setHTML($("pichead"), html);
+}
+// Шаги «с нуля до запуска»: состояние каждого по живым данным и кнопка, что сделать
+function setupHTML(d) {
+  const it = [], btn = (act, lab, extra = "") => `<button class="btn sm" data-act="${act}" ${extra}>${lab}</button>`;
+  const add = (st, title, detail, acts = []) => it.push({ st, title, detail, acts: acts.filter(Boolean) });
+  // свои платы: выходили на связь или стоят на месте (колесо, катушка, моторы, измеритель); остальные — только в реестре
+  const placed = a => (d.compose.wheels || {})[a.mac] || isStatic(d, a) || isHwAgent(d, a);
+  const seen = d.agents.filter(a => a.status !== "never" || placed(a)), on = seen.filter(a => alive(a.status));
+  const usb = (d.usb || {}).boards || [], usbNew = usb.filter(b => b.status !== "online");
+  const quiet = seen.filter(a => a.status === "never").length, never = d.agents.filter(a => a.status === "never" && !placed(a)).length;
+  add(!on.length ? "bad" : on.length === seen.length ? "ok" : "warn", "платы на связи",
+      `${on.length} из ${seen.length}${quiet ? ` · с запуска сервера не выходили ${quiet} — включите питание` : ""}${usb.length ? ` · на USB: ${usb.map(b => `${b.port} ${b.id ? "№" + b.id : "новая"}`).join(", ")}` : ""}${never ? ` · в реестре ещё ${never} без места` : ""}`,
+      [usbNew.length ? btn("fw", "⇪ прошить по USB") : "", btn("identmode", identMode ? "◉ найти: ВКЛ" : "◉ найти плату")]);
+  const free = freeAgents(d);
+  add(free.length ? "warn" : "ok", "свободные платы", free.length ? `${free.map(a => nameOf(d, a.mac)).join(", ")} — нажмите плату на схеме, потом место` : "все на местах");
+  for (const w of ["1", "2"]) {
+    const m = wheelMacs(d, w), G = wheelGroups(d, w), onw = m.filter(x => alive(agentById(d, x).status)).length;
+    add(!m.length ? "todo" : onw === m.length ? "ok" : "warn", `колесо ${w}`,
+        m.length ? `${plural(m.length, "агент", "агента", "агентов")}, на связи ${onw} · подгруппы: ${G.map(g => `${g.letter} (${g.macs.length})`).join(", ")}${m.length > MAX_GROUP ? ` · <span class="bad">больше ${MAX_GROUP} в группе</span>` : ""}` : "пусто — поставьте генераторы",
+        m.length ? [1, 2, 3].map(n => btn("split", n === 1 ? "одна группа" : "на " + n, `data-w="${w}" data-n="${n}"`)) : []);
+  }
+  const mot = (MOTS || {}).agents || [];
+  add(!mot.length ? "todo" : mot.some(x => x.alive) ? "ok" : "warn", "моторы",
+      mot.length ? mot.map(x => `№${x.id} ${x.alive ? "на связи" : "нет связи"}`).join(", ") + (mot.length > 1 ? " · <span class=\"warn\">агентов моторов несколько</span>" : "") : "нет — выберите плату и нажмите «моторы» внизу посередине",
+      [mot.length ? btn("motor", "⟳ проверить вручную…") : ""]);
+  for (const w of ["1", "2"]) {
+    const ag = ((COIL || {}).agents || {})[w];
+    add(!ag ? "todo" : ag.alive ? "ok" : "warn", `катушка К${w}`, ag ? `№${ag.id} ${ag.alive ? "на связи — проверить: кнопки «+ / −» под колесом" : "нет связи"}` : `нет — выберите плату и нажмите катушку под колесом ${w}`);
+  }
+  const st = staticList(d), base = (d.static || []).filter(s => s.base);
+  add(st.length ? "ok" : "warn", "измерители (статика)", st.length ? st.map(a => `${nameOf(d, a.mac)} ${devName(a)}`).join(", ") : "нет — плату с акселерометром (ADXL355) или телефон в «измерители»");
+  for (const w of ["1", "2"]) {
+    const rim = rimOf(d, w), mag = magOf(d, w), bats = ((d.battery || {}).list || []).filter(b => b.wheel === w);
+    if (wheelMacs(d, w).length && !wheelMacs(d, w).some(m => alive(agentById(d, m).status))) {
+      add("todo", `датчики колеса ${w}`, "агенты колеса не на связи — обод, магнитометр и аккумуляторы проверим, когда включите"); continue;
+    }
+    const parts = [rim ? `обод №${rim.id}${rim.silent ? " молчит" : " ✓"}` : "датчика обода нет", mag ? `магнитометр №${mag.id}${mag.silent ? " молчит" : " ✓"}` : "магнитометра нет",
+                   bats.length ? "аккумуляторы: " + bats.map(b => `${b.kind === "coil" ? "катушка" : "шина"} ${fmt(b.v, 2)} В`).join(", ") : "INA219 нет"];
+    add(rim && !rim.silent ? (bats.length ? "ok" : "warn") : "todo", `датчики колеса ${w}`, parts.join(" · "));
+  }
+  const vers = [...new Set(seen.filter(a => a.fw).map(a => a.fw))], srv = (d.fw || {}).version;
+  add(!vers.length ? "todo" : vers.length === 1 && (!srv || vers[0] === srv) ? "ok" : "warn", "прошивка",
+      vers.length ? (vers.length === 1 ? `у всех ${esc(vers[0])}` : `разные сборки: ${vers.map(esc).join(", ")}`) + (srv && vers.some(v => v !== srv) ? ` · на сервере ${esc(srv)}` : "") : "станет видно, когда платы выйдут на связь",
+      [vers.length > 1 || (srv && vers.some(v => v !== srv)) ? btn("fw", "⇪ обновить по Wi-Fi") : ""]);
+  add(d.rig && d.rig.gap_cm != null ? "ok" : "todo", "расстояние между колёсами", d.rig && d.rig.gap_cm != null ? `${fmt(d.rig.gap_cm, d.rig.gap_cm % 1 ? 1 : 0)} см` : "не задано", [btn("gap", "задать…")]);
+  add(!st.length ? "todo" : base.length >= st.length ? "ok" : "todo", "эталон шума статики",
+      base.length ? `записан у ${base.length} из ${st.length}` : "не записан — пока все стоят: 3 мин",
+      st.length ? [btn("base", "записать 3 мин", 'data-min="3"')] : []);
+  add(!diag ? "todo" : diag.state === "running" ? "warn" : "ok", "диагностика", diag ? `№${diag.id} · ${stateWord(diag.state)}` : "не запускалась — связь, слышимость, темп, температура, датчики", [btn("diag", "✚ диагностика…")]);
+  const R = expPlan();
+  add(R.steps.length ? "ok" : "todo", "эксперимент", R.steps.length ? `${plural(R.steps.length, "опыт", "опыта", "опытов")} × ${P.repeat} ≈ ${fmtDur(R.T.total)}` : "опытов нет", [btn("exp", "✎ эксперимент…")]);
+  const IC = { ok: ["✓", "ok"], warn: ["◐", "warn"], bad: ["✗", "bad"], todo: ["○", "mut"] }, done = it.filter(x => x.st === "ok").length;
+  return `<div class="setup"><div class="row"><b>С нуля до запуска</b><span class="small mut">готово ${done} из ${it.length}</span><span class="sp"></span><button class="btn sm" data-act="compose">состав…</button></div>
+    ${it.map((x, i) => `<div class="it"><span class="ic ${IC[x.st][1]}">${IC[x.st][0]}</span><div><b>${i + 1}. ${x.title}</b><div class="small">${x.detail}</div></div><div class="ac">${x.acts.join("")}</div></div>`).join("")}
+    <div class="small mut">Готово — «✓ готово» над схемой; запуск — «▶ Запустить» в шапке.</div></div>`;
+}
 function renderPic(d) {
-  const W = 1000, H = 620, R = 150, cx = [212, 788], cy = 300, now = Date.now() / 1000;
+  renderPicHead(d);
+  const free = freeAgents(d), tray = SETUP.on || free.length > 0, pick = SETUP.on ? SETUP.pick : null;
+  const W = 1000, H = tray ? 680 : 620, R = 150, cx = [212, 788], cy = 300, now = Date.now() / 1000;
   const src = modeSource(d), bats = (d.battery && d.battery.list) || [];
   const T = (x, y, size, text, o = "") => `<text x="${x}" y="${y}" text-anchor="middle" font-size="${size}" ${o.includes("fill=") ? "" : 'fill="var(--ink)"'} ${o}>${text}</text>`;   // свой цвет в o — без второго fill
   let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="схема установки: два колеса — агенты по ободу с температурой и делом, обороты и направление, поле катушек, аккумуляторы; между колёсами измерители, моторы, потоки простых">`;
@@ -633,6 +768,9 @@ function renderPic(d) {
     s += T(x0, cy + 36, 11.5, rim ? (rim.silent ? `датчик обода №${rim.id} молчит ${agoShort(rim.age)}` : `обод №${rim.id}${kW}`) : "датчика обода нет", 'fill="var(--mut)"');
     s += T(x0, cy + 62, 16, fd.ag ? (fd.ag.alive ? `${fd.on ? "⇉ " : ""}поле ${esc(fd.word)}` : "катушка: нет связи") : "катушки нет", fd.on ? 'font-weight="700" fill="var(--on)"' : 'fill="var(--mut)"');
     s += T(x0, cy + 80, 12, mag ? (mag.silent ? `магнитометр №${mag.id} молчит` : `|B| ${fmt(mag.b, mag.b < 100 ? 1 : 0)} мкТл (№${mag.id})`) : "магнитометра нет", mag && !mag.silent ? `font-weight="700" fill="var(--${fd.on ? "on" : "ink"})"` : 'fill="var(--mut)"');
+    if (pick && zoneOf(d, agentById(d, pick)) !== "w" + w) s += `<g data-act="place" data-dest="w${w}"><title>поставить ${esc(nameOf(d, pick))} на колесо ${w}</title>
+      <circle cx="${x0}" cy="${cy}" r="${R + 36}" fill="var(--on)" fill-opacity=".08" stroke="var(--on)" stroke-width="2.5" stroke-dasharray="8 6"/>
+      <rect x="${x0 - 92}" y="${cy - 116}" width="184" height="28" rx="14" fill="var(--on)"/>${T(x0, cy - 97, 14, `＋ на колесо ${w}`, 'font-weight="700" fill="#fff"')}</g>`;
     // агенты по ободу: номер, значок дела и температура; дуга вокруг — температура до предела; снаружи — темп или слово
     for (const m of macs) {
       const a = agentById(d, m), p = pos[m], v = a.values || {}, g = d.gen[m] || {}, st = stateOf(d, a), off = st.k === 3;
@@ -641,7 +779,8 @@ function renderPic(d) {
       const fill = off ? "var(--card)" : run ? (absr ? "var(--abs-bg)" : "var(--gen-bg)") : "var(--card)";
       const stroke = off ? "var(--bad)" : run ? (absr ? "var(--abs)" : "var(--gen)") : "var(--ink)";
       const rate = g.rate || {}, tip = `${nameOf(d, m)} · группа ${subOf(d, m)}: ${st.word}${v.temp != null ? `, ${fmt(v.temp, 1)} °C (предел ${tmax})` : ""}${run && !absr ? `, простых ${fmt(g.pr || 0)} за шаг, ${fmt(rate.g_pr_s, 1)}/с` : ""}${absr ? `, принято простых ${fmt(rate.g_prx_s, 1)}/с, в эфир ${fmt(rate.g_stx_s, 1)} кадр/с` : ""}${badges.length ? ", датчики " + badges.join(" ") : ""}`;
-      s += `<g data-act="agent" data-mac="${m}"><title>${esc(tip)}</title>`;
+      s += `<g data-act="agent" data-mac="${m}" data-zone="w${w}"><title>${esc(tip)}</title>`;
+      if (m === pick) s += `<circle cx="${px}" cy="${py}" r="35" fill="none" stroke="var(--on)" stroke-width="4" stroke-dasharray="7 4"/>`;
       if (absr) for (const k of [0, 1]) s += `<circle class="fx-wave" cx="${px}" cy="${py}" r="30" fill="none" stroke="var(--abs)" stroke-width="2" style="${fxPhase(1.8)};animation-delay:-${((now + k * 0.9) % 1.8).toFixed(2)}s"/>`;
       if (v.temp != null && !off) {
         const f = Math.max(0.03, Math.min(0.999, (v.temp - 40) / Math.max(1, tmax - 40)));
@@ -664,9 +803,11 @@ function renderPic(d) {
     const ca = fd.ag, cOff = ca && !ca.alive, cur = currentLayers(), planF = cur ? (cur.field || {})[ws] : null;
     const miss = planF && ca && ca.alive && planF !== fd.word;
     const cy2 = cy + R + 58, cText = !ca ? "⚙ катушка: агента нет" : `⚙ №${ca.id} катушка · ${ca.alive ? "✓ поле " + fd.word : "✗ нет связи"}${miss ? " · ◐" : ""}`;
-    s += `<g ${ca ? `data-act="agent" data-mac="${ca.mac}"` : ""}><title>агент катушки колеса ${w}: включает поле, в группы не входит${miss ? ` · ◐ по опыту поле ${planF}, сейчас ${fd.word} (включили вручную?)` : ""}${ca ? " — нажмите: окно агента" : " — назначить: окно агента моторов → «катушка колеса " + w + "»"}</title>
-      <rect x="${x0 - 112}" y="${cy2}" width="224" height="30" rx="6" fill="var(--card)" stroke="${cOff ? "var(--bad)" : ca ? "var(--ink)" : "var(--line2)"}" stroke-width="1.4" ${ca && !cOff ? "" : 'stroke-dasharray="4 3"'}/>
-      ${T(x0, cy2 + 20, 13.5, esc(cText), cOff ? 'fill="var(--bad)"' : ca ? "" : 'fill="var(--mut)"')}</g>`;
+    const cDrop = pick && zoneOf(d, agentById(d, pick)) !== "coil" + w;
+    s += `<g ${ca ? `data-act="agent" data-mac="${ca.mac}" data-zone="coil${w}"` : pick ? `data-act="place" data-dest="coil${w}"` : ""}><title>агент катушки колеса ${w}: включает поле, в группы не входит${miss ? ` · ◐ по опыту поле ${planF}, сейчас ${fd.word} (включили вручную?)` : ""}${ca ? " — нажмите: окно агента" : " — поставить: «⚙ Настройка», плата → сюда"}</title>
+      <rect x="${x0 - 112}" y="${cy2}" width="224" height="30" rx="6" fill="${cDrop ? "var(--on-bg)" : "var(--card)"}" stroke="${cDrop ? "var(--on)" : cOff ? "var(--bad)" : ca ? "var(--ink)" : "var(--line2)"}" stroke-width="${cDrop ? 2.5 : 1.4}" ${ca && !cOff && !cDrop ? "" : 'stroke-dasharray="4 3"'}/>
+      ${ca && ca.mac === pick ? `<rect x="${x0 - 118}" y="${cy2 - 6}" width="236" height="42" rx="9" fill="none" stroke="var(--on)" stroke-width="3.5" stroke-dasharray="7 4"/>` : ""}
+      ${T(x0, cy2 + 20, 13.5, esc(cDrop ? `＋ катушка К${w}` + (ca ? ` (вместе с №${ca.id})` : "") : cText), cDrop ? 'font-weight="700" fill="var(--on)"' : cOff ? 'fill="var(--bad)"' : ca ? "" : 'fill="var(--mut)"')}</g>`;
     if (ca) {
       const C = COIL || {}, stc = ((C.wheels || {})[ws] || {}).state;
       [["off", "выкл"], ["+", "+"], ["-", "−"]].forEach(([v, lab], k) => {
@@ -677,11 +818,13 @@ function renderPic(d) {
     s += batGlyph(x0 - 112, ca ? cy2 + 70 : cy2 + 42, bats.find(b => b.wheel === ws && b.kind === "coil"), "катушка");
   }
   // измерители — между колёсами
-  const st = staticList(d);
-  s += T(W / 2, cy - R + 8, 12.5, "◆ измерители", 'fill="var(--mut)"');
+  const st = staticList(d), sDrop = pick && zoneOf(d, agentById(d, pick)) !== "static";
+  if (sDrop) s += `<g data-act="place" data-dest="static"><title>поставить ${esc(nameOf(d, pick))} в измерители (статика)</title><rect x="${W / 2 - 74}" y="${cy - R - 8}" width="148" height="${Math.max(80, 40 + Math.min(st.length, 4) * 50)}" rx="10" fill="var(--on)" fill-opacity=".08" stroke="var(--on)" stroke-width="2.5" stroke-dasharray="8 6"/></g>`;
+  s += T(W / 2, cy - R + 8, 12.5, sDrop ? "＋ в измерители" : "◆ измерители", sDrop ? 'font-weight="700" fill="var(--on)"' : 'fill="var(--mut)"');
   st.slice(0, 4).forEach((a, i) => {
     const y = cy - R + 36 + i * 50, v = a.values || {}, sv = (d.static || []).find(x => x.mac === a.mac), sw = staticWord(d, a), what = `${sw.icon} ${sw.word}`;
-    s += `<g data-act="agent" data-mac="${a.mac}"><title>${esc(nameOf(d, a.mac))} — ${esc(devName(a))}: ${esc(sv && sv.text || what)}</title>
+    s += `<g data-act="agent" data-mac="${a.mac}" data-zone="static"><title>${esc(nameOf(d, a.mac))} — ${esc(devName(a))}: ${esc(sv && sv.text || what)}</title>
+      ${a.mac === pick ? `<rect x="${W / 2 - 72}" y="${y - 22}" width="144" height="52" rx="9" fill="none" stroke="var(--on)" stroke-width="3.5" stroke-dasharray="7 4"/>` : ""}
       <rect x="${W / 2 - 66}" y="${y - 16}" width="132" height="40" rx="6" fill="var(--card)" stroke="${alive(a.status) ? "var(--ink)" : "var(--bad)"}" ${alive(a.status) ? "" : 'stroke-dasharray="3 2"'}/>
       ${T(W / 2, y, 13, `${a.dev === "phone" ? "📱 " : ""}№${a.id || "?"} ${a.dev === "phone" ? "телефон" : sensBadges(a).join("") || "А"}${v.temp != null ? " " + Math.round(v.temp) + "°" : ""}`, 'font-weight="700"')}
       ${T(W / 2, y + 16, 11.5, esc(what.length > 22 ? what.slice(0, 21) + "…" : what), `fill="var(--${sw.cls === "mut" ? "mut" : sw.cls})"`)}</g>`;
@@ -696,10 +839,30 @@ function renderPic(d) {
     ${T(W / 2, gy - 6, 13.5, gap != null ? `↔ ${fmt(gap, gap % 1 ? 1 : 0)} см` : "↔ расстояние: задать", gap != null ? 'font-weight="700"' : 'fill="var(--mut)"')}</g>`;
   // агент моторов — на раме, между колёсами внизу
   const ma = ((MOTS || {}).agents || []).find(x => x.alive) || ((MOTS || {}).agents || [])[0], mOff = ma && !ma.alive;
-  s += `<g ${ma ? `data-act="agent" data-mac="${ma.mac}"` : ""}><title>агент моторов: крутит оба колеса, на неподвижной раме</title>
-    <rect x="${W / 2 - 66}" y="${cy + R + 58}" width="132" height="30" rx="6" fill="var(--card)" stroke="${mOff ? "var(--bad)" : ma ? "var(--ink)" : "var(--line2)"}" stroke-width="1.4" ${ma && !mOff ? "" : 'stroke-dasharray="4 3"'}/>
-    ${T(W / 2, cy + R + 78, 13, ma ? `⚙ №${ma.id} моторы ${mOff ? "✗" : "✓"}` : "⚙ моторов нет", mOff ? 'fill="var(--bad)"' : ma ? "" : 'fill="var(--mut)"')}</g>`;
+  const mDrop = pick && zoneOf(d, agentById(d, pick)) !== "motor";
+  s += `<g ${ma && !mDrop ? `data-act="agent" data-mac="${ma.mac}" data-zone="motor"` : pick ? `data-act="place" data-dest="motor"` : ""}><title>агент моторов: крутит оба колеса, на неподвижной раме${ma ? "" : " — поставить: «⚙ Настройка», плата → сюда"}</title>
+    <rect x="${W / 2 - 66}" y="${cy + R + 58}" width="132" height="30" rx="6" fill="${mDrop ? "var(--on-bg)" : "var(--card)"}" stroke="${mDrop ? "var(--on)" : mOff ? "var(--bad)" : ma ? "var(--ink)" : "var(--line2)"}" stroke-width="${mDrop ? 2.5 : 1.4}" ${ma && !mOff && !mDrop ? "" : 'stroke-dasharray="4 3"'}/>
+    ${ma && ma.mac === pick ? `<rect x="${W / 2 - 72}" y="${cy + R + 52}" width="144" height="42" rx="9" fill="none" stroke="var(--on)" stroke-width="3.5" stroke-dasharray="7 4"/>` : ""}
+    ${T(W / 2, cy + R + 78, 13, mDrop ? "＋ моторы" : ma ? `⚙ №${ma.id} моторы ${mOff ? "✗" : "✓"}` : "⚙ моторов нет", mDrop ? 'font-weight="700" fill="var(--on)"' : mOff ? 'fill="var(--bad)"' : ma ? "" : 'fill="var(--mut)"')}</g>`;
   s += `<g data-act="compose"><title>перенести агентов между колёсами, разбить на подгруппы</title><rect x="${W / 2 - 50}" y="8" width="100" height="26" rx="6" fill="var(--card)" stroke="var(--line2)"/>${T(W / 2, 26, 12.5, "⚙ состав…")}</g>`;
+  // свободные платы: новые прошитые и снятые с колёс — внизу, чтобы их было видно и можно было поставить
+  if (tray) {
+    const ty = H - 34, fDrop = pick && zoneOf(d, agentById(d, pick)) !== "free", room = Math.floor((W - 260) / 52);
+    s += `<g ${fDrop ? 'data-act="place" data-dest="free"' : ""}><title>${fDrop ? `снять ${esc(nameOf(d, pick))} с места — свободна` : "свободные платы: выходили на связь, ни на каком колесе"}</title>
+      <rect x="16" y="${ty - 27}" width="${W - 32}" height="54" rx="12" fill="${fDrop ? "var(--on-bg)" : "var(--card)"}" stroke="${fDrop ? "var(--on)" : "var(--line2)"}" stroke-width="${fDrop ? 2.5 : 1.2}" stroke-dasharray="7 5"/>
+      <text x="32" y="${ty - 3}" font-size="13.5" font-weight="700" fill="var(--${fDrop ? "on" : "ink"})">${fDrop ? "○ снять сюда" : "○ свободные"}</text>
+      <text x="32" y="${ty + 14}" font-size="11" fill="var(--mut)">${free.length ? plural(free.length, "плата", "платы", "плат") + (SETUP.on ? "" : " · ⚙ Настройка — поставить") : "нет · новые — ⇪ прошить по USB"}</text></g>`;
+    free.slice(0, room).forEach((a, i) => {
+      const x = 222 + i * 52, st2 = stateOf(d, a), off = st2.k === 3, v = a.values || {};
+      s += `<g data-act="agent" data-mac="${a.mac}" data-zone="free"><title>${esc(nameOf(d, a.mac))}: ${esc(st2.word)}${(a.sens || 0) ? ", датчики " + sensBadges(a).join(" ") : ""} — свободна</title>
+        <circle cx="${x}" cy="${ty}" r="20" fill="var(--card)" stroke="${off ? "var(--bad)" : "var(--ink)"}" stroke-width="1.6" ${off ? 'stroke-dasharray="3 2"' : ""}/>
+        <text x="${x}" y="${ty + 1}" text-anchor="middle" font-size="14" font-weight="700" fill="var(--ink)">${a.id || "?"}</text>
+        <text x="${x}" y="${ty + 13}" text-anchor="middle" font-size="9.5" fill="var(--${off ? "bad" : "mut"})">${st2.icon} ${off ? agoShort(a.age) : v.temp != null ? Math.round(v.temp) + "°" : ""}</text>
+        ${sensBadges(a).length ? `<text x="${x + 14}" y="${ty - 12}" font-size="9" font-weight="700" fill="var(--ink)">${sensBadges(a).join("")}</text>` : ""}
+        ${a.mac === pick ? `<circle cx="${x}" cy="${ty}" r="25" fill="none" stroke="var(--on)" stroke-width="3.5" stroke-dasharray="6 3"/>` : ""}</g>`;
+    });
+    if (free.length > room) s += T(W - 40, ty + 4, 12, `+${free.length - room}`, 'fill="var(--mut)"');
+  }
   setHTML($("pic"), s + `</svg>`);
 }
 
@@ -819,6 +982,7 @@ function runLine(d) {
 // ---------- плашка сверху: часы, что идёт сейчас, колёса таблицей (режим, вращение, поле, связь) ----------
 function clockText() { const t = new Date(); return { hm: t.toLocaleTimeString("ru-RU"), day: t.toLocaleDateString("ru-RU", { weekday: "short", day: "2-digit", month: "2-digit" }) }; }
 function renderInfo(d) {
+  if (SETUP.on) { setHTML($("info"), setupHTML(d)); return; }
   const p = d.program, n = p && p.state === "running" && p.now, c = d.compose || {}, ck = clockText();
   let cur, det, tmr = "", bar = "";
   if (n) {
@@ -1556,7 +1720,9 @@ const DLG = {
       : sensBadges(a).map(b => b === "А" ? (a.dev === "adxl355" ? "точный акселерометр ADXL355" : "акселерометр ICM-42688-P") : "магнитометр MLX90393").join(", ") || "нет";
     return { title: `Агент ${nameOf(d, m)}`, html: `<div class="kv2">
       <span>состояние</span><b class="${st.cls}">${st.icon} ${esc(st.word)}</b>
-      <span>колесо</span><span class="seg">${["", "1", "2"].map(x => `<button class="${w === x ? "sel" : ""}" data-act="wheel" data-mac="${m}" data-w="${x}">${x ? "колесо " + x : "нет"}</button>`).join("")}</span>
+      <span>место</span>${phone ? `<b>📱 телефон — измеритель</b>` : `<span class="row" style="gap:4px">${Object.entries(DEST).map(([k, [ic, word, need]]) => {
+        const here = zoneOf(d, a) === k, reb = need !== roleOf(d, a);
+        return `<button class="btn sm ${here ? "sel" : ""}" data-act="place" data-mac="${m}" data-dest="${k}" title="${here ? "здесь сейчас" : reb ? "роль сменится — плата перезапустится ≈ 15 с" : "без перезапуска"}">${here ? "✓ " : ""}${ic} ${word}${!here && reb ? " ↻" : ""}</button>`; }).join("")}</span>`}
       ${w && !isStatic(d, a) ? `<span>подгруппа</span><span class="seg">${[...LETTERS].map(l => `<button class="${subOf(d, m) === l ? "sel" : ""}" data-act="sub" data-mac="${m}" data-s="${l}">${l}</button>`).join("")}</span>` : ""}
       ${phone ? "" : `<span>температура</span><b>${v.temp != null ? fmt(v.temp, 1) + " °C" : "—"} · предел ${v.tmax || "—"} °C · работа ${v.work != null ? fmt(v.work, 0) + " %" : "—"}</b>`}
       ${phone ? "" : `<span>счёт</span><b>${g.run ? `${g.role === 1 ? "поглощает" : g.mode === 1 ? "сообща" : "сам"} · простых ${fmt(g.pr)} · ${fmt((g.rate || {}).g_pr_s, 1)}/с` : g.done && g.done === g.cid ? `стоит, шаг ${g.done} сдан` : "стоит"}${g.dur ? ` · шаг на агенте ${g.dur} с${g.ro ? ", радио выкл" : ""}` : ""}${g.roff ? ` · радио молчало ${g.roff} с` : ""}</b>`}
@@ -1566,17 +1732,14 @@ const DLG = {
         : `<span>память</span><b>${v.heap != null ? fmt(v.heap / 1000, 0) + " КБ свободно" : "—"}</b>`}
       <span>датчики</span><b>${esc(sens)}${Array.isArray(g.i2c) ? ` · шина I²C: ${g.i2c.length ? g.i2c.map(x => "0x" + x.toString(16).padStart(2, "0")).join(", ") : "<span class='warn'>никто не отвечает</span>"}` : ""}</b>
       ${a.mot ? `<span>${(d.compose.slot || {})[m] === "coil" ? "катушка" : "моторы"}</span><b>${(d.compose.slot || {})[m] === "coil" ? `колесо ${(d.compose.wheels || {})[m] || "?"}: ${motBridge(a.mot.a)}` : ["a", "b"].map((w, i) => `колесо ${i + 1}: ${motBridge(a.mot[w])}`).join(" · ")}${a.mot.wdf ? " · <span class='warn'>◐ сторож остановил: команд не было</span>" : ""}</b>
-      <span>назначение</span><span class="seg">${[["motor", "моторы колёс"], ["coil1", "катушка колеса 1"], ["coil2", "катушка колеса 2"]].map(([v, lab]) => { const cur = (d.compose.slot || {})[m] === "coil" ? "coil" + ((d.compose.wheels || {})[m] || "") : "motor"; return `<button class="${cur === v ? "sel" : ""}" data-act="mrole" data-mac="${m}" data-v="${v}">${lab}</button>`; }).join("")}</span>` : ""}
+` : ""}
       <span>прошивка</span><b>${esc(a.fw || "—")}</b>
       <span>MAC</span><b>${esc(m)}</b></div>
       <div class="row" style="margin-top:10px">${phone ? "" : `<button class="btn go" data-act="ident" data-mac="${m}">◉ найти — светодиод мигнёт 20 с</button>`}
       ${isStatic(d, a) ? `<button class="btn go" data-act="live" data-mac="${m}" title="колебания и толчки, распределение по Гауссу, спектр — каждую секунду">📈 вживую: колебания, Гаусс, спектр</button>` : ""}
       ${(a.sens || 0) & 2 ? `<button class="btn go" data-act="live" data-kind="mag" data-mac="${m}" title="поле по осям и модулю, колебания, Гаусс, спектр, ступеньки поля — каждую секунду">🧲 поле вживую</button>` : ""}
       ${(a.sens || 0) & 1 && !isStatic(d, a) ? `<button class="btn" data-act="noise" data-id="${a.id}" title="разброс по осям и по модулю, распределение, спектр, девиация Аллана">📈 шум и точность датчика</button>` : ""}
-      ${alive(a.status) && !phone && !isStatic(d, a) && a.kind !== "M" ? `<button class="btn" data-act="role" data-mac="${m}" data-r="3" title="плата перезапустится агентом моторов: D0/D1 — мост колеса 1, D2/D3 — колеса 2">→ в моторы</button>` : ""}
-      ${alive(a.status) && !phone ? (isStatic(d, a) || a.kind === "M" ? `<button class="btn" data-act="role" data-mac="${m}" data-r="0" title="плата перезапустится генератором">→ в генераторы</button>`
-        : (a.sens || 0) & 1 || (Array.isArray(g.i2c) && g.i2c.some(x => x === 0x1D || x === 0x53)) ? `<button class="btn" data-act="role" data-mac="${m}" data-r="2" title="плата перезапустится измерителем: одно ядро только меряет, 1000 Гц, ±2 g (ADXL355 на 0x1D/0x53 меряет только так)">→ в измерители (статика)</button>` : "") : ""}
-      <span class="small mut">роль (генератор / измеритель) — на пульте, «Агенты»</span></div>` };
+      <span class="small mut">↻ — смена роли (генератор · моторы и катушки · измеритель): плата перезапустится ≈ 15 с; моторы: D0/D1 — мост колеса 1, D2/D3 — колеса 2</span></div>` };
   },
   compose: d => {
     // агенты моторов и катушек в подгруппы не входят: без связи их роль не видна — узнаём по месту «катушка» и списку /api/motors
@@ -1873,7 +2036,12 @@ document.addEventListener("click", async e => {
   if (!t) return;
   if (t.tagName === "A") e.preventDefault();
   const act = t.dataset.act, mac = t.dataset.mac;
-  if (act === "agent") { if (identMode) ident(mac); else openDlg("agent", mac); }
+  if (act === "agent") { if (identMode) ident(mac); else if (SETUP.on) setupTap(mac, t); else openDlg("agent", mac); }
+  else if (act === "place") { const m = mac || SETUP.pick; if (m) placeAgent(m, t.dataset.dest, t.dataset.sub || null); else note("◐ сначала нажмите плату", "warn"); }
+  else if (act === "setup") { SETUP.on = !SETUP.on; SETUP.pick = null; renderAll(); if (SETUP.on) note("⚙ настройка: нажмите плату, потом — куда её поставить", "ok"); }
+  else if (act === "unpick") { SETUP.pick = null; renderAll(); }
+  else if (act === "identpick") { if (SETUP.pick) ident(SETUP.pick); }
+  else if (act === "agentpick") { if (SETUP.pick) openDlg("agent", SETUP.pick); }
   else if (["compose", "exp", "diag", "fw"].includes(act)) openDlg(act);
   else if (act === "report") openDlg("frame", { url: "/report", title: "☰ Результаты" });
   else if (act === "frame") openDlg("frame", { url: t.dataset.url, title: t.dataset.title || "" });
@@ -1895,14 +2063,6 @@ document.addEventListener("click", async e => {
   else if (act === "live") { live.mac = mac; live.kind = t.dataset.kind || "acc"; live.data = null; live.err = null; live.since = null; openDlg("live", mac); liveTick(true); }
   else if (act === "livesec") { live.sec = +t.dataset.n; liveTick(true); }
   else if (act === "motor") { openDlg("motor"); motTick(true); }
-  else if (act === "mrole") {                            // агент M: моторы колёс или катушка колеса 1/2
-    const v = t.dataset.v;
-    try {
-      if (v === "motor") await postJSON("/api/compose", { slot: { [mac]: "idle" }, wheels: { [mac]: "" } });
-      else await postJSON("/api/compose", { slot: { [mac]: "coil" }, wheels: { [mac]: v.slice(-1) } });
-      note(`✓ ${nameOf(D, mac)}: ${v === "motor" ? "моторы колёс" : "катушка колеса " + v.slice(-1)}`, "ok"); await refresh();
-    } catch (er) { note("✗ " + er.message, "bad"); }
-  }
   else if (act === "cset") {                             // катушка вручную: колесо, поле
     try { COIL = await postJSON("/api/coils", { wheel: t.dataset.w, state: t.dataset.v }); renderAll(); } catch (er) { note("✗ катушка: " + er.message, "bad"); }
   }
@@ -1954,21 +2114,6 @@ document.addEventListener("click", async e => {
   }
   else if (act === "livereset") { live.since = Date.now() / 1000; liveTick(true); }
   else if (act === "livepause") { live.pause = !live.pause; renderDlg(); }
-  else if (act === "role") {
-    const r = +t.dataset.r;
-    if (!confirm(r === 2 ? `${nameOf(D, mac)} — в измерители? Плата перезапустится и будет только мерить (1000 Гц, ±2 g); счёт простых на ней прекратится.`
-                 : r === 3 ? `${nameOf(D, mac)} — в агенты моторов? Плата перезапустится и будет крутить моторы колёс (D0/D1 — колесо 1, D2/D3 — колесо 2); счёт простых на ней прекратится.`
-                          : `${nameOf(D, mac)} — обратно в генераторы? Плата перезапустится.`)) return;
-    try {
-      if (r === 2) await postJSON("/api/compose", { slot: { [mac]: "S" } });
-      else await postJSON("/api/compose", { slot: { [mac]: "idle" } });
-      const own = { ...((D.own || {})[mac] || {}), role: r };
-      await postJSON("/api/control", { targets: [mac], cfg: { ...(D.common || D.default), run: 0 }, own: { [mac]: own }, force: true });
-      restarting[mac] = Date.now();
-      note(`✓ ${nameOf(D, mac)}: ${r === 2 ? "перезапускается измерителем" : r === 3 ? "перезапускается агентом моторов" : "перезапускается генератором"} (≈15 с)`, "ok");
-      closeDlg(); await refresh();
-    } catch (er) { note("✗ " + er.message, "bad"); }
-  }
   else if (act === "noisemin") { noiseMin = +t.dataset.n; renderDlg(); }
   else if (act === "noiserun") {
     const id = +t.dataset.id;

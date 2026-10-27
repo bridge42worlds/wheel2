@@ -183,7 +183,16 @@ into their noise — a loop through the air.
   manual field buttons (off / + / −) and the **coil battery**. Between the wheels — static sensors,
   "↔ … cm" (tap to enter the distance), the motor agent, "⚙ composition…"; an arc on top — primes going to
   the absorbers of the other wheel, below — back noise. Animation phase follows the clock (the 2 s redraw
-  does not jerk it); with "reduce motion" in the system — no animation.
+  does not jerk it); with "reduce motion" in the system — no animation. At the bottom — **free boards**: online
+  but on no wheel (newly flashed, taken off a wheel).
+* **⚙ Setup** (above the diagram) — place the boards and go from zero to a run. Tap a board to pick it (blue
+  ring); the places light up: "+ wheel 1 / 2" (generator), "+ coil K1 / K2" and "+ motors" (role M agent), "+
+  measurers" (static), "○ free"; tap a place to put the board there (tapping a board on a wheel puts it into
+  that board's subgroup). A role change (generator · motors and coils · measurer) restarts the board, ≈ 15 s,
+  after a question; "◉ blink" finds the picked board by its LED. On the right — **"From zero to a run"**:
+  boards online (and "⇪ flash by USB" for new ones), free boards, wheels and subgroups, motors, coils K1 and
+  K2, measurers, wheel sensors (rim, magnetometer, batteries), firmware, distance, noise reference, diagnostics,
+  experiment — each with a state and a button. The agent window has the same as a "place" row.
 * **On the right**: the "now" plate — clock, what is running (run N of M with a countdown and progress
   bar, a console start or quench, "standing"), totals or the last program, temperature; the **static
   card** — verdict in large type (✓ as reference — continue · ⚠ deviation — check · ↻ interference or
