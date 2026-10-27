@@ -282,6 +282,8 @@ def validate(prog):
            "z": float(prog.get("z", 4.0)), "confirm": max(0, min(10, int(prog.get("confirm", 3)))),
            "baseline_min": max(0.0, min(120.0, float(prog.get("baseline_min", 0)))),
            "redo": max(0, min(5, int(prog.get("redo", 2)))),
+           # пауза перед каждым повтором (кроме первого): всё стоит, ждём «продолжить» — замена аккумуляторов
+           "pause_repeat": bool(prog.get("pause_repeat")),
            # отклонение статики за шаг (вывод «⚠ проверить»: держится без известной причины) — повторить тот же шаг
            # сразу, до again раз подряд, чтобы не пропустить эффект; 0 — только тревога на планшетке
            "again": max(0, min(5, int(prog.get("again", 0)))),
@@ -393,6 +395,8 @@ class Runner:
         self.dir = store_dir
         self.active = None
         self.stop = threading.Event()
+        self.resume = threading.Event()            # «продолжить» после паузы
+        self.pause_req = None                      # просьба встать на паузу перед следующим шагом (села пара)
         self.lock = threading.Lock()
         os.makedirs(store_dir, exist_ok=True)
 
@@ -470,6 +474,16 @@ class Runner:
             raise ValueError("программа не идёт")
         self.stop.set()
 
+    def request_pause(self, why):
+        if self.active:
+            self.pause_req = why
+
+    def request_resume(self):
+        x = self.active
+        if not x or not (x.get("now") or {}).get("pause"):
+            raise ValueError("программа не на паузе")
+        self.resume.set()
+
     def request_again(self, body):
         """Тревога статики на планшетке: {n} — повторить шаг n (номер в плане, с 1) с теми же настройками сразу
         после текущего; {auto} — повторять шаг при отклонении сам, до auto раз (меняет идущую программу)."""
@@ -526,10 +540,21 @@ class Runner:
                 x["baseline"] = self.h["baseline"](prog["baseline_min"], self.stop)
                 self.store(x)
                 self.h["log"](f"[prog] №{x['id']}: эталон записан")
-            i = 0
+            i, rep = 0, 1
             while i < len(x["plan"]) and not self.stop.is_set():
                 item = x["plan"][i]
                 st = prog["steps"][item["step"]]
+                if prog.get("pause_repeat") and (item.get("repeat") or 0) > rep:   # начинается следующий повтор
+                    rep = item["repeat"]
+                    self.pause_req = None                       # одна пауза на замену — заодно и для севшей пары
+                    self._pause(x, macs, rep)
+                    if self.stop.is_set():
+                        break
+                if self.pause_req:                              # села пара: пауза перед этим шагом
+                    why, self.pause_req = self.pause_req, None
+                    self._pause(x, macs, None, why)
+                    if self.stop.is_set():
+                        break
                 x["now"] = {"n": i + 1, "of": len(x["plan"]), "name": st["name"], "control": st["control"],
                             "agent": st.get("agent", False),
                             "ro": bool(st["cfg"].get("ro") or any(g["cfg"].get("ro") for g in (st.get("groups") or []))),
@@ -708,6 +733,29 @@ class Runner:
                 "agents": snap, "gen": gen_metrics(snap, t1 - t0, snap0),
                 "static": self.h["metrics"](t0, t1), "watch": self.h["verdict"](t0, t1),
                 "field": self.h["field"](t0, t1) if self.h.get("field") else {}}
+
+    def _pause(self, x, macs, rep, why=None):
+        """Пауза перед повтором rep: катушки выкл, колёса стоят, агенты на отдыхе (80 МГц) — можно менять аккумуляторы.
+        Ждёт «продолжить» с планшетки (/api/program/resume) или «стоп»."""
+        if self.h.get("coil_off"):
+            self.h["coil_off"]("пауза")
+        if self.h.get("motor_off") and any(s.get("mot") for s in x["program"]["steps"]):
+            self.h["motor_off"]("пауза")
+        gens = [m for m in macs if m not in self.h["static_macs"]()]
+        if gens:
+            self.h["rest"](gens)
+        self.resume.clear()
+        t0 = time.time()
+        x["now"] = {**(x.get("now") or {}), "pause": True, "rest": False, "t_meas": None, "t_pause": round(t0, 3),
+                    "pause_why": why or f"перед повтором {rep} из {x['program']['repeat']}: заменить аккумуляторы и продолжить"}
+        self.store(x)
+        self.h["log"](f"[prog] №{x['id']}: пауза — {x['now']['pause_why']} — ждём «продолжить»")
+        while not self.stop.is_set() and not self.resume.is_set():
+            self.stop.wait(1)
+        x.setdefault("pauses", []).append({"repeat": rep, "why": x["now"]["pause_why"], "t0": round(t0, 3),
+                                         "s": round(time.time() - t0, 1)})
+        x["now"]["pause"] = False
+        self.store(x)
 
     def _rest(self, x, macs):
         if self.h.get("coil_off"):                             # на отдыхе катушки выключены — не греются

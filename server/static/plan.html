@@ -31,6 +31,8 @@
 .info .bar { margin:3px 0 1px; }
 .info .ist .small { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .info .wtab { grid-column:1 / -1; display:grid; grid-template-columns:auto minmax(0, 1.7fr) minmax(0, 1fr) auto auto; gap:2px 12px; font-size:.9em; border-top:1px solid var(--line); padding-top:4px; }
+.nzp { display:flex; flex-direction:column; gap:3px; }
+.nzp .seg button { padding:1px 6px; font-size:.86em; white-space:nowrap; }
 .info .wtab .hd { color:var(--mut); font-size:.82em; text-transform:uppercase; letter-spacing:.04em; }
 .info .wtab > * { min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-variant-numeric:tabular-nums; }
 .fon { color:var(--on); font-weight:700; }
@@ -151,6 +153,7 @@ label.inl { display:inline-flex; align-items:center; gap:4px; margin:2px 10px 2p
     <button type="button" class="tip" data-tip="run" aria-label="что делают кнопки запуска">ⓘ</button>
     <button class="btn big go" id="bRun" title="Запустить последовательность шагов (лента внизу)">▶ Запустить</button>
     <button class="btn big stop" id="bStop" title="Остановить программу после текущего шага (агенты доработают шаг)">⏹ Стоп после шага</button>
+    <button class="btn big go" id="bResume" hidden title="Пауза между повторами: аккумуляторы заменены — продолжить программу">▶ Продолжить</button>
     <button class="btn big halt" id="bHalt" title="Всё стоп сразу: программа, счёт у всех агентов, моторы, катушки выкл">■ Всё стоп</button>
   </div></header>
   <main class="cols3">
@@ -193,7 +196,9 @@ const tipBtn = (k, what) => `<button type="button" class="tip" data-tip="${k}" a
 // ---------- слои ----------
 const ROLES_W = [["gen", "генерация"], ["abs", "поглощение"], ["idle", "стоит"]];
 const WAYS_GEN = [["solo", "эгоистичный", "каждый из своего шума — своё простое"],
-                  ["cascade", "групповой", "шум от всех в подгруппе, свои числа из общего шума (каскад)"],
+                  ["cascade", "групповой · каскад", "шум от всех в подгруппе, свои числа из общего шума, проверяют все сразу — каждый свои"],
+                  ["one", "групповой · одно число на всех", "шум от всех, одно число на группу, его проверяют все (базы поделены), ответ — по согласию; ~10 простых/с на группу — сет лучше 60 с"],
+                  ["relay", "групповой · эстафета", "число из шума всех, проверяет один, ход по кругу; ~37 простых/с на группу, платы прохладнее"],
                   ["same", "групповой · одинаковые числа", "все считают одно число — появится с прошивкой", true]];
 const WAYS_ABS = [["all", "все со всеми", "каждый поглотитель получает все простые своей группы"],
                   ["pair", "один к одному", "агент i поглощает простые агента i — появится с прошивкой", true]];
@@ -215,18 +220,102 @@ const NOISES = [
 const NOISE_ICON = { rng: "⚄", all: "Σ", csi: "≋", csiping: "↯", csiair: "◎", adc: "⏚", jit: "⧖", bc: "↺+", bconly: "↺", acc: "↕", mag: "🧲", tmp: "🌡" };
 const NOISES_UI = NOISES.map(n => [n[0], `${NOISE_ICON[n[0]] || "·"} ${n[1]}`, n[2], n[3]]);
 // значок по названию (в слоях шага шум записан словами, иногда с добавкой «+ акселерометр»)
-function noiseIconByName(name) { const n = NOISES.find(x => name && name.startsWith(x[1])); return n ? NOISE_ICON[n[0]] || "" : ""; }
+function noiseIconByName(name) {
+  if (!name) return "";
+  if (name.startsWith("все доступные")) return "Σ";
+  if (name.startsWith("все без")) return "Σ−";
+  const n = NOISES.find(x => name.startsWith(x[1]));
+  if (n) return NOISE_ICON[n[0]] || "";
+  const one = Object.keys(SRC_NAME1).find(k => name === SRC_NAME1[k]);
+  if (one) return SRC_ICON[one];
+  return name.split(" + ").map(w => SRC_ICON[Object.keys(SRC_SHORT).find(k => SRC_SHORT[k] === w)] || "").join("");
+}
 function noiseLabel(name) { const i = noiseIconByName(name); return name ? (i ? i + " " : "") + name : ""; }
 // Датчики на ободе — добавкой к любому выбранному шуму (в том числе к «все доступные»): накопленное подмешивается
 // в каждый блок, счёт не медленнее; у агентов без датчика добавка пустая
 const SENS_ADD = [["acc", "+ ↕ акселерометр", "Младшие байты осей ICM-42688 (обод) подмешиваются в шум — у агентов с этим датчиком.", false],
                   ["mag", "+ 🧲 магнитометр", "Младшие байты осей MLX90393 подмешиваются в шум — у агентов с этим датчиком.", false]];
-const sensBits = w => ((P["w" + w].sens || []).includes("acc") ? 32 : 0) | ((P["w" + w].sens || []).includes("mag") ? 64 : 0);
-const sensWord = w => [(P["w" + w].sens || []).includes("acc") ? "+ акселерометр" : "", (P["w" + w].sens || []).includes("mag") ? "+ магнитометр" : ""].filter(Boolean).join(" ");
+// Датчики обода теперь — источники в смеси шума (ниже); добавка отдельной галочкой больше не нужна
+const sensBits = w => 0;
+const sensWord = w => "";
+
+// ---------- шум как смесь источников ----------
+// Источник — бит src прошивки (config.h). Шум шага — смесь отмеченных источников (через SHA-256, как «все доступные»);
+// CSI — с пульса соседей или с пинга роутера, одно из двух. Смесь хранится ключом «m:rng+csi+adc» (порядок — SOURCES).
+// Старые ключи (rng, all, csi…) в сохранённых планах понимаются по-прежнему.
+const SOURCES = [["rng", "⚄", "ГСЧ", 1], ["csi", "≋", "CSI", 2], ["adc", "⏚", "АЦП", 4], ["jit", "⧖", "RC", 8],
+                 ["acc", "↕", "акс.", 32], ["mag", "🧲", "магн.", 64], ["bc", "↺", "обратный", 16]];
+const SRC_ALL = ["rng", "csi", "adc", "jit"];                 // «Σ все доступные» — src 15
+const SRC_ICON = { rng: "⚄", csi: "≋", csip: "↯", adc: "⏚", jit: "⧖", acc: "↕", mag: "🧲", bc: "↺" };
+const SRC_SHORT = { rng: "ГСЧ", csi: "CSI", csip: "CSI-пинг", adc: "АЦП", jit: "RC", acc: "акс.", mag: "магн.", bc: "обр." };
+const SRC_NAME1 = { rng: "ГСЧ чипа", csi: "CSI с пульса", csip: "CSI с пинга роутера", adc: "АЦП D0", jit: "дрожание RC",
+                    acc: "акселерометр", mag: "магнитометр", bc: "обратный шум" };
+const nDesc = k => (NOISES.find(n => n[0] === k) || [])[2] || "";
+const SRC_DESC = { rng: nDesc("rng"), csi: nDesc("csi") + " Вариант — с пульса или с пинга роутера (переключатель рядом).", adc: nDesc("adc"),
+                   jit: nDesc("jit"), acc: nDesc("acc").replace(/ Подмешать.*$/, "") + " В смеси — добавка у агентов с датчиком (№6).",
+                   mag: nDesc("mag").replace(/ Подмешать.*$/, "") + " В смеси — добавка у агентов с датчиком (№7).",
+                   bc: "Содержимое кадров, которые выпустили поглотители другого колеса (их шум со смешанными нашими простыми) — петля через эфир. Только в шаге, где другое колесо поглощает." };
+const NZ_DEF = { set: ["rng"], csi: "hb", scheme: "one" };
+const NZ_SCHEMES = [["one", "смесь", "все отмеченные источники вместе — один вариант"],
+                    ["each", "каждый", "по одному источнику — N вариантов"],
+                    ["alleach", "смесь+каждый", "смесь всех отмеченных, потом каждый отдельно — N + 1"],
+                    ["loo", "все/без/каждый", "смесь всех, без каждого по очереди, каждый отдельно — 2N + 1: видно, что даёт каждый источник и чего без него не хватает"]];
+const mixKey = (set, csi) => "m:" + SOURCES.map(x => x[0]).filter(k => set.includes(k)).map(k => k === "csi" && csi === "ping" ? "csip" : k).join("+");
+const mixSet = k => k && k.startsWith("m:") ? k.slice(2).split("+").filter(Boolean) : null;
+const baseSrc = k => k === "csip" ? "csi" : k;
+function mixCfg(key) {
+  const ks = mixSet(key);
+  const c = { src: ks.reduce((b, k) => b | ((SOURCES.find(x => x[0] === baseSrc(k)) || [])[3] || 0), 0) || 1 };
+  if (ks.includes("csi")) Object.assign(c, { ping: 0, hb: 10 });
+  if (ks.includes("csip")) Object.assign(c, { ping: 20, hb: 1 });
+  return c;
+}
+// Смесь словами: один источник — его имя; все четыре — «все доступные» (+ добавки); без одного — «все без …»
+function mixWords(key, short) {
+  const ks = mixSet(key), b = ks.map(baseSrc), W = short ? SRC_SHORT : SRC_NAME1;
+  const extra = ks.filter(k => !SRC_ALL.includes(baseSrc(k)));
+  if (ks.length === 1) return W[ks[0]];
+  if (SRC_ALL.every(k => b.includes(k)) && !ks.includes("csip")) return (short ? "все" : "все доступные") + extra.map(k => " + " + SRC_SHORT[k]).join("");
+  const miss = SRC_ALL.filter(k => !b.includes(k));
+  if (miss.length === 1 && !extra.length && !ks.includes("csip")) return "все без " + SRC_SHORT[miss[0]];
+  return ks.map(k => SRC_SHORT[k]).join(" + ");
+}
+function mixIcon(key) {
+  const ks = mixSet(key), b = ks.map(baseSrc);
+  const all = SRC_ALL.every(k => b.includes(k)) && !ks.includes("csip"), miss = SRC_ALL.filter(k => !b.includes(k));
+  if (all) return "Σ" + ks.filter(k => !SRC_ALL.includes(k)).map(k => SRC_ICON[k]).join("");
+  if (miss.length === 1 && ks.length === 3 && !ks.includes("csip")) return "Σ−" + SRC_ICON[miss[0]];
+  return ks.map(k => SRC_ICON[k]).join("");
+}
+const hasBC = n => !!n && (n.startsWith("bc") || (mixSet(n) || []).includes("bc"));
+function noiseVariants(nz) {
+  nz = nz || NZ_DEF;
+  const B = SOURCES.map(x => x[0]).filter(k => (nz.set || []).includes(k)), m = set => mixKey(set, nz.csi);
+  if (!B.length) return [];
+  const all = [m(B)], each = B.map(k => m([k])), wo = B.length > 2 ? B.map(k => m(B.filter(x => x !== k))) : [];
+  const L = nz.scheme === "each" ? each : nz.scheme === "alleach" ? all.concat(each) : nz.scheme === "loo" ? all.concat(wo, each) : all;
+  return [...new Set(L)];
+}
+// Старый выбор (список вариантов + добавка датчиков) → смесь: те же источники, несколько вариантов — «каждый отдельно»
+const OLD_SRC = { rng: ["rng"], all: SRC_ALL, csi: ["csi"], csiping: ["csi"], adc: ["adc"], jit: ["jit"], bc: ["rng", "bc"], bconly: ["bc"], acc: ["acc"], mag: ["mag"] };
+function nzFromOld(noise, sens) {
+  const set = [...new Set((noise || []).flatMap(k => OLD_SRC[k] || []).concat(sens || []))];
+  return { set: set.length ? set : ["rng"], csi: (noise || []).includes("csiping") ? "ping" : "hb", scheme: (noise || []).length > 1 ? "each" : "one" };
+}
+function nzOf(w) { const S = P["w" + w]; if (!S.nz) S.nz = nzFromOld(S.noise, S.sens); return S.nz; }
+// Панель выбора шума: источники значками (подсказка — откуда берётся), «Σ все» — отметить четыре сразу, перебор
+function nzHTML(id, nz) {
+  const on = k => (nz.set || []).includes(k), V = noiseVariants(nz);
+  const chip = ([k, ic, name]) => `<span class="opt nzs ${on(k) ? "on" : ""}" data-nz="${id}" data-nzk="${k}" title="${esc(SRC_DESC[k] || "")}">${ic} ${name}</span>`;
+  return `<div class="nzp"><div class="opts"><span class="opt nzs ${SRC_ALL.every(on) ? "on" : ""}" data-nz="${id}" data-nzk="all" title="ГСЧ + CSI + АЦП + RC — отметить все сразу (ещё раз — снять)">Σ все</span>${SOURCES.map(chip).join("")}${on("csi") ? `<span class="seg">${[["hb", "≋ пульс", "CSI с кадров пульса соседних агентов — роутер не нужен"], ["ping", "↯ пинг", "CSI с ответов роутера на пинг 20 раз в секунду"]].map(([v, l, t]) => `<button class="${(nz.csi || "hb") === v ? "sel" : ""}" data-nz="${id}" data-nzc="${v}" title="${t}">${l}</button>`).join("")}</span>` : ""}</div>
+    <div class="row small">перебор <span class="seg">${NZ_SCHEMES.map(([v, l, t]) => `<button class="${(nz.scheme || "one") === v ? "sel" : ""}" data-nz="${id}" data-nzs="${v}" title="${esc(t)}">${l}</button>`).join("")}</span>
+      <span class="mut">= ${plural(V.length, "вариант", "варианта", "вариантов")}${V.length ? ": " + V.map(k => `<span title="${esc(noiseName(k))}">${esc(noiseShort(k))}</span>`).join(" · ") : " — отметьте источник"}</span></div></div>`;
+}
 const FIELDS = [["off", "выкл"], ["pp", "+ +"], ["pm", "+ −"], ["mp", "− +"], ["mm", "− −"]];
-const GEN_CFG = { solo: { mode: 0, dc: 1 }, cascade: { mode: 1, gv: 2, dc: 1, rk: 1, pw: 20 }, same: { mode: 1, gv: 2, dc: 1 } };
+const GEN_CFG = { solo: { mode: 0, dc: 1 }, cascade: { mode: 1, gv: 2, dc: 1, rk: 1, pw: 20 }, one: { mode: 1, gv: 0, dc: 0 },
+                  relay: { mode: 1, gv: 1, dc: 1, rk: 1, pw: 0 }, same: { mode: 1, gv: 2, dc: 1 } };
 const ABS_CFG = { all: { sm: 1, sh: 0 }, pair: { sm: 1, sh: 0 } };
-const WAY_SHORT = { solo: "эгоист.", cascade: "каскад", same: "одинак.", all: "все со всеми", pair: "1:1" };
+const WAY_SHORT = { solo: "эгоист.", cascade: "каскад", one: "одно число", relay: "эстафета", same: "одинак.", all: "все со всеми", pair: "1:1" };
 const ROLE_SHORT = { gen: `${ICONS.gen} ген.`, abs: `${ICONS.abs} погл.`, idle: `${ICONS.idle} стоит` };
 const LETTERS = "абвгдежз";                 // подгруппы на колесе — как SUBGROUPS на сервере
 const MAX_GROUP = 16;                       // предел участников группы в прошивке (MAX_GROUP)
@@ -235,7 +324,7 @@ const DEF = { w1: { roles: ["gen"], ways: ["solo"], abs: ["all"], noise: ["rng"]
               fields: ["off"], merge: false, minutes: 1, quiet: false, repeat: 2, shuffle: true,
               restMode: "stable", restMin: 2, restBelow: 45, restMax: 6, tmax: 73, agentStep: false, radioOff: false,
               idleStep: true, baseline: 0, confirm: 0, seq: [], diagMin: 1, diagId: null,
-              again: 0, sound: true };                  // ❗ отклонение статики: повторить шаг (раз), звук тревоги
+              again: 0, sound: true, pauseRepeat: false };   // пауза между повторами — замена аккумуляторов                  // ❗ отклонение статики: повторить шаг (раз), звук тревоги
 let P = (() => { try { return { ...DEF, ...JSON.parse(localStorage.getItem("plan.v2") || "{}") }; } catch (e) { return { ...DEF }; } })();
 P.w1 = { ...DEF.w1, ...(P.w1 || {}) }; P.w2 = { ...DEF.w2, ...(P.w2 || {}) }; P.seq = Array.isArray(P.seq) ? P.seq : [];
 function save() { try { localStorage.setItem("plan.v2", JSON.stringify(P)); } catch (e) { /* без памяти */ } }
@@ -288,7 +377,7 @@ function wheelMode(d, w) {
   const role = Lw ? Lw.role : (S.roles[0] || "idle");
   const way = Lw ? Lw.way : role === "gen" ? S.ways[0] : role === "abs" ? S.abs[0] : "";
   return { live: !!Lw, role, icon: ICONS[role] || ICONS.idle, word: role === "gen" ? "генерация" : role === "abs" ? "поглощение" : "стоит",
-           way: wayName(way), short: WAY_SHORT[way] || "", noise: role === "gen" ? (Lw ? Lw.noise : noiseName(S.noise[0])) : "" };
+           way: wayName(way), short: WAY_SHORT[way] || "", noise: role === "gen" ? (Lw ? Lw.noise : noiseName(noiseVariants(nzOf(w))[0] || "")) : "" };
 }
 // ---------- катушки колёс ----------
 let COIL = null;                                        // /api/coils — опрос вместе с планшеткой
@@ -426,9 +515,20 @@ function groupLive(d, macs) {
   if (!run.length) return "";
   return `сами · Σ ${fmt(run.reduce((s, m) => s + (((d.gen[m] || {}).rate || {}).g_pr_s || 0), 0), 1)} пр/с`;
 }
+// Аккумуляторы колеса (INA219 у агента шины и у агента катушки, server/battery.py): значок + слово + цифры
+const BAT_WORD = { ok: ["🔋", ""], warn: ["🪫", " · пора менять"], low: ["🪫", " · СЕЛИ — заменить"] };
+function batHTML(d, w) {
+  const L = ((d && d.battery && d.battery.list) || []).filter(b => b.wheel === w);
+  return L.map(b => {
+    const [ic, word] = BAT_WORD[b.level] || BAT_WORD.ok, old = !b.alive || b.age > 10;
+    const tip = `${b.label}: ${fmt(b.v, 2)} В, ${fmt(b.i / 1000, 2)} А (${fmt(b.w, 1)} Вт), с установки пары израсходовано ${fmt(b.q, 0)} мА·ч из ${fmt(b.cap, 0)}${b.measured ? " (ёмкость по замеру)" : " (ёмкость задана)"}${b.left_min != null ? `, осталось ≈ ${b.left_min} мин при нынешнем токе` : ""}${old ? " — данные устарели: агент не на связи" : ""}`;
+    return ` · <span class="${old ? "mut" : b.level === "ok" ? "ok" : b.level === "warn" ? "warn" : "bad"}" title="${esc(tip)}">${ic} ${b.kind === "coil" ? "катушка" : "шина"} ${fmt(b.v, 2)} В · ${b.soc} %${b.left_min != null && b.kind === "bus" ? ` · ≈ ${b.left_min} мин` : ""}${word}</span>`;
+  }).join("");
+}
 function plural(n, a, b, c) { const m = n % 10, h = n % 100; return `${n} ${h > 10 && h < 20 ? c : m === 1 ? a : m > 1 && m < 5 ? b : c}`; }
-function wayName(k) { return ({ solo: "эгоистичный", cascade: "групповой (каскад)", same: "групповой · одинаковые числа", all: "все со всеми", pair: "один к одному" })[k] || ""; }
-function noiseName(k) { const n = NOISES.find(x => x[0] === k); return n ? n[1] : ""; }
+function wayName(k) { return ({ solo: "эгоистичный", cascade: "групповой (каскад)", one: "групповой · одно число на всех", relay: "групповой · эстафета", same: "групповой · одинаковые числа", all: "все со всеми", pair: "один к одному" })[k] || ""; }
+function noiseName(k) { if (mixSet(k)) return mixWords(k); const n = NOISES.find(x => x[0] === k); return n ? n[1] : ""; }
+function noiseShort(k) { return mixSet(k) ? `${mixIcon(k)} ${mixWords(k, true)}` : NOISE_SHORT[k] || k; }
 function fieldName(k) { return ({ off: "выкл", pp: "+ +", pm: "+ −", mp: "− +", mm: "− −" })[k] || k; }
 function stateWord(s) { return ({ running: "идёт", done: "выполнена", stopped: "остановлена", error: "ошибка" })[s] || s; }
 function setHTML(el, html) { if (el && el._h !== html) { el._h = html; el.innerHTML = html; } }
@@ -486,7 +586,7 @@ function renderWheel(d, w) {
       <div class="chips">${g.macs.map(m => chipHTML(d, m)).join("")}</div></div>`;
   }).join("") || `<div class="mut small">агентов нет — «состав…»</div>`;
   const gen = S.roles.includes("gen"), abs = S.roles.includes("abs");
-  setHTML($("w" + w), `<h2>Колесо ${w} <span class="small mut">${plural(macs.length, "агент", "агента", "агентов")} · <span class="${on === macs.length ? "ok" : on ? "warn" : "bad"}">${on} на связи</span>${groups.length > 1 ? " · " + plural(groups.length, "группа", "группы", "групп") : ""}</span>
+  setHTML($("w" + w), `<h2>Колесо ${w} <span class="small mut">${plural(macs.length, "агент", "агента", "агентов")} · <span class="${on === macs.length ? "ok" : on ? "warn" : "bad"}">${on} на связи</span>${groups.length > 1 ? " · " + plural(groups.length, "группа", "группы", "групп") : ""}${batHTML(d, w)}</span>
       <span class="sp"></span><button class="btn sm" data-act="compose" title="перенести агентов, разбить на подгруппы">состав…</button></h2>
     <div class="fill wbody">
       <div class="sub">сейчас ${tipBtn("nowplan", "сейчас и план")} ${tipBtn("chips", "фишка агента")} ${tipBtn("group", "подгруппа")}</div>
@@ -499,7 +599,7 @@ function renderWheel(d, w) {
         <span class="lh">1 · роль ${tipBtn("roles", "роль колеса")}</span>${optsHTML("w" + w, "roles", ROLES_W, S.roles)}
         <span class="lh ${gen ? "" : "dim"}">2 · генерация ${tipBtn("ways", "способ генерации")}</span><div class="${gen ? "" : "dim"}">${optsHTML("w" + w, "ways", WAYS_GEN, S.ways)}</div>
         <span class="lh ${abs ? "" : "dim"}">2 · поглощение ${tipBtn("abs", "способ поглощения")}</span><div class="${abs ? "" : "dim"}">${optsHTML("w" + w, "abs", WAYS_ABS, S.abs)}</div>
-        <span class="lh ${gen ? "" : "dim"}">3 · шум <button class="btn tiny" data-act="noises" title="откуда берётся каждый шум">ⓘ</button></span><div class="${gen ? "" : "dim"}">${optsHTML("w" + w, "noise", NOISES_UI, S.noise)}${optsHTML("w" + w, "sens", SENS_ADD, S.sens || [])}</div>
+        <span class="lh ${gen ? "" : "dim"}">3 · шум <button class="btn tiny" data-act="noises" title="откуда берётся каждый шум">ⓘ</button></span><div class="${gen ? "" : "dim"}">${nzHTML("w" + w, nzOf(w))}</div>
       </div>
     </div>`);
 }
@@ -718,7 +818,7 @@ function renderInfo(d) {
   if (n) {
     const t0 = n.t_meas || n.t0, tot = (n.minutes || 0) * 60, el2 = Math.max(0, Date.now() / 1000 - t0), left = Math.max(0, tot - el2);
     // фаза шага словами: эталон · отдых · установление (агенты принимают настройку) · измерение · ждём итоги
-    const phase = n.baseline ? "◆ пишется эталон" : n.rest ? `${ICONS.rest} отдых перед шагом` : !n.t_meas ? "⏳ установление: агенты принимают настройку" : left > 0 ? "▶ измерение" : n.agent ? "☑ ждём итоги агентов" : "▶ измерение";
+    const phase = n.pause ? `⏸ пауза — ${n.pause_why || "заменить аккумуляторы"}: «▶ Продолжить»` : n.baseline ? "◆ пишется эталон" : n.rest ? `${ICONS.rest} отдых перед шагом` : !n.t_meas ? "⏳ установление: агенты принимают настройку" : left > 0 ? "▶ измерение" : n.agent ? "☑ ждём итоги агентов" : "▶ измерение";
     const meas = !n.rest && n.t_meas;
     cur = `${ICONS.gen} ${p.id === P.diagId ? "диагностика" : "программа №" + p.id} · шаг ${n.n} из ${n.of}${n.control ? " · контроль" : ""}${n.confirm ? " · проверка аномалии" : ""}`;
     det = `${phase} · ${esc(n.name)}${n.agent ? " · на агенте" : ""}${n.ro ? ` · ${ICONS.radio} без радио` : ""}`;
@@ -759,7 +859,7 @@ function* product(lists) {
   if (!lists.length) { yield []; return; }
   for (const x of lists[0]) for (const rest of product(lists.slice(1))) yield [x, ...rest];
 }
-function noiseCfg(k) { const n = NOISES.find(x => x[0] === k); return n && n[4] ? { ...n[4] } : { src: 1 }; }
+function noiseCfg(k) { if (mixSet(k)) return mixCfg(k); const n = NOISES.find(x => x[0] === k); return n && n[4] ? { ...n[4] } : { src: 1 }; }
 const avail = (list, sel) => sel.filter(k => { const it = list.find(x => x[0] === k); return it && !it[3] && (list !== NOISES || it[4]); });
 // Группы шага: генераторы — каждая подгруппа колеса своей группой (или оба колеса одной, если «одна группа»);
 // поглотители другого колеса — к группе с той же буквой, иначе по кругу между группами генераторов
@@ -818,9 +918,9 @@ function combos(d, first) {
     if ((r1 === "abs" && r2 !== "gen") || (r2 === "abs" && r1 !== "gen")) continue;   // поглощать нечего
     const ways1 = r1 === "gen" ? avail(WAYS_GEN, P.w1.ways) : r1 === "abs" ? avail(WAYS_ABS, P.w1.abs) : [""];
     const ways2 = r2 === "gen" ? avail(WAYS_GEN, P.w2.ways) : r2 === "abs" ? avail(WAYS_ABS, P.w2.abs) : [""];
-    const noise1 = r1 === "gen" ? avail(NOISES, P.w1.noise) : [""], noise2 = r2 === "gen" ? avail(NOISES, P.w2.noise) : [""];
+    const noise1 = r1 === "gen" ? noiseVariants(nzOf(1)) : [""], noise2 = r2 === "gen" ? noiseVariants(nzOf(2)) : [""];
     for (const [w1, w2, n1, n2] of product([pick(ways1), pick(ways2), pick(noise1), pick(noise2)])) {
-      if (!(r1 === "abs" || r2 === "abs") && ((n1 || "").startsWith("bc") || (n2 || "").startsWith("bc"))) continue;   // обратный шум — только с поглотителем
+      if (!(r1 === "abs" || r2 === "abs") && (hasBC(n1) || hasBC(n2))) continue;   // обратный шум — только с поглотителем
       if ((r1 === "gen" && (!w1 || !n1)) || (r2 === "gen" && (!w2 || !n2))) continue;
       const st = makeStep(d, r1, r2, w1, w2, n1, n2, f);
       if (!st.groups.length || seen.has(st.name)) continue;
@@ -857,11 +957,96 @@ function addMatrix() {
   const bad = checkSteps(steps); if (bad) { note("✗ " + bad, "bad"); return; }
   P.seq = P.seq.concat(steps); save(); ribbonMode = "plan"; renderAll(); note(`✓ добавлено ${steps.length} шагов`, "ok");
 }
-function restSeconds() { return P.restMode === "fixed" ? P.restMin * 60 : P.restMode === "none" ? 0 : Math.min(P.restMax * 60, 180); }
 const STEP_OV = 3;                                    // на шаг сверх установления: настройка, подтверждение, итоги — около 3 с
 function stepSec(s) { return s.sec || P.minutes * 60; }
-function seqEstimate() {
-  return P.repeat * P.seq.reduce((t, s) => t + stepSec(s) + (s.settle_s != null ? s.settle_s : 10) + STEP_OV + (s.rest === false ? 0 : restSeconds()), 0) + P.baseline * 60;
+function seqEstimate() { return planModel(P.seq, P.repeat, D).total; }
+
+// ---------- тепло и аккумуляторы: оценка плана по замерам ----------
+// Замер 26.10.2026: колесо 1 в трубке с радиаторами, 240 МГц, самый горячий агент (№12). На 80 МГц остывает до «пола»
+// ≈ 57 °C; под счётом выходит на плато «пол + нагрев режима» (каскад 20 мс — 67 °C) с постоянной ≈ 85 с, остывает с
+// постоянной ≈ 30 с. Одна экспонента на самого горячего агента — грубо, но по замеру; поправить — здесь.
+const THERM = { floor: 57, tauH: 85, tauC: 30, dT: { solo: 10, cascade: 10, one: 8, relay: 8, same: 8, all: 8, pair: 8 } };
+// Контур 5,1 В: агент под счётом ≈ 1,3 Вт, стоит ≈ 0,5 Вт; катушка с полем ≈ 4,5 Вт (4,5 В × 0,9 А, замер 26.10) и её
+// агент ≈ 0,5 Вт. До аккумулятора — DC-DC ≈ 85 % и диод 1N5819 ≈ 94 %; пара 18650 отдаёт ≈ 85 % паспорта до отсечки
+const POWER = { run: 1.3, idle: 0.5, coil: 4.5, coilAgent: 0.5, eff: 0.85 * 0.94, usable: 0.85 };
+const batWh = mah => 2 * 3.7 * mah / 1000 * POWER.usable;
+// Отдых перед шагом по правилу из «опыт…» — как на сервере (program.py, _rest): секунды и температура в конце
+function restModel(T) {
+  const F = THERM.floor, max = P.restMax * 60;
+  let s, reach = true;
+  if (P.restMode === "none") return { s: 0, T, reach };
+  if (P.restMode === "fixed") s = P.restMin * 60;
+  else if (P.restMode === "below") {
+    if (P.restBelow <= F + 0.3) { s = max; reach = false; }              // ниже пола в трубке не остынет — до упора
+    else s = T <= P.restBelow ? 0 : Math.min(max, THERM.tauC * Math.log((T - F) / (P.restBelow - F)));
+  } else {                                                               // до стабилизации: за ~60 с упала ≤ 0,5 °C, не меньше 60 с
+    const k = Math.exp(60 / THERM.tauC) - 1;
+    s = Math.max(60, Math.min(max, THERM.tauC * Math.log(Math.max(1, (T - F) * k / 0.5))));
+  }
+  return { s, T: F + (T - F) * Math.exp(-s / THERM.tauC), reach };
+}
+const busy = (L, w) => !!(L && L[w] && (L[w].role === "gen" || L[w].role === "abs"));
+// Нагрев шага: самый горячий из режимов колёс; стоящее колесо не греется
+function stepHeat(s) {
+  const L = s.layers || {};
+  return Math.max(0, ...["w1", "w2"].map(w => busy(L, w) ? (THERM.dT[L[w].way] ?? 9) : 0));
+}
+// Весь план: время, отдых, температура самого горячего агента, расход аккумуляторов по контурам — шина (b) и
+// катушка (c) каждого колеса; по проходам — чтобы видеть, сколько проходов выдержит одна пара 18650
+function planModel(steps, repeat, d) {
+  const n = { 1: d ? wheelMacs(d, "1").length : 6, 2: d ? wheelMacs(d, "2").length : 6 };
+  const wh = { b1: 0, b2: 0, c1: 0, c2: 0 }, used = { c1: false, c2: false };
+  const add = (sec, L) => {
+    const h = sec / 3600, f = w => ((L && L.field) || {})[w] && L.field[w] !== "выкл";
+    wh.b1 += h * n[1] * (busy(L, "w1") ? POWER.run : POWER.idle) / POWER.eff;
+    wh.b2 += h * n[2] * (busy(L, "w2") ? POWER.run : POWER.idle) / POWER.eff;
+    wh.c1 += h * ((f("1") ? POWER.coil : 0) + POWER.coilAgent) / POWER.eff;
+    wh.c2 += h * ((f("2") ? POWER.coil : 0) + POWER.coilAgent) / POWER.eff;
+    if (f("1")) used.c1 = true;
+    if (f("2")) used.c2 = true;
+  };
+  let T = THERM.floor, Tmax = T, hot = 0, rest = 0, restN = 0, unreach = false, meas = 0, settle = 0;
+  const pass = [], seq0 = [];
+  for (let r = 0; r < repeat; r++) {
+    const w0 = { ...wh };
+    let sec0 = 0;
+    if (r && P.pauseRepeat) T = THERM.floor;                              // пауза на замену — остыли
+    for (const s of steps) {
+      let rs = 0;
+      if (s.rest !== false && P.restMode !== "none") {
+        const R = restModel(T);
+        rs = R.s; T = R.T; rest += rs; restN += rs > 0 ? 1 : 0; unreach = unreach || !R.reach;
+        add(rs, null);
+      }
+      const dur = (s.settle_s != null ? s.settle_s : 10) + stepSec(s) + STEP_OV, top = THERM.floor + stepHeat(s);
+      T = top - (top - T) * Math.exp(-dur / THERM.tauH);
+      Tmax = Math.max(Tmax, T);
+      if (T >= P.tmax - 1) hot++;                                          // регулятор держит предел − 1 °C
+      meas += stepSec(s); settle += dur - stepSec(s); sec0 += rs + dur;
+      add(dur, s.layers);
+      if (!r) seq0.push({ rest: rs, dur });
+    }
+    pass.push({ sec: sec0, wh: Object.fromEntries(Object.keys(wh).map(k => [k, wh[k] - w0[k]])) });
+  }
+  return { meas, settle, rest, restN, unreach, Tmax, hot, wh, used, pass, seq0, n,
+           total: meas + settle + rest + P.baseline * 60, one: pass.length ? pass[0].sec : 0 };
+}
+// Хватит ли аккумуляторов: по каждому контуру — расход за проход, сколько проходов на одну пару, где кончится
+function batVerdict(M, mah) {
+  const cap = batWh(mah), out = [];
+  const names = { b1: "шина К1", b2: "шина К2", c1: "катушка К1", c2: "катушка К2" };
+  for (const k of ["b1", "b2", "c1", "c2"]) {
+    if ((k === "b1" && !M.n[1]) || (k === "b2" && !M.n[2]) || (k[0] === "c" && !M.used[k])) continue;
+    const per = M.pass[0] ? M.pass[0].wh[k] : 0;
+    if (per <= 0) continue;
+    const k1 = Math.floor(cap / per), swaps = Math.max(0, Math.ceil(M.wh[k] / cap) - 1);
+    let cls = "ok", txt;
+    if (k1 < 1) { cls = "bad"; txt = `один проход не влезает: сядут через ≈ ${fmtDur(M.one * cap / per)}`; }
+    else if (!swaps) txt = `хватит (${fmt(M.wh[k], 1)} из ${fmt(cap, 0)} Вт·ч)`;
+    else { cls = P.pauseRepeat && P.repeat > 1 ? "warn" : "bad"; txt = `хватит на ${plural(k1, "проход", "прохода", "проходов")} — замен ${swaps}${P.pauseRepeat && P.repeat > 1 ? " (в паузах между повторами)" : " — включите паузу между повторами"}`; }
+    out.push(`<span class="${cls}">${names[k]}: ${txt}</span>`);
+  }
+  return out;
 }
 
 // Редкое — одним окном: живая схема, обслуживание, прежние экраны (окнами поверх установки)
@@ -890,21 +1075,25 @@ const SER_LEVELS = {
            ROLE_PAIR[k].map((r, i) => `колесо ${i + 1} ${r === "gen" ? "генерирует" : r === "abs" ? "поглощает (все со всеми)" : "стоит"}`).join(", ")]) },
 };
 const SER_DEF = { order: ["rot", "field", "team", "noise", "roles"], sel: { rot: ["stop"], field: ["off"], team: ["solo"], noise: ["rng"], roles: ["gg"] },
-                  speed: "rpm", rpm: 30, pwm: 30, sec: 30, sRot: 15, sMode: 8, sField: 5, rest: "none", gap: "" };
+                  speed: "rpm", rpm: 30, pwm: 30, sec: 30, sRot: 15, sMode: 8, sField: 5, rest: "none", gap: "", mah: 2500 };
 function ser() {
   const S = P.series = { ...SER_DEF, ...(P.series || {}) };
   S.sel = { ...SER_DEF.sel, ...(S.sel || {}) };
+  if (!S.nz) S.nz = nzFromOld(S.sel.noise, []);
   S.order = S.order.filter(k => SER_LEVELS[k]).concat(Object.keys(SER_LEVELS).filter(k => !S.order.includes(k)));
   return S;
 }
 const serOk = (k, v) => { const o = SER_LEVELS[k].opts.find(x => x[0] === v); return !!o && !o[3]; };
-function serVals(S, k) { const v = S.sel[k].filter(x => serOk(k, x)); return v.length ? v : [SER_DEF.sel[k][0]]; }
-function optName(k, v) { const o = SER_LEVELS[k].opts.find(x => x[0] === v); return o ? o[1] : v; }
+function serVals(S, k) {
+  if (k === "noise") { const v = noiseVariants(S.nz); return v.length ? v : ["m:rng"]; }
+  const v = S.sel[k].filter(x => serOk(k, x)); return v.length ? v : [SER_DEF.sel[k][0]];
+}
+function optName(k, v) { if (k === "noise") return `${mixSet(v) ? mixIcon(v) : NOISE_ICON[v] || ""} ${noiseName(v)}`; const o = SER_LEVELS[k].opts.find(x => x[0] === v); return o ? o[1] : v; }
 const NOISE_SHORT = { rng: "⚄ ГСЧ", all: "Σ все", csi: "≋ CSI", csiping: "↯ пинг", adc: "⏚ АЦП", jit: "⧖ RC", bc: "↺+ обр.", bconly: "↺ обр.", acc: "↕ акс.", mag: "🧲 магн." };
 // Короткая подпись для узкого отрезка разметки
 function optShort(k, v) {
   return k === "rot" ? ROT_SHORT[v] : k === "field" ? fieldName(v).replace(/ /g, "") : k === "team" ? WAY_SHORT[v]
-    : k === "noise" ? NOISE_SHORT[v] || v : ROLE_PAIR[v].map(r => ICONS[r]).join("");
+    : k === "noise" ? noiseShort(v) : ROLE_PAIR[v].map(r => ICONS[r]).join("");
 }
 function speedWord(S) { return S.speed === "zerog" ? "невесомость" : S.speed === "pwm" ? `ШИМ ${S.pwm} %` : `${fmt(S.rpm, 0)} об/мин`; }
 function rotSpec(v, S) {
@@ -924,7 +1113,7 @@ function serBuild(d, S) {
   let prev = null;
   for (const x of sets) {
     const [r1, r2] = ROLE_PAIR[x.roles];
-    if (x.noise.startsWith("bc") && r1 !== "abs" && r2 !== "abs") { skipped.push({ x, why: "обратный шум — только с поглотителем" }); continue; }
+    if (hasBC(x.noise) && r1 !== "abs" && r2 !== "abs") { skipped.push({ x, why: "обратный шум — только с поглотителем" }); continue; }
     const way = r => r === "gen" ? x.team : r === "abs" ? "all" : "";
     const st = makeStep(d, r1, r2, way(r1), way(r2), r1 === "gen" ? x.noise : "", r2 === "gen" ? x.noise : "", x.field);
     if (!st.groups.length) { skipped.push({ x, why: "на колесе нет агентов" }); continue; }
@@ -941,12 +1130,7 @@ function serBuild(d, S) {
   }
   return { steps: markControls(steps), skipped, sets };
 }
-function serTime(steps) {
-  const rs = restSeconds(), k = P.repeat;
-  const meas = steps.reduce((t, s) => t + s.sec, 0), settle = steps.reduce((t, s) => t + s.settle_s + STEP_OV, 0);
-  const rest = steps.reduce((t, s) => t + (s.rest === false ? 0 : rs), 0);
-  return { meas: meas * k, settle: settle * k, rest: rest * k, total: (meas + settle + rest) * k + P.baseline * 60, one: meas + settle + rest };
-}
+function serTime(steps) { return planModel(steps, P.repeat, D); }
 // Сколько даёт сет такой длины: окна статики (10 с, тревога — от 2 подряд) и простых на группу (по живому темпу или ~170/с)
 function serSecNote(d, sec) {
   const rates = d ? Object.values(d.gen || {}).filter(g => g.run && (g.rate || {}).g_pr_s).map(g => g.rate.g_pr_s) : [];
@@ -968,6 +1152,7 @@ function serHTML() {
       <span class="lh">расстояние между колёсами</span><div class="row">${num("gap", 0, 500, 1, 5)} см <span class="small mut">ставится руками — записывается в каждый сет серии</span></div>
       <span class="lh">отдых</span><div class="row">${seg("rest", [["none", "нет"], ["outer", "при смене верхнего уровня"], ["each", "перед каждым сетом"]], S.rest)} <span class="small mut" id="serRestNote"></span></div>
       <span class="lh">повторов серии</span><div class="row">${num("repeat", 1, 50)} <span class="small mut">вся серия целиком, в том же порядке</span></div>
+      <span class="lh">аккумуляторы</span><div class="row">2×18650 по ${num("mah", 500, 5000, 100, 5)} мА·ч <span class="small mut" id="serMahNote"></span> <label class="inl"><input type="checkbox" data-sk="pause"> пауза между повторами — заменить аккумуляторы, потом «▶ Продолжить»</label></div>
     </div>
     <div class="small mut" style="margin:8px 0 4px">Уровни — что перебираем. <b>Сверху вниз — вложенность</b>: верхний меняется реже всех, нижний — каждый сет. Порядок — тащите за ⠿ (или ▲ ▼); варианты — нажатием.</div>
     <div id="serLev" class="serlev"></div>
@@ -980,9 +1165,13 @@ function serHTML() {
 function serRender(B) {
   const S = ser(), d = D;
   B.querySelectorAll("[data-sact]").forEach(b => { if (["sec", "speed", "rest"].includes(b.dataset.sact)) b.classList.toggle("sel", String(S[b.dataset.sact]) === b.dataset.v); });
-  B.querySelectorAll("[data-sk]").forEach(i => { if (document.activeElement !== i) i.value = i.dataset.sk === "repeat" ? P.repeat : S[i.dataset.sk]; });
+  B.querySelectorAll("[data-sk]").forEach(i => { if (i.type === "checkbox") i.checked = !!P.pauseRepeat; else if (document.activeElement !== i) i.value = i.dataset.sk === "repeat" ? P.repeat : S[i.dataset.sk]; });
   B.querySelectorAll("[data-sp]").forEach(l => { l.hidden = l.dataset.sp !== S.speed; });
-  B.querySelector("#serSecNote").innerHTML = serSecNote(d, S.sec);
+  const oneN = Math.round(10 * S.sec);                                    // «одно число на всех»: ~10 простых/с на группу
+  B.querySelector("#serSecNote").innerHTML = serSecNote(d, S.sec) + (serVals(S, "team").includes("one") && S.sec < 60
+    ? ` · <span class="warn">◐ «одно число на всех» ≈ 10 простых/с: за сет ≈ ${fmt(oneN)}, темп ±${fmt(100 / Math.sqrt(oneN), 1)} % — лучше 60 с</span>` : "");
+  const mz = ((d && d.battery && d.battery.list) || []).filter(b => b.measured);
+  B.querySelector("#serMahNote").textContent = mz.length ? `по замеру INA219: ${mz.map(b => `${b.label} ${fmt(b.cap, 0)}`).join(", ")} мА·ч` : "";
   B.querySelector("#serRestNote").textContent = S.rest === "none" ? "" : P.restMode === "none" ? "в «опыт…» отдых выключен — отдыха не будет" : `как: ${restWord()} (в «опыт…»)`;
   if (!d) return;
   const R = serBuild(d, S), T = serTime(R.steps), N = R.steps.length, avg = N ? T.one / N : 0;
@@ -995,11 +1184,21 @@ function serRender(B) {
     return `<div class="slev" data-k="${k}"><span class="sdrag" title="тащить: выше — реже меняется">⠿</span><b class="snum">${i + 1}</b>
       <div class="sbody"><div class="row"><b>${L.icon} ${L.title}</b><span class="small ${ns[i] > 1 ? "" : "mut"}">${info}</span><span class="sp"></span>
         <button class="btn tiny" data-sact="up" data-k="${k}" ${i ? "" : "disabled"} title="выше — реже">▲</button><button class="btn tiny" data-sact="down" data-k="${k}" ${i < S.order.length - 1 ? "" : "disabled"} title="ниже — чаще">▼</button></div>
-        <div class="opts">${L.opts.map(([v, name, note, dis]) => `<span class="sopt ${S.sel[k].includes(v) ? "on" : ""} ${dis ? "dis" : ""}" data-sk2="${k}" data-v="${v}" title="${esc(note || "")}">${esc(name)}</span>`).join("")}</div></div></div>`;
+        ${k === "noise" ? nzHTML("ser", S.nz) : `<div class="opts">${L.opts.map(([v, name, note, dis]) => `<span class="sopt ${S.sel[k].includes(v) ? "on" : ""} ${dis ? "dis" : ""}" data-sk2="${k}" data-v="${v}" title="${esc(note || "")}">${esc(name)}</span>`).join("")}</div>`}</div></div>`;
   }).join(""));
-  const rotCh = R.steps.filter(s => s.why === "rot").length;
-  setHTML(B.querySelector("#serSum"), N ? `<b>${ns.join(" × ")} = ${plural(N, "сет", "сета", "сетов")}</b>${R.skipped.length ? ` <span class="warn">(◐ пропущено ${R.skipped.length}: ${esc([...new Set(R.skipped.map(s => s.why))].join("; "))})</span>` : ""}
-      × повторов ${P.repeat} · <b>≈ ${fmtDur(T.total)}</b> <span class="mut">— измерение ${fmtDur(T.meas)} · установление ${fmtDur(T.settle)}${T.rest ? ` · отдых ≈ ${fmtDur(T.rest)}` : ""}${P.baseline ? ` · эталон ${P.baseline} мин` : ""}</span>
+  const rotCh = R.steps.filter(s => s.why === "rot").length, ctl = R.steps.filter(s => s.control).length;
+  const fldCh = R.steps.filter((s, i) => i && fieldName(s.set.field) !== fieldName(R.steps[i - 1].set.field)).length;
+  const end = new Date(Date.now() + T.total * 1000).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  const restW = T.restN ? ` · отдыхов ${T.restN} × ≈ ${fmtDur(T.rest / T.restN)} (${restWord()})` : "";
+  const heat = `🌡 самый горячий агент (замер 26.10): до ≈ ${fmt(T.Tmax, 0)} °C при пределе ${P.tmax} — ${T.hot ? `<span class="warn">в ${plural(T.hot, "сете", "сетах", "сетах")} у предела: регулятор урежет работу, темп исказится — нужен отдых</span>` : `<span class="ok">запас ${fmt(P.tmax - T.Tmax, 0)} °C, регулятор не вмешается</span>`}`
+    + (T.unreach ? ` · <span class="bad">«до ${P.restBelow} °C» не дождётся: пол в трубке ≈ ${THERM.floor} °C — каждый отдых до упора ${P.restMax} мин</span>` : "")
+    + (!T.restN && P.repeat * N > 1 ? ` <span class="mut">· без отдыха сеты стартуют с разной температуры — она пишется в итог шага</span>` : "");
+  const bat = batVerdict(T, S.mah || 2500);
+  setHTML(B.querySelector("#serSum"), N ? `<b>${ns.join(" × ")} = ${plural(N, "сет", "сета", "сетов")}</b>${ctl ? ` <span class="mut">(контрольных ${ctl})</span>` : ""}${R.skipped.length ? ` <span class="warn">(◐ пропущено ${R.skipped.length}: ${esc([...new Set(R.skipped.map(s => s.why))].join("; "))})</span>` : ""}
+      × повторов ${P.repeat} · <b>≈ ${fmtDur(T.total)}</b>${P.pauseRepeat && P.repeat > 1 ? ` + ${plural(P.repeat - 1, "пауза", "паузы", "пауз")}` : ""} · закончится ≈ ${end} <span class="mut">— измерение ${fmtDur(T.meas)} · установление ${fmtDur(T.settle)}${T.rest ? ` · отдых ≈ ${fmtDur(T.rest)}` : ""}${P.baseline ? ` · эталон ${P.baseline} мин` : ""}</span>
+      <div class="small">за проход: ${fmtDur(T.one)} · разгонов колёс ${rotCh} · смен поля ${fldCh}${restW}</div>
+      <div class="small">${heat}</div>
+      ${bat.length ? `<div class="small">🔋 ${fmt(batWh(S.mah || 2500), 0)} Вт·ч на контур: ${bat.join(" · ")}</div>` : ""}
       ${rotCh ? `<div class="small mut">разгонов колёс за проход: ${rotCh} × ${S.sRot} с = ${fmtDur(rotCh * S.sRot)}${S.order.indexOf("rot") > 0 && ns[S.order.indexOf("rot")] > 1 ? " — поднимите «вращение» выше, разгонов станет меньше" : ""}</div>` : ""}`
     : `<span class="bad">✗ ни одного сета: ${esc([...new Set(R.skipped.map(s => s.why))].join("; ") || "ничего не выбрано")}</span>`);
   setHTML(B.querySelector("#serStrip"), serStrip(R.steps, S, T));
@@ -1013,9 +1212,9 @@ function serRender(B) {
 function serStrip(steps, S, T) {
   if (!steps.length) return "";
   const W = 1000, rowH = 22, H = S.order.length * rowH + 18, one = T.one || 1;
-  const xs = [], rs = restSeconds();
+  const xs = [];
   let t = 0;
-  for (const s of steps) { xs.push(t); t += s.sec + s.settle_s + STEP_OV + (s.rest === false ? 0 : rs); }
+  steps.forEach((s, i) => { xs.push(t); const q = T.seq0[i] || { rest: 0, dur: s.sec + s.settle_s + STEP_OV }; t += q.rest + q.dur; });
   const X = v => (v / one * W).toFixed(1);
   let out = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;margin-top:6px" role="img" aria-label="разметка серии по времени: уровни и их смены">`;
   S.order.forEach((k, li) => {
@@ -1066,6 +1265,7 @@ function serBind(B) {
     if (!k) return;
     const S = ser();
     if (k === "repeat") P.repeat = Math.max(1, Math.min(50, +e.target.value || 1));
+    else if (k === "pause") P.pauseRepeat = e.target.checked;
     else if (k === "gap") S.gap = e.target.value === "" ? "" : Math.max(0, +e.target.value);
     else S[k] = Math.max(+e.target.min || 0, Math.min(+e.target.max || 1e9, +e.target.value || 0));
     save(); serRender(B); renderAll();
@@ -1134,7 +1334,7 @@ function renderRibbon(d) {
           ${sv ? `<div class="${sv.cls}" title="${esc(sv.word)}${why ? ": " + esc(why) : ""}">${sv.icon} ${sv.short}${why ? ` <span class="mut">· ${reasonHTML(why).replace(/^(\S+) /, "")}</span>` : ""}</div>` : ""}`;
       } else if (cur) {
         const t0 = now.t_meas || now.t0, tot = (now.minutes || 0) * 60, el2 = Math.max(0, Date.now() / 1000 - t0);
-        res = now.rest ? `<div class="warn">⏸ отдых</div>` : `<div>▶ ${fmtDur(Math.max(0, tot - el2))}</div><div class="bar"><i style="width:${Math.min(100, 100 * el2 / Math.max(tot, 1))}%"></i></div>`;
+        res = now.pause ? `<div class="warn">⏸ пауза</div>` : now.rest ? `<div class="warn">⏸ отдых</div>` : `<div>▶ ${fmtDur(Math.max(0, tot - el2))}</div><div class="bar"><i style="width:${Math.min(100, 100 * el2 / Math.max(tot, 1))}%"></i></div>`;
       } else res = `<div class="mut">ждёт</div>`;
       return `<div class="step ${st.control ? "ctl" : ""} ${cur ? "cur" : ""} ${r && r.spoiled ? "spoiled" : ""}" data-act="report" title="${esc(st.name || "")}"><div class="n">${i + 1}${st.control ? " · контроль" : ""}${it.confirm ? " · проверка" : ""}${it.again ? ` · ↻ повтор${it.why === "оператор" ? " (по просьбе)" : " (отклонение)"}` : ""}</div><div>${layText(st.layers, st.coil) || esc(st.name || "")}</div>${res}</div>`;
     }).join("");
@@ -1575,6 +1775,19 @@ async function compose(body, what) {
   try { await postJSON("/api/compose", body); await refresh(); if (what) note("✓ " + what, "ok"); } catch (er) { note("✗ " + er.message, "bad"); }
 }
 document.addEventListener("click", async e => {
+  const z = e.target.closest("[data-nz]");
+  if (z) {                                              // панель шума: источник, «Σ все», CSI пульс/пинг, перебор
+    const id = z.dataset.nz, nz = id === "ser" ? ser().nz : nzOf(id.slice(1));
+    const set = new Set(nz.set || []);
+    if (z.dataset.nzk === "all") { const all = SRC_ALL.every(k => set.has(k)); SRC_ALL.forEach(k => all ? set.delete(k) : set.add(k)); }
+    else if (z.dataset.nzk) set.has(z.dataset.nzk) ? set.delete(z.dataset.nzk) : set.add(z.dataset.nzk);
+    if (z.dataset.nzc) nz.csi = z.dataset.nzc;
+    if (z.dataset.nzs) nz.scheme = z.dataset.nzs;
+    nz.set = [...set];
+    save(); renderAll();
+    if (dlg && dlg.kind === "series") serRender(dlg.el.querySelector("#dlgB"));
+    return;
+  }
   const o = e.target.closest(".opt");
   if (o) {                                              // слой: отметить / снять вариант
     if (o.classList.contains("dis")) return;
@@ -1722,6 +1935,7 @@ function restJSON() {
 function programJSON(steps) {
   return { name: `планшетка ${new Date().toLocaleString("ru-RU")}`, baseline_min: P.baseline, repeat: P.repeat, shuffle: P.shuffle,
            settle_s: 10, ...restJSON(), z: 4, confirm: P.confirm, redo: 2, again: P.again || 0, metrics: ["pr_s", "cand_s"], targets: "all",
+           pause_repeat: !!P.pauseRepeat && P.repeat > 1,
            steps: steps.map(s => ({ ...s, minutes: s.sec ? s.sec / 60 : P.minutes, quiet: P.quiet, agent: !!P.agentStep,
                                     groups: s.groups.map(g => ({ ...g, cfg: { ...g.cfg, ...(g.cfg.run === 0 ? {} : { tmax: P.tmax, ro: P.agentStep && P.radioOff ? 1 : 0 }) } })) })) };
 }
@@ -1731,11 +1945,12 @@ $("bRun").onclick = async () => {
   const bad = checkSteps(P.seq); if (bad) { note("✗ " + bad, "bad"); return; }
   const n = P.seq.length * P.repeat;
   const lens = [...new Set(P.seq.map(s => s.sec ? `${s.sec} с` : `${P.minutes} мин`))].join(" / ");
-  if (!confirm(`Запустить ${P.seq.length} шагов × ${P.repeat} повторов (${n} шагов по ${lens}, ≈ ${fmtDur(seqEstimate())})${P.shuffle ? ", случайный порядок" : ""}, греться до ${P.tmax} °C${P.agentStep ? ", шаг на агенте" : ""}${P.agentStep && P.radioOff ? ", Wi-Fi выкл где эфир не нужен" : ""}?`)) return;
+  if (!confirm(`Запустить ${P.seq.length} шагов × ${P.repeat} повторов (${n} шагов по ${lens}, ≈ ${fmtDur(seqEstimate())})${P.shuffle ? ", случайный порядок" : ""}, греться до ${P.tmax} °C${P.agentStep ? ", шаг на агенте" : ""}${P.agentStep && P.radioOff ? ", Wi-Fi выкл где эфир не нужен" : ""}${P.pauseRepeat && P.repeat > 1 ? ", пауза перед каждым повтором" : ""}?`)) return;
   try { const r = await postJSON("/api/program/start", { program: programJSON(P.seq) }); note(`✓ программа №${r.id} запущена: ${n} шагов`, "ok"); progT = 0; ribbonMode = "auto"; await refresh(); }
   catch (er) { note("✗ " + er.message, "bad"); }
 };
 $("bStop").onclick = async () => { try { await postJSON("/api/program/stop", {}); note("✓ программа остановится после шага", "ok"); } catch (e) { note("✗ " + e.message, "bad"); } };
+$("bResume").onclick = async () => { try { await postJSON("/api/program/resume", {}); note("✓ программа продолжается", "ok"); await refresh(); } catch (e) { note("✗ " + e.message, "bad"); } };
 $("bHalt").onclick = async () => {
   if (!confirm("Всё стоп: остановить программу, остановить счёт у всех агентов, моторы остановить, катушки выключить?")) return;
   try { await postJSON("/api/program/stop", {}); } catch (e) { /* программы может не быть */ }
@@ -1858,7 +2073,7 @@ function renderTop(d) {
   $("conn").innerHTML = conn;
   const p = d.program, n = p && p.now, running = p && p.state === "running";
   $("exp").innerHTML = running && n
-    ? `<b>${p.id === P.diagId ? "диагностика" : "программа №" + p.id}</b> · шаг ${n.n}/${n.of}${n.rest ? ` · ${ICONS.rest} отдых` : n.t_meas ? ` · ${fmtDur(Math.max(0, (n.minutes || 0) * 60 - Math.max(0, Date.now() / 1000 - n.t_meas)))}` : " · установление"}`
+    ? `<b>${p.id === P.diagId ? "диагностика" : "программа №" + p.id}</b> · шаг ${n.n}/${n.of}${n.pause ? " · ⏸ пауза: «▶ Продолжить»" : n.rest ? ` · ${ICONS.rest} отдых` : n.t_meas ? ` · ${fmtDur(Math.max(0, (n.minutes || 0) * 60 - Math.max(0, Date.now() / 1000 - n.t_meas)))}` : " · установление"}`
     : `<span class="mut">программа не идёт</span>`;
   // кнопки — по состоянию: что именно запустится, можно ли; «Остановить» — только когда есть что
   const nSteps = P.seq.length * P.repeat, bRun = $("bRun"), bStop = $("bStop");
@@ -1866,6 +2081,7 @@ function renderTop(d) {
   bRun.disabled = running || !P.seq.length;
   bRun.title = running ? `идёт программа №${p.id}` : P.seq.length ? "запустить ленту шагов (внизу)" : "план пуст — «＋ шаг» или «⇊ вся матрица»";
   bStop.disabled = !running;
+  $("bResume").hidden = !(running && n && n.pause);
   $("bIdent").textContent = identMode ? "◉ найти: ВКЛ — нажмите агента" : "◉ найти плату";
   renderAlarmTop();
 }

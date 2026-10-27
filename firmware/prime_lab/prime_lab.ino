@@ -38,6 +38,7 @@
 #include "group.h"
 #include "jsonout.h"
 #include "rim_sensors.h"
+#include "battery.h"
 #include "prime_log.h"
 #include "ota.h"
 #if __has_include("version.h")
@@ -552,6 +553,7 @@ static void build_tel(Out& o, const GenStats& g, const group::Stats& gs, uint32_
   add(o, ",\"dur\":%u,\"ro\":%u,\"roff\":%lu,\"done\":%lu", c.dur, c.ro, (unsigned long)s_radio_off_s,
       (unsigned long)s_done_cid);
   rim::add_tel(o);                                   // датчики на ободе: что найдено, режимы из регистров
+  bat::add_tel(o);                                   // аккумуляторы контура (INA219), если подключён
   // рассеяние: роль, режим, функция, фильтр CSI; счётчики A (объявлено) и B (получено, выпущено…)
   add(o, ",\"role\":%u,\"sm\":%u,\"sf\":%u,\"cf\":%u,\"sh\":%u,\"bgr\":%u,\"ann\":%lu,\"adrop\":%lu,"
          "\"heard\":%lu,\"bclost\":%lu,\"rxdrop\":%lu,\"slost\":[%lu,%lu]",
@@ -788,6 +790,7 @@ static void build_tel_static(Out& o, uint32_t seq, uint32_t now, float temp, con
   add(o, ",\"ota\":[%d,%d,\"%s\"]", ota::state(), ota::pending_verify() ? 1 : 0, ota::slot());
   if (g_boot_role == ROLE_M) motor::add_tel(o);
   else sacc::add_tel(o);
+  bat::add_tel(o);                                   // агент катушки: аккумуляторы катушки (INA219)
   add(o, "}");
 }
 
@@ -1278,7 +1281,10 @@ void setup() {
   if (fixed_role(g_boot_role)) {                 // статический акселерометр (меряет на ядре 1) или моторы
     def.role = g_boot_role;
     if (g_boot_role == ROLE_S) sacc::begin(def.afs, def.avg);
-    else motor::begin();
+    else {
+      motor::begin();
+      bat::begin(true);              // INA219 на D4/D5 — аккумуляторы катушки (шину I2C запускает сам)
+    }
     apply_config(def);
     xTaskCreatePinnedToCore(comms_task, "comms", 8192, nullptr, 2, nullptr, 0);
     return;
@@ -1286,6 +1292,7 @@ void setup() {
   entropy_init();
   group::begin();          // ESP-NOW и задача протокола группы (ядро 0)
   rim::begin();            // датчики на ободе, если подключены (I2C: D4, D5)
+  bat::begin(false);       // аккумуляторы шины (INA219) на той же I2C, если подключён
   apply_config(def);
   g_candq = xQueueCreate(16, sizeof(Cand));
   xTaskCreatePinnedToCore(prod_task, "prod", 6144, nullptr, 1, nullptr, 0);   // два ядра: производитель, ниже связи

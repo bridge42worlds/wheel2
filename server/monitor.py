@@ -38,6 +38,7 @@ from runlog import RunLog
 from agent_rating import Ratings
 from motors import Motors
 from coils import Coils
+from battery import Batteries
 from primecheck import BASES, is_probable_prime, Pool as PrimePool
 try:
     from static_watch import Watch
@@ -490,6 +491,8 @@ def ingest(t, ip, text, live=False):
                     and t - a["cfg_sent"] >= RESEND_S:
                 a["cfg_sent"] = t
                 resend = (cfg_line(want), ip)
+        if isinstance(p.get("bat"), dict):          # аккумуляторы контура (INA219): шина колеса или катушка
+            batteries.ingest(mac, p["bat"], t)
         recent.setdefault(mac, deque(maxlen=RECENT_LEN)).append({"rx": tt, **p})
     if resend:
         send_line(*resend)
@@ -1711,6 +1714,38 @@ def rest_tick():
     return acts
 
 
+batteries = Batteries(lambda: os.path.join(DATA, "battery.json"), log=lambda text: print(text, flush=True))
+
+
+def battery_label(mac):
+    """Чей INA219: шина колеса (агент на шине) или катушка (агент катушки)."""
+    with lock:
+        c = compose_state()
+        a = agents.get(mac) or {}
+        w, coil = c["wheels"].get(mac, ""), c["slot"].get(mac) == "coil"
+        alive = bool(a.get("last") and time.time() - a["last"] < 10)
+    return {"wheel": w, "kind": "coil" if coil else "bus", "id": a.get("id"), "alive": alive,
+            "label": (f"катушка К{w}" if coil else f"шина К{w}") if w else f"№{a.get('id')}"}
+
+
+def battery_brief():
+    return batteries.state(battery_label)
+
+
+def battery_ticker():
+    """Пара села до «мало» — идущая программа встаёт на паузу перед следующим шагом (заменить и «Продолжить»)."""
+    while True:
+        time.sleep(2)
+        try:
+            for mac, v in batteries.check_low():
+                lab = battery_label(mac)["label"]
+                print(f"[bat] {lab}: {v:.2f} В — пора менять аккумуляторы", flush=True)
+                if runner.active:
+                    runner.request_pause(f"аккумуляторы {lab} сели ({v:.2f} В): заменить и продолжить")
+        except Exception as e:                     # noqa: BLE001
+            print(f"[bat] {e}", flush=True)
+
+
 def rest_ticker():
     while True:
         time.sleep(2)
@@ -2352,6 +2387,7 @@ def dash(window, metrics, t0=None, t1=None):
                "session": session_brief(session_active["s"]) if session_active["s"] else None,
                "fw": fw_info(), "ota_key": bool(ota_key()), "compose": cmp, "presets": PRESETS, "slots": SLOTS,
                "usb": usb_brief(), "rest_rot": rest_brief(), "tele": control.get("tele", 0), "guard": guard_brief()})
+    st["battery"] = battery_brief()
     return st
 
 
@@ -2693,6 +2729,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(watch.spectrum(q.get("mac", "").lower(), int(q.get("n", 6))))
         if u.path == "/api/motors":                    # моторы колёс: режимы, что шлём, что на мостах
             return self.send_json(motors_state())
+        if u.path == "/api/battery":                   # аккумуляторы контуров (INA219): напряжение, ток, осталось
+            return self.send_json(battery_brief())
         if u.path == "/api/coils":                     # катушки колёс: поле, кто задал, агенты катушек
             return self.send_json(coils_state())
         if u.path == "/api/field/live":                # магнитометр вживую (планшетка, окно агента)
@@ -2791,8 +2829,10 @@ class Handler(BaseHTTPRequestHandler):
                     stats["err_last"] = f"{time.strftime('%H:%M:%S')} ingest {e!r}"
             return self.send_json({"ok": True, "n": k, "bad": bad, "t": round(t, 3)})
         if u.path not in ("/api/control", "/api/session/start", "/api/session/stop", "/api/compose",
-                          "/api/program/start", "/api/program/stop", "/api/program/again", "/api/static/baseline", "/api/ota",
-                          "/api/usb", "/api/rest_rot", "/api/telemetry", "/api/ident", "/api/motors", "/api/coils"):
+                          "/api/program/start", "/api/program/stop", "/api/program/again", "/api/program/resume",
+                          "/api/static/baseline", "/api/ota",
+                          "/api/usb", "/api/rest_rot", "/api/telemetry", "/api/ident", "/api/motors", "/api/coils",
+                          "/api/battery"):
             return self.send_error(404)
         try:
             n = int(self.headers.get("Content-Length", 0))
@@ -2811,6 +2851,9 @@ class Handler(BaseHTTPRequestHandler):
                     watch.rec_clear(body.get("macs", "all"))
                     return self.send_json({"ok": True})
                 raise ValueError("action: start, stop или clear")
+            if u.path == "/api/battery":                # ёмкость пары по умолчанию: {cap: мА·ч}
+                batteries.set_cap(body.get("cap"))
+                return self.send_json({"ok": True, **battery_brief()})
             if u.path == "/api/coils":                  # катушки: {wheel, state: off|+|-, level} или {off: true}
                 if body.get("off"):
                     coils.all_off(body.get("src") or "вручную")
@@ -2862,6 +2905,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"ok": True, "id": runner.start(body.get("program"), busy)})
             if u.path == "/api/program/stop":
                 runner.request_stop()
+                return self.send_json({"ok": True})
+            if u.path == "/api/program/resume":          # пауза между повторами: аккумуляторы заменены — дальше
+                runner.request_resume()
                 return self.send_json({"ok": True})
             if u.path == "/api/program/again":           # тревога статики: {n} — повторить шаг, {auto} — повторять сам
                 return self.send_json({"ok": True, **runner.request_again(body)})
@@ -3048,6 +3094,7 @@ def main():
                            "static": lambda t0, t1: watch.verdict(t0, t1) if watch else None})
     spawn("runs", run_ticker)
     spawn("rest", rest_ticker)
+    spawn("battery", battery_ticker)
     if Watch:
         watch = Watch(DATA, put=put_locked, log=lambda text: print(text, flush=True))
         watch.known_fn = known_lines
