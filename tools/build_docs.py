@@ -22,6 +22,18 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 DOCS = os.path.join(ROOT, "docs")
 OUT = os.path.join(DOCS, "html")
 IMG = os.path.join(DOCS, "img")                   # схемы и рисунки: в markdown ![подпись](img/файл.svg)
+CALC = os.path.join(DOCS, "calc")                 # расчёты — готовые страницы (свои стили и скрипты), копируются как есть
+THREE_CDN = '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>'
+
+
+def calc_html(path):
+    """Страница-расчёт как есть, только three.js — своей копией внутри (docs/calc/lib): работает и без интернета."""
+    text = open(path, encoding="utf-8").read()
+    lib = os.path.join(CALC, "lib", "three.r128.min.js")
+    if THREE_CDN in text and os.path.exists(lib):
+        text = text.replace(THREE_CDN, "<script>/* three.js r128, MIT — копия docs/calc/lib/three.r128.min.js */\n"
+                            + open(lib, encoding="utf-8").read() + "\n</script>")
+    return text
 
 # порядок и описания страниц; flow — режим живой схемы для кнопки «посмотреть вживую»
 PAGES = [
@@ -37,6 +49,11 @@ PAGES = [
     ("wiring", "Схемы подключения", "Общая схема установки; колесо: шина агентов от своих аккумуляторов (C1–C3), катушка "
      "(5,1 В, DRV8833); рама: моторы (блок 12 В, два DRV8871); сеть опыта: роутер Mango, канал 6, ноутбук "
      "кабелем, запасная сеть, порты. Полярность диодов и конденсаторов.", ""),
+    ("coil_test", "Катушка на выносливость", "Прогон 27.10.2026: сколько минут поля даёт пара 18650, держится ли поле, "
+     "пока садятся аккумуляторы, настоящая ёмкость пары с надписью 2600 мА·ч; хватит ли на опыт 20 минут.", ""),
+    ("toroid_field", "Поле тороида — расчёт", "Интерактивный расчёт поля кольцевой катушки по закону Био — Савара для "
+     "каждого витка: неровная трубка и намотка, отклонение от идеального тора, поле снаружи и в центре кольца, наклон "
+     "силовых линий, разрезы, сечение, гармоники вдоль кольца, изометрия.", ""),
     ("spec", "Спецификация и смета", "Из чего собрана установка и сколько стоит: платы, датчики, колёса, питание, "
      "моторы, сеть, монтаж, инструменты — со ссылками на AliExpress, цены в KWD; итог около 277 KWD без инструментов.", ""),
     ("sensors", "Датчики, телефон, моторы и катушки", "Датчик обода (обороты, невесомость), магнитометр, статика ICM-42688 и "
@@ -54,12 +71,8 @@ PAGES = [
      "сколько засчитываем, как смешиваем, без хеша, скорость по источникам и длинам.", "solo"),
     ("thermal", "Температура агентов", "Предел 70 °C: регулятор, замеры нагрева и остывания, откуда тепло, отдых по очереди, "
      "спринт, отдых между режимами, агенты в трубке и радиаторы, рейтинг агентов.", ""),
-    ("history", "Приложение А. История изменений", "Как установка пришла к нынешнему виду: по дням — что появилось, "
-     "что нашли и исправили (03.10–26.10.2026).", ""),
-    ("ui_concept", "Приложение Б. Концепт пульта и наблюдения", "Исторический черновик двух экранов (06.10.2026); "
-     "сейчас они — окна основного экрана.", ""),
 ]
-APPENDIX = {"history", "ui_concept"}          # приложения — отдельной группой в меню и на главной
+APPENDIX = set()                              # приложения — отдельной группой в меню и на главной (сейчас нет)
 TITLES = {k: t for k, t, _, _ in PAGES}
 
 CSS = """
@@ -380,8 +393,7 @@ def page(name, title, body, toc, live, static=False):
   <aside>
     <h4>Документы</h4>
     <ul><li><a href="index.html"{" class=cur" if name == "index" else ""}>Обзор</a></li>{nav}</ul>
-    <h4>Приложения</h4>
-    <ul>{nav_app}</ul>
+    {f'<h4>Приложения</h4><ul>{nav_app}</ul>' if nav_app else ""}
     {f'<h4>На этой странице</h4><ul class="toc">{toc_html}</ul>' if toc_html else ""}
   </aside>
   <main class="doc">
@@ -417,7 +429,7 @@ def index_page(readme_md, static=False):
 <p>Экспериментальная установка: платы XIAO ESP32-S3 («агенты») на двух вращающихся колёсах с катушками ищут простые числа
 в физическом шуме — сами или группой, излучая и поглощая; неподвижные датчики между колёсами слушают, не меняется ли что-то.
 Сервер на ноутбуке собирает телеметрию, раздаёт настройки и прошивки, ведёт эксперименты — списки опытов.
-Описано текущее состояние (27.10.2026); как пришли к нему — <a href="history.html">приложение А</a>.</p>
+Описано то, как установка устроена сейчас.</p>
 <a class="preamble" href="preamble.html"><b>✦ Преамбула — зачем этот опыт</b>
 <q>Это не измерение. Это проверка онтологии.</q>
 <span>Топология до пространства-времени; порядок познания: эстетика — этика — гносеология — онтология — наука;
@@ -434,11 +446,9 @@ def index_page(readme_md, static=False):
 <ul>{live_html}</ul>
 <h2 id="docs">Документы</h2>
 <div class="cards">{cards}</div>
-<h2 id="app">Приложения</h2>
-<div class="cards">{cards_app}</div>
-<h2 id="readme">Папки проекта</h2>
+{f'<h2 id="app">Приложения</h2>{chr(10)}<div class="cards">{cards_app}</div>{chr(10)}' if cards_app else ""}<h2 id="readme">Папки проекта</h2>
 {readme_body}"""
-    toc = [(2, "pages", "Где смотреть"), (2, "docs", "Документы"), (2, "app", "Приложения"), (2, "readme", "Папки проекта")]
+    toc = [(2, "pages", "Где смотреть"), (2, "docs", "Документы")] + ([(2, "app", "Приложения")] if cards_app else []) + [(2, "readme", "Папки проекта")]
     return page("index", "Обзор", body, toc, "", static)
 
 
@@ -462,6 +472,13 @@ def build(quiet=False):
     for name, title, _, live in PAGES:
         path = os.path.join(DOCS, name + ".md")
         if not os.path.exists(path):
+            calc = os.path.join(CALC, name + ".html")
+            if os.path.exists(calc):                  # расчёт — как есть
+                out, target = calc_html(calc), os.path.join(OUT, name + ".html")
+                if not os.path.exists(target) or open(target, encoding="utf-8").read() != out:
+                    with open(target, "w", encoding="utf-8", newline="\n") as f:
+                        f.write(out)
+                n += 1
             continue
         body, h1, toc = render(open(path, encoding="utf-8").read())
         out = page(name, h1 or title, body, toc, live)
@@ -571,6 +588,8 @@ def build_static(out_dir):
         if os.path.exists(path):
             body, h1, toc = render(open(path, encoding="utf-8").read())
             files[name + ".html"] = page(name, h1 or title, body, toc, live, static=True)
+        elif os.path.exists(os.path.join(CALC, name + ".html")):
+            files[name + ".html"] = calc_html(os.path.join(CALC, name + ".html"))
     readme = os.path.join(ROOT, "README.md")
     readme_md = open(readme, encoding="utf-8").read() if os.path.exists(readme) else ""
     files["index.html"] = unwrap(index_page(readme_md, static=True))

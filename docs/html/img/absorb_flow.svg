@@ -1,0 +1,186 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 790" width="1000" height="790" role="img">
+<title>Поглощение: путь простого и петля обратного шума</title>
+<desc>Сверху — путь простого слева направо и петля обратно. Слева блок «генерация, сет A»: четыре агента-генератора колеса 1, любой способ группы; нашедший простое — эгоистичный агент сам, в группе проверяющий или мастер — объявляет его. Толстая точечная линия PRIME: простое уходит одним широковещательным кадром всем поглотителям, только если они есть. Посередине блок «поглощение, сет B»: поглотители колеса 2 (агенты 7, 8, 9). На входе фильтр «кто чьё» (ba): поглотитель берёт простые только генераторов из своего списка. Каждый смешивает простое со своим шумом своей функцией sf — хеш, XOR, умножение или перестановка — и выпускает кадр SCAT; сплошная волна вокруг агента — кадр с числом, внешний редкий пунктир — фон bgr, свой шум и без простых. Справа блок «эфир»: кадры SCAT своей настройки слышат все — рассеянное простое, пустышку (только шум), фон; по этим же кадрам меряется CSI канала, если CSI с любых кадров (cf 0). Тонкая пунктирная стрелка снизу из эфира обратно к генераторам — обратный шум: байты услышанных кадров идут в шум генераторов, 4 бита на байт; ↺+ — вместе с ГСЧ (src 17), ↺ — только он (src 16), тогда без фона петля не начнётся. Обратный шум — только в опыте, где другое колесо поглощает. Ниже пять способов «как» (sm, sh — общие): смешать целиком (sm 1, на пульте «каждый сам») — каждый поглотитель смешивает всё число, кадр от каждого в своё окно, место p через p миллисекунд; по кускам (sm 2, россыпь) — число делится поровну, каждый смешивает свой кусок, целиком ни в одном кадре, кто чьё всегда все со всеми, волны длинным пунктиром; эстафетой (sm 3) — первый смешивает и шлёт следующему адресно кадром CHAIN, тот добавляет свой шум, в эфир один кадр от последнего, все со всеми; пустышка (sh 1, к любому способу) — тот же трафик, в кадрах только шум, волны точками, контроль действия числа против действия радио; только слушают (sm 0, тишина) — принимают и считают, в эфир ничего, контроль без трафика, фон если задан идёт и здесь. Легенда: точечная линия — PRIME, стрелка — CHAIN адресно следующему, тонкий пунктир — обратный шум, тонкая линия — простое дошло до поглотителя; сплошная волна — кадр с числом, длинный пунктир — свой кусок, точки — пустышка, внешний редкий пунктир — фон; зелёный круг — генератор, лиловый — поглотитель.</desc>
+<style>
+text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d2228}
+.h{font-size:15px;font-weight:600}.t{font-size:13px}.s{font-size:12px;fill:#4a535e}.b{font-weight:600}.n{font-size:15px;font-weight:700;fill:#1d2228}
+.nb{fill:#fff;stroke:#4a535e;stroke-width:1}
+.air{fill:#fff;stroke:#4a535e;stroke-width:1.2;stroke-dasharray:6 4}
+.ag{fill:#009E73;fill-opacity:.16;stroke:#009E73;stroke-width:3}
+.ab{fill:#CC79A7;fill-opacity:.22;stroke:#CC79A7;stroke-width:3}
+.prime{fill:none;stroke:#CC79A7;stroke-width:5;stroke-dasharray:.01 9;stroke-linecap:round}
+.scat{fill:none;stroke:#CC79A7;stroke-width:3}
+.chain{fill:none;stroke:#CC79A7;stroke-width:2.2}
+.bc{fill:none;stroke:#CC79A7;stroke-width:2.2;stroke-dasharray:7 5}
+.w1{fill:none;stroke:#CC79A7;stroke-width:2.2}
+.w2{fill:none;stroke:#CC79A7;stroke-width:2.2;stroke-dasharray:10 6}
+.w3{fill:none;stroke:#CC79A7;stroke-width:2.6;stroke-dasharray:.01 5;stroke-linecap:round}
+.bg{fill:none;stroke:#CC79A7;stroke-width:1.5;stroke-dasharray:2 4;stroke-opacity:.7}
+.rx{fill:none;stroke:#4a535e;stroke-width:1.2}
+.chip{fill:#fff;stroke:#CC79A7;stroke-width:1.4}
+.seg{fill:#fff;stroke:#1d2228;stroke-width:1.2}
+</style>
+<defs>
+<marker id="mp" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#CC79A7"/></marker>
+<marker id="mps" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#CC79A7"/></marker>
+<marker id="mm" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#4a535e"/></marker>
+</defs>
+<rect width="1000" height="790" fill="#ffffff"/>
+<text class="h" x="16" y="28">Поглощение: путь простого и петля обратного шума</text>
+<text class="s" x="16" y="48">Генераторы (▶, сет A) объявляют найденные простые; поглотители другого колеса (▼, сет B) смешивают их со своим шумом и выпускают в эфир;</text>
+<text class="s" x="16" y="64">генераторы с обратным шумом (↺) берут эти кадры в свой шум. Линии и волны — как на основном экране.</text>
+
+<!-- генерация -->
+<rect class="nb" x="16" y="84" width="224" height="262" rx="6"/>
+<text class="t b" x="30" y="106">▶ генерация · сет A</text>
+<text class="s" x="30" y="124">колесо 1, любой способ группы</text>
+<circle class="ag" cx="78" cy="172" r="22"/><text class="n" x="78" y="177" text-anchor="middle">1</text>
+<circle class="ag" cx="178" cy="172" r="22"/><text class="n" x="178" y="177" text-anchor="middle">2</text>
+<circle class="ag" cx="78" cy="240" r="22"/><text class="n" x="78" y="245" text-anchor="middle">3</text>
+<circle class="ag" cx="178" cy="240" r="22"/><text class="n" x="178" y="245" text-anchor="middle">4</text>
+<text class="s" x="30" y="294">нашёл простое — объявляет:</text>
+<text class="s" x="30" y="310">эгоистичный — сам, в группе —</text>
+<text class="s" x="30" y="326">проверяющий или мастер</text>
+
+<!-- PRIME -->
+<line class="prime" x1="206" y1="172" x2="458" y2="172" marker-end="url(#mp)"/>
+<text class="t b" x="346" y="156" text-anchor="middle">▶→▼ PRIME</text>
+<text class="s" x="346" y="198" text-anchor="middle">простое — одним кадром</text>
+<text class="s" x="346" y="214" text-anchor="middle">всем, широковещательно</text>
+<text class="s" x="346" y="230" text-anchor="middle">(если поглотители есть)</text>
+
+<!-- поглощение -->
+<rect class="nb" x="452" y="84" width="300" height="262" rx="6"/>
+<text class="t b" x="466" y="106">▼ поглощение · сет B</text>
+<text class="s" x="466" y="124">колесо 2: все его поглотители</text>
+<rect class="chip" x="466" y="140" width="272" height="40" rx="6"/>
+<text class="s" x="476" y="156">кто чьё (ba): берёт простые только</text>
+<text class="s" x="476" y="172">генераторов из своего списка</text>
+<circle class="bg" cx="512" cy="232" r="38"/><circle class="bg" cx="602" cy="232" r="38"/><circle class="bg" cx="692" cy="232" r="38"/>
+<circle class="w1" cx="512" cy="232" r="30"/><circle class="w1" cx="602" cy="232" r="30"/><circle class="w1" cx="692" cy="232" r="30"/>
+<circle class="ab" cx="512" cy="232" r="22"/><text class="n" x="512" y="237" text-anchor="middle">7</text>
+<circle class="ab" cx="602" cy="232" r="22"/><text class="n" x="602" y="237" text-anchor="middle">8</text>
+<circle class="ab" cx="692" cy="232" r="22"/><text class="n" x="692" y="237" text-anchor="middle">9</text>
+<text class="s" x="466" y="288">свой шум ⊕ функция sf → кадр SCAT</text>
+<text class="s" x="466" y="304">sf: хеш · XOR · умножение · перестановка</text>
+<text class="s" x="466" y="320">редкий пунктир снаружи — фон bgr:</text>
+<text class="s" x="466" y="336">свой шум N кадров/с и без простых</text>
+
+<!-- SCAT в эфир -->
+<line class="scat" x1="752" y1="232" x2="790" y2="232" marker-end="url(#mp)"/>
+<text class="s b" x="771" y="218" text-anchor="middle">SCAT</text>
+<rect class="air" x="792" y="84" width="192" height="262" rx="6"/>
+<text class="t b" x="806" y="106">≋ эфир</text>
+<text class="s" x="806" y="126">кадры SCAT своей</text>
+<text class="s" x="806" y="142">настройки слышат все:</text>
+<text class="s" x="806" y="162">• рассеянное простое</text>
+<text class="s" x="806" y="178">• пустышка — только шум</text>
+<text class="s" x="806" y="194">• фон — шум без простых</text>
+<text class="s" x="806" y="218">по ним же — CSI канала,</text>
+<text class="s" x="806" y="234">если «с любых кадров»</text>
+<circle cx="888" cy="296" r="8" fill="#CC79A7" fill-opacity=".3" stroke="#CC79A7" stroke-width="2"/>
+<circle class="w1" cx="888" cy="296" r="17"/><circle class="w1" cx="888" cy="296" r="26" style="stroke-opacity:.6"/>
+
+<!-- петля: обратный шум -->
+<path class="bc" d="M 888 346 V 386 H 128 V 352" marker-end="url(#mps)"/>
+<text class="t b" x="508" y="378" text-anchor="middle">↺ обратный шум: байты услышанных кадров — в шум генераторов (4 бита на байт)</text>
+<text class="s" x="508" y="406" text-anchor="middle">↺+ — вместе с ГСЧ (src 17) · ↺ — только он (src 16): тогда без фона петля не начнётся — рассеивать нечего</text>
+<text class="s" x="508" y="422" text-anchor="middle">Обратный шум — только в опыте, где другое колесо поглощает. CSI с любых кадров (cf 0) замыкает петлю и по радиоканалу.</text>
+
+<!-- способы «как» -->
+<text class="t b" x="16" y="456">«Как» — что поглотители выпускают на одно простое (sm, sh — общие для всех поглотителей группы)</text>
+
+<!-- 1 смешать целиком -->
+<rect class="nb" x="16" y="468" width="184" height="250" rx="6"/>
+<text class="t b" x="28" y="490">смешать целиком</text>
+<text class="s" x="28" y="506">sm 1 (пульт: каждый сам)</text>
+<rect class="seg" x="48" y="518" width="120" height="20"/><text class="s" x="108" y="532" text-anchor="middle">простое</text>
+<line class="rx" x1="56" y1="538" x2="56" y2="573"/><line class="rx" x1="108" y1="538" x2="108" y2="573"/><line class="rx" x1="160" y1="538" x2="160" y2="573"/>
+<circle class="w1" cx="56" cy="590" r="24"/><circle class="w1" cx="108" cy="590" r="24"/><circle class="w1" cx="160" cy="590" r="24"/>
+<circle class="ab" cx="56" cy="590" r="17"/><text class="n" x="56" y="595" text-anchor="middle">7</text>
+<circle class="ab" cx="108" cy="590" r="17"/><text class="n" x="108" y="595" text-anchor="middle">8</text>
+<circle class="ab" cx="160" cy="590" r="17"/><text class="n" x="160" y="595" text-anchor="middle">9</text>
+<text class="s" x="28" y="642">каждый смешивает всё</text>
+<text class="s" x="28" y="658">число со своим шумом;</text>
+<text class="s" x="28" y="674">кадр от каждого — в своё</text>
+<text class="s" x="28" y="690">окно: место p — через</text>
+<text class="s" x="28" y="706">p мс (место 0 — сразу)</text>
+
+<!-- 2 по кускам -->
+<rect class="nb" x="212" y="468" width="184" height="250" rx="6"/>
+<text class="t b" x="224" y="490">по кускам</text>
+<text class="s" x="224" y="506">sm 2 (пульт: россыпь)</text>
+<rect class="seg" x="228" y="518" width="48" height="20"/><rect class="seg" x="280" y="518" width="48" height="20"/><rect class="seg" x="332" y="518" width="48" height="20"/>
+<text class="s" x="252" y="532" text-anchor="middle">1</text><text class="s" x="304" y="532" text-anchor="middle">2</text><text class="s" x="356" y="532" text-anchor="middle">3</text>
+<line class="rx" x1="252" y1="538" x2="252" y2="573"/><line class="rx" x1="304" y1="538" x2="304" y2="573"/><line class="rx" x1="356" y1="538" x2="356" y2="573"/>
+<circle class="w2" cx="252" cy="590" r="24"/><circle class="w2" cx="304" cy="590" r="24"/><circle class="w2" cx="356" cy="590" r="24"/>
+<circle class="ab" cx="252" cy="590" r="17"/><text class="n" x="252" y="595" text-anchor="middle">7</text>
+<circle class="ab" cx="304" cy="590" r="17"/><text class="n" x="304" y="595" text-anchor="middle">8</text>
+<circle class="ab" cx="356" cy="590" r="17"/><text class="n" x="356" y="595" text-anchor="middle">9</text>
+<text class="s" x="224" y="642">число делится поровну:</text>
+<text class="s" x="224" y="658">каждый — свой кусок,</text>
+<text class="s" x="224" y="674">целиком — ни в одном</text>
+<text class="s" x="224" y="690">кадре; кто чьё — всегда</text>
+<text class="s" x="224" y="706">все со всеми</text>
+
+<!-- 3 эстафетой -->
+<rect class="nb" x="408" y="468" width="184" height="250" rx="6"/>
+<text class="t b" x="420" y="490">эстафетой</text>
+<text class="s" x="420" y="506">sm 3 · CHAIN по цепочке</text>
+<rect class="seg" x="440" y="518" width="120" height="20"/><text class="s" x="500" y="532" text-anchor="middle">простое</text>
+<line class="rx" x1="448" y1="538" x2="448" y2="573"/>
+<path class="chain" d="M 460 577 Q 474 556 487 575" marker-end="url(#mps)"/>
+<path class="chain" d="M 512 577 Q 526 556 539 575" marker-end="url(#mps)"/>
+<circle class="w1" cx="552" cy="590" r="24"/>
+<circle class="ab" cx="448" cy="590" r="17"/><text class="n" x="448" y="595" text-anchor="middle">7</text>
+<circle class="ab" cx="500" cy="590" r="17"/><text class="n" x="500" y="595" text-anchor="middle">8</text>
+<circle class="ab" cx="552" cy="590" r="17"/><text class="n" x="552" y="595" text-anchor="middle">9</text>
+<text class="s" x="420" y="642">первый смешивает и шлёт</text>
+<text class="s" x="420" y="658">следующему адресно, тот</text>
+<text class="s" x="420" y="674">добавляет свой шум…;</text>
+<text class="s" x="420" y="690">в эфир — один кадр от</text>
+<text class="s" x="420" y="706">последнего; все со всеми</text>
+
+<!-- 4 пустышка -->
+<rect class="nb" x="604" y="468" width="184" height="250" rx="6"/>
+<text class="t b" x="616" y="490">пустышка</text>
+<text class="s" x="616" y="506">sh 1 — к любому способу</text>
+<rect class="seg" x="636" y="518" width="120" height="20"/><text class="s" x="696" y="532" text-anchor="middle">простое</text>
+<line class="rx" x1="644" y1="538" x2="644" y2="573"/><line class="rx" x1="696" y1="538" x2="696" y2="573"/><line class="rx" x1="748" y1="538" x2="748" y2="573"/>
+<circle class="w3" cx="644" cy="590" r="24"/><circle class="w3" cx="696" cy="590" r="24"/><circle class="w3" cx="748" cy="590" r="24"/>
+<circle class="ab" cx="644" cy="590" r="17"/><text class="n" x="644" y="595" text-anchor="middle">7</text>
+<circle class="ab" cx="696" cy="590" r="17"/><text class="n" x="696" y="595" text-anchor="middle">8</text>
+<circle class="ab" cx="748" cy="590" r="17"/><text class="n" x="748" y="595" text-anchor="middle">9</text>
+<text class="s" x="616" y="642">тот же трафик: те же</text>
+<text class="s" x="616" y="658">кадры, размеры, моменты,</text>
+<text class="s" x="616" y="674">цепочка — но в кадрах</text>
+<text class="s" x="616" y="690">только шум. Контроль:</text>
+<text class="s" x="616" y="706">действие числа или радио</text>
+
+<!-- 5 только слушают -->
+<rect class="nb" x="800" y="468" width="184" height="250" rx="6"/>
+<text class="t b" x="812" y="490">только слушают</text>
+<text class="s" x="812" y="506">sm 0 (пульт: тишина)</text>
+<rect class="seg" x="832" y="518" width="120" height="20"/><text class="s" x="892" y="532" text-anchor="middle">простое</text>
+<line class="rx" x1="840" y1="538" x2="840" y2="573"/><line class="rx" x1="892" y1="538" x2="892" y2="573"/><line class="rx" x1="944" y1="538" x2="944" y2="573"/>
+<circle class="ab" cx="840" cy="590" r="17"/><text class="n" x="840" y="595" text-anchor="middle">7</text>
+<circle class="ab" cx="892" cy="590" r="17"/><text class="n" x="892" y="595" text-anchor="middle">8</text>
+<circle class="ab" cx="944" cy="590" r="17"/><text class="n" x="944" y="595" text-anchor="middle">9</text>
+<text class="s" x="812" y="642">принимают и считают,</text>
+<text class="s" x="812" y="658">в эфир — ничего (◌ молча).</text>
+<text class="s" x="812" y="674">Контроль без трафика;</text>
+<text class="s" x="812" y="690">фон bgr, если задан,</text>
+<text class="s" x="812" y="706">идёт и здесь</text>
+
+<!-- легенда -->
+<line class="prime" x1="20" y1="740" x2="60" y2="740"/><text class="s" x="70" y="744">PRIME: простое поглотителям</text>
+<path class="chain" d="M 262 740 H 300" marker-end="url(#mps)"/><text class="s" x="310" y="744">CHAIN: адресно следующему</text>
+<line class="bc" x1="500" y1="740" x2="540" y2="740"/><text class="s" x="550" y="744">↺ обратный шум</text>
+<line class="rx" x1="676" y1="740" x2="716" y2="740"/><text class="s" x="726" y="744">простое дошло до поглотителя</text>
+<circle class="w1" cx="30" cy="768" r="9"/><text class="s" x="46" y="772">кадр со всем числом</text>
+<circle class="w2" cx="198" cy="768" r="9" style="stroke-dasharray:6 4"/><text class="s" x="214" y="772">свой кусок</text>
+<circle class="w3" cx="310" cy="768" r="9" style="stroke-dasharray:.01 4.5"/><text class="s" x="326" y="772">пустышка: только шум</text>
+<circle class="bg" cx="490" cy="768" r="9"/><text class="s" x="506" y="772">фон: шум без простых</text>
+<circle class="ag" cx="676" cy="768" r="9" style="stroke-width:2"/><text class="s" x="692" y="772">▶ генератор</text>
+<circle class="ab" cx="806" cy="768" r="9" style="stroke-width:2"/><text class="s" x="822" y="772">▼ поглотитель</text>
+</svg>

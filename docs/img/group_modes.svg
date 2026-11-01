@@ -1,0 +1,176 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 936" width="1000" height="936" role="img">
+<title>Групповой режим: как агенты делят работу над простыми</title>
+<desc>Четыре способа совместной работы генераторов, нарисованные так же, как на основном экране. Эгоистичный (значок круг, не группа): у каждого агента своя ячейка — свой шум, своё число, свой отсев и своя проверка; общий только пульс «я жив» раз в секунду, пунктиром. Каскад (gv 2, основной): четыре агента над двусторонней шиной; от каждого к шине — пунктир кусочков шума в обе стороны: кусочки идут от всех ко всем. Все проверяют сразу, у каждого галочка; у агента 1 своё число из кусочков от агентов 3, 1, 4, 2 в случайном порядке, потом отсев и проверка. Найденное простое точечной стрелкой уходит следующему по порядку на сверку одной другой базой; ход не передаётся. Шаги: просьба REQ всем одним кадром, каждый отвечает набором кусочков PCS; числа из кусочков всех, отсев, проверка всеми базами; простое — следующему на сверку. Эстафета (gv 1): четыре агента по кольцу, стрелки хода по часовой стрелке; ход (ореол и галочка) у агента 1, остальные трое шлют ему кусочки пунктиром. Нашёл rk простых — сообщение TURN следующему: ход, запас чисел и простое на сверку (точечная стрелка снаружи кольца); тот подтверждает приём, сверяет и проверяет свои числа. Один поток счёта на группу, эфир почти свободен. Одно число на всех (gv 0): в середине общее число цикла со значком ①, вокруг четыре агента, к каждому две спицы — сплошная стрелка числа и итога NXT от середины и тонкая стрелка ответа RES к середине. Агент 1 — мастер. Базы поделены по кругу: при 8 базах у агентов 1–4 базы 2 и 11, 3 и 13, 5 и 17, 7 и 19. Цикл: итог и число всем, новому мастеру — и запас чисел; каждый проверяет своими базами и отвечает мастеру; нашли свидетеля — число составное, мастер — нашедший; никто — простое, мастер — следующий; запас пуст — все шлют кусочки новому мастеру. Ответы обязаны сходиться — проверка целостности. Легенда: агент-генератор с номером; ореол и галочка — проверяет сейчас или мастер; пунктир — кусочки шума PCS; сплошная стрелка — число и ход NXT, TURN; точечная стрелка — простое на сверку; тонкая стрелка — ответ мастеру RES; редкий пунктир — пульс; полоса из двух встречных линий — шина каскада.</desc>
+<style>
+text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d2228}
+.h{font-size:15px;font-weight:600}.t{font-size:13px}.s{font-size:12px;fill:#4a535e}.b{font-weight:600}.n{font-size:16px;font-weight:700;fill:#1d2228}
+.nb{fill:#fff;stroke:#4a535e;stroke-width:1}
+.ag{fill:#009E73;fill-opacity:.16;stroke:#009E73;stroke-width:3}
+.cell{fill:#009E73;fill-opacity:.08;stroke:#009E73;stroke-width:1.3}
+.halo{fill:none;stroke:#009E73;stroke-width:7;stroke-opacity:.35}
+.num{fill:none;stroke:#009E73;stroke-width:2.6}
+.pcs{fill:none;stroke:#0072B2;stroke-width:1.8;stroke-dasharray:6 4}
+.pr{fill:none;stroke:#E69F00;stroke-width:2.8;stroke-dasharray:1 5;stroke-linecap:round}
+.res{fill:none;stroke:#4a535e;stroke-width:1.4}
+.pu{fill:none;stroke:#4a535e;stroke-width:1.6;stroke-dasharray:2 5}
+.bus{fill:#009E73;fill-opacity:.15}
+.seg{fill:#fff;stroke:#1d2228;stroke-width:1.2}
+</style>
+<defs>
+<marker id="mg" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#009E73"/></marker>
+<marker id="mgs" viewBox="0 0 10 10" refX="2" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M10 0 L0 5 L10 10 z" fill="#009E73"/></marker>
+<marker id="mb" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#0072B2"/></marker>
+<marker id="mbs" viewBox="0 0 10 10" refX="2" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto"><path d="M10 0 L0 5 L10 10 z" fill="#0072B2"/></marker>
+<marker id="mo" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#E69F00"/></marker>
+<marker id="mm" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#4a535e"/></marker>
+</defs>
+<rect width="1000" height="936" fill="#ffffff"/>
+<text class="h" x="16" y="28">Групповой режим: как агенты делят работу над простыми</text>
+<text class="s" x="16" y="48">Значки и линии — как на основном экране: ● эгоистичный, ⋈ каскад, ⇢ эстафета, ① одно число на всех.</text>
+<text class="s" x="16" y="64">Во всех групповых способах число складывается из кусочков шума всех агентов; различается, кто и как его проверяет.</text>
+
+<!-- 1. эгоистичный -->
+<rect class="nb" x="16" y="80" width="476" height="384" rx="6"/>
+<text class="h" x="30" y="106">● эгоистичный — каждый сам</text>
+<text class="s" x="30" y="124">не группа (mode 0): эталон для сравнения</text>
+<text class="s" x="254" y="160" text-anchor="middle">общего нет — только пульс «я жив» раз в секунду (пунктир)</text>
+<line class="pu" x1="112" y1="196" x2="170" y2="196"/><line class="pu" x1="222" y1="196" x2="280" y2="196"/><line class="pu" x1="332" y1="196" x2="390" y2="196"/>
+<g>
+<circle class="ag" cx="86" cy="196" r="24"/><text class="n" x="86" y="202" text-anchor="middle">1</text>
+<circle class="ag" cx="196" cy="196" r="24"/><text class="n" x="196" y="202" text-anchor="middle">2</text>
+<circle class="ag" cx="306" cy="196" r="24"/><text class="n" x="306" y="202" text-anchor="middle">3</text>
+<circle class="ag" cx="416" cy="196" r="24"/><text class="n" x="416" y="202" text-anchor="middle">4</text>
+</g>
+<g>
+<line class="num" x1="86" y1="220" x2="86" y2="232"/><line class="num" x1="196" y1="220" x2="196" y2="232"/><line class="num" x1="306" y1="220" x2="306" y2="232"/><line class="num" x1="416" y1="220" x2="416" y2="232"/>
+<rect class="cell" x="36" y="232" width="100" height="96" rx="8"/><rect class="cell" x="146" y="232" width="100" height="96" rx="8"/>
+<rect class="cell" x="256" y="232" width="100" height="96" rx="8"/><rect class="cell" x="366" y="232" width="100" height="96" rx="8"/>
+</g>
+<g class="s" text-anchor="middle">
+<text class="s" x="86" y="254" text-anchor="middle">свой шум</text><text class="s" x="86" y="272" text-anchor="middle">↓ число</text><text class="s" x="86" y="290" text-anchor="middle">↓ отсев</text><text class="s" x="86" y="308" text-anchor="middle">↓ проверка</text>
+<text class="s" x="196" y="254" text-anchor="middle">свой шум</text><text class="s" x="196" y="272" text-anchor="middle">↓ число</text><text class="s" x="196" y="290" text-anchor="middle">↓ отсев</text><text class="s" x="196" y="308" text-anchor="middle">↓ проверка</text>
+<text class="s" x="306" y="254" text-anchor="middle">свой шум</text><text class="s" x="306" y="272" text-anchor="middle">↓ число</text><text class="s" x="306" y="290" text-anchor="middle">↓ отсев</text><text class="s" x="306" y="308" text-anchor="middle">↓ проверка</text>
+<text class="s" x="416" y="254" text-anchor="middle">свой шум</text><text class="s" x="416" y="272" text-anchor="middle">↓ число</text><text class="s" x="416" y="290" text-anchor="middle">↓ отсев</text><text class="s" x="416" y="308" text-anchor="middle">↓ проверка</text>
+</g>
+<text class="t" x="30" y="362">Каждый агент сам: шум из своих источников → число →</text>
+<text class="t" x="30" y="382">отсев делителями → Миллер — Рабин всеми базами.</text>
+<text class="t" x="30" y="402">Простое поглотителям объявляет тоже сам.</text>
+<text class="s" x="30" y="436">Группа сравнивается с «каждый сам» при тех же настройках.</text>
+
+<!-- 2. каскад -->
+<rect class="nb" x="508" y="80" width="476" height="384" rx="6"/>
+<text class="h" x="522" y="106">⋈ каскад — gv 2, основной</text>
+<text class="s" x="522" y="124">проверяют все сразу, каждый свои числа</text>
+<path class="pr" d="M 596 184 Q 643 140 668 180" marker-end="url(#mo)"/>
+<text class="s" x="700" y="156">простое → сверка у следующего</text>
+<rect class="bus" x="536" y="262" width="420" height="24"/>
+<line class="num" x1="540" y1="268" x2="950" y2="268" style="stroke-width:2" marker-end="url(#mg)"/>
+<line class="num" x1="950" y1="280" x2="540" y2="280" style="stroke-width:2" marker-end="url(#mg)"/>
+<line class="pcs" x1="578" y1="230" x2="578" y2="260" marker-start="url(#mbs)" marker-end="url(#mb)"/>
+<line class="pcs" x1="688" y1="230" x2="688" y2="260" marker-start="url(#mbs)" marker-end="url(#mb)"/>
+<line class="pcs" x1="798" y1="230" x2="798" y2="260" marker-start="url(#mbs)" marker-end="url(#mb)"/>
+<line class="pcs" x1="908" y1="230" x2="908" y2="260" marker-start="url(#mbs)" marker-end="url(#mb)"/>
+<g>
+<circle class="ag" cx="578" cy="204" r="24"/><text class="n" x="578" y="210" text-anchor="middle">1</text>
+<circle class="ag" cx="688" cy="204" r="24"/><text class="n" x="688" y="210" text-anchor="middle">2</text>
+<circle class="ag" cx="798" cy="204" r="24"/><text class="n" x="798" y="210" text-anchor="middle">3</text>
+<circle class="ag" cx="908" cy="204" r="24"/><text class="n" x="908" y="210" text-anchor="middle">4</text>
+</g>
+<text class="t b" x="546" y="186">✓</text><text class="t b" x="656" y="186">✓</text><text class="t b" x="766" y="186">✓</text><text class="t b" x="876" y="186">✓</text>
+<text class="s" x="746" y="306" text-anchor="middle">⇄ шина: кусочки шума от всех ко всем (PCS)</text>
+<text class="s" x="522" y="334">у агента 1 свои числа: по кусочку от каждого, порядок случайный</text>
+<rect class="seg" x="522" y="344" width="56" height="24"/><rect class="seg" x="578" y="344" width="56" height="24"/>
+<rect class="seg" x="634" y="344" width="56" height="24"/><rect class="seg" x="690" y="344" width="56" height="24"/>
+<text class="s" x="550" y="361" text-anchor="middle">от 3</text><text class="s" x="606" y="361" text-anchor="middle">от 1</text>
+<text class="s" x="662" y="361" text-anchor="middle">от 4</text><text class="s" x="718" y="361" text-anchor="middle">от 2</text>
+<text class="t" x="756" y="361">→ отсев → проверка ✓</text>
+<text class="t" x="522" y="400">1. REQ — всем одним кадром, каждый отвечает набором PCS</text>
+<text class="t" x="522" y="420">2. числа из кусочков всех, отсев, проверка всеми базами</text>
+<text class="t" x="522" y="440">3. простое — следующему на сверку; ход не передаётся</text>
+
+<!-- 3. эстафета -->
+<rect class="nb" x="16" y="480" width="476" height="384" rx="6"/>
+<text class="h" x="30" y="506">⇢ эстафета — gv 1</text>
+<text class="s" x="30" y="524">ход у одного, остальные дают ему шум; ход по кругу</text>
+<path class="num" d="M 174.1 612.0 A 74 74 0 0 1 220.0 657.9" style="stroke-width:4" marker-end="url(#mg)"/>
+<path class="num" d="M 220.0 706.1 A 74 74 0 0 1 174.1 752.0" marker-end="url(#mg)"/>
+<path class="num" d="M 125.9 752.0 A 74 74 0 0 1 80.0 706.1" marker-end="url(#mg)"/>
+<path class="num" d="M 80.0 657.9 A 74 74 0 0 1 125.9 612.0" marker-end="url(#mg)"/>
+<path class="pr" d="M 179.7 590.7 A 96 96 0 0 1 241.3 652.3" marker-end="url(#mo)"/>
+<line class="pcs" x1="207" y1="665" x2="171" y2="629" marker-end="url(#mb)"/>
+<line class="pcs" x1="150" y1="732" x2="150" y2="636" marker-end="url(#mb)"/>
+<line class="pcs" x1="93" y1="665" x2="129" y2="629" marker-end="url(#mb)"/>
+<circle class="halo" cx="150" cy="608" r="31"/>
+<g>
+<circle class="ag" cx="150" cy="608" r="24"/><text class="n" x="150" y="614" text-anchor="middle">1</text>
+<circle class="ag" cx="224" cy="682" r="24"/><text class="n" x="224" y="688" text-anchor="middle">2</text>
+<circle class="ag" cx="150" cy="756" r="24"/><text class="n" x="150" y="762" text-anchor="middle">3</text>
+<circle class="ag" cx="76" cy="682" r="24"/><text class="n" x="76" y="688" text-anchor="middle">4</text>
+</g>
+<text class="t b" x="112" y="598" text-anchor="end">✓ ход у №1</text>
+<text class="s" x="236" y="604">простое → сверка</text>
+<text class="t b" x="270" y="650">Ход проверяющего:</text>
+<text class="s" x="270" y="670">1. REQ всем одним кадром —</text>
+<text class="s" x="284" y="686">наборы кусочков PCS ему</text>
+<text class="s" x="270" y="706">2. числа из кусочков всех,</text>
+<text class="s" x="284" y="722">отсев, проверка всеми базами</text>
+<text class="s" x="270" y="742">3. нашёл rk простых — TURN</text>
+<text class="s" x="284" y="758">следующему: ход, запас чисел</text>
+<text class="s" x="284" y="774">и простое на сверку</text>
+<text class="s" x="270" y="794">4. тот подтверждает приём,</text>
+<text class="s" x="284" y="810">сверяет и проверяет свои</text>
+<text class="t" x="30" y="842">Один поток счёта на всю группу; эфир почти свободен.</text>
+
+<!-- 4. одно число на всех -->
+<rect class="nb" x="508" y="480" width="476" height="384" rx="6"/>
+<text class="h" x="522" y="506">① одно число на всех — gv 0</text>
+<text class="s" x="522" y="524">каждое число проверяют все, базы поделены по кругу</text>
+<line class="num" x1="652" y1="660" x2="652" y2="626" marker-end="url(#mg)"/>
+<line class="res" x1="644" y1="624" x2="644" y2="660" marker-end="url(#mm)"/>
+<line class="num" x1="676" y1="694" x2="712" y2="694" marker-end="url(#mg)"/>
+<line class="res" x1="714" y1="686" x2="678" y2="686" marker-end="url(#mm)"/>
+<line class="num" x1="644" y1="720" x2="644" y2="754" marker-end="url(#mg)"/>
+<line class="res" x1="652" y1="756" x2="652" y2="720" marker-end="url(#mm)"/>
+<line class="num" x1="620" y1="686" x2="584" y2="686" marker-end="url(#mg)"/>
+<line class="res" x1="582" y1="694" x2="618" y2="694" marker-end="url(#mm)"/>
+<circle cx="648" cy="690" r="28" fill="#009E73" fill-opacity=".18" stroke="#009E73" stroke-width="3"/>
+<text x="648" y="698" text-anchor="middle" style="font-size:22px;font-weight:700">①</text>
+<circle class="halo" cx="648" cy="598" r="31"/>
+<g>
+<circle class="ag" cx="648" cy="598" r="24"/><text class="n" x="648" y="604" text-anchor="middle">1</text>
+<circle class="ag" cx="740" cy="690" r="24"/><text class="n" x="740" y="696" text-anchor="middle">2</text>
+<circle class="ag" cx="648" cy="782" r="24"/><text class="n" x="648" y="788" text-anchor="middle">3</text>
+<circle class="ag" cx="556" cy="690" r="24"/><text class="n" x="556" y="696" text-anchor="middle">4</text>
+</g>
+<text class="t b" x="610" y="592" text-anchor="end">✓ мастер</text>
+<text class="s" x="684" y="592">базы 2, 11</text>
+<text class="s" x="740" y="734" text-anchor="middle">базы 3, 13</text>
+<text class="s" x="680" y="802">базы 5, 17</text>
+<text class="s" x="556" y="734" text-anchor="middle">базы 7, 19</text>
+<text class="s" x="676" y="650">число</text>
+<text class="t b" x="786" y="600">Цикл:</text>
+<text class="s" x="786" y="620">1. итог и число (NXT) —</text>
+<text class="s" x="800" y="636">всем; новому мастеру —</text>
+<text class="s" x="800" y="652">и запас чисел</text>
+<text class="s" x="786" y="672">2. каждый проверяет своими</text>
+<text class="s" x="800" y="688">базами, ответ (RES) —</text>
+<text class="s" x="800" y="704">мастеру</text>
+<text class="s" x="786" y="724">3. нашли — составное,</text>
+<text class="s" x="800" y="740">мастер — нашедший;</text>
+<text class="s" x="800" y="756">никто — простое,</text>
+<text class="s" x="800" y="772">мастер — следующий</text>
+<text class="s" x="786" y="792">4. запас пуст — все шлют</text>
+<text class="s" x="800" y="808">кусочки новому мастеру</text>
+<text class="t" x="522" y="842">Ответы обязаны сходиться — проверка целостности тракта.</text>
+
+<!-- легенда -->
+<circle class="ag" cx="28" cy="884" r="9" style="stroke-width:2"/><text class="s" x="44" y="888">агент-генератор, номер</text>
+<circle class="halo" cx="226" cy="884" r="13" style="stroke-width:5"/><circle class="ag" cx="226" cy="884" r="9" style="stroke-width:2"/><text class="s" x="246" y="888">✓ проверяет сейчас (мастер)</text>
+<line class="pcs" x1="452" y1="884" x2="494" y2="884" marker-end="url(#mb)"/><text class="s" x="504" y="888">кусочки шума (PCS)</text>
+<line class="num" x1="652" y1="884" x2="694" y2="884" marker-end="url(#mg)"/><text class="s" x="704" y="888">число, ход (NXT, TURN)</text>
+<line class="pr" x1="18" y1="912" x2="60" y2="912" marker-end="url(#mo)"/><text class="s" x="70" y="916">простое → сверка</text>
+<line class="res" x1="210" y1="912" x2="250" y2="912" marker-end="url(#mm)"/><text class="s" x="260" y="916">ответ мастеру (RES)</text>
+<line class="pu" x1="410" y1="912" x2="452" y2="912"/><text class="s" x="462" y="916">пульс «я жив»</text>
+<rect class="bus" x="590" y="904" width="44" height="16"/><line class="num" x1="592" y1="908" x2="632" y2="908" style="stroke-width:1.6"/><line class="num" x1="592" y1="916" x2="632" y2="916" style="stroke-width:1.6"/>
+<text class="s" x="644" y="916">шина каскада: от всех ко всем</text>
+</svg>

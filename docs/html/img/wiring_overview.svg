@@ -136,7 +136,7 @@ text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d22
 <rect class="box" x="75.5" y="293.7" width="44" height="30" rx="5"/>
 <text class="t b" x="97.5" y="313.7" text-anchor="middle">№12</text>
 <rect class="box" x="111.6" y="158.9" width="44" height="30" rx="5"/>
-<text class="t b" x="133.6" y="174.9" text-anchor="middle">№7</text><text class="x" x="133.6" y="185.9" text-anchor="middle">MLX</text>
+<text class="t b" x="133.6" y="174.9" text-anchor="middle">№20</text><text class="x" x="133.6" y="185.9" text-anchor="middle">MLX</text>
 <rect class="box" x="190" y="90" width="140" height="50" rx="6"/>
 <text class="t b" x="260" y="110" text-anchor="middle">питание шины</text>
 <text class="x" x="260" y="127" text-anchor="middle">2×18650 → DC-DC 5,1 В</text>
@@ -349,5 +349,5 @@ text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d22
 <line class="wind" x1="470" y1="894" x2="470" y2="906"/><line class="wind" x1="476" y1="894" x2="476" y2="906"/><line class="wind" x1="482" y1="894" x2="482" y2="906"/><text class="s" x="492" y="904">витки катушки на трубе</text>
 <text class="s" x="660" y="904"><tspan class="b">C1–C3</tspan> — электролиты 470 мкФ на шине</text>
 <text class="s" x="20" y="928">Шина агентов и катушка крутятся вместе с колесом; моторы, агент моторов, блок 12 В и статические — на неподвижной раме.</text>
-<text class="s" x="20" y="946">Номера агентов — по составу на 26.10.2026, порядок по ободу условный. Подробные схемы каждого контура — ниже.</text>
+<text class="s" x="20" y="946">Номера агентов — нынешний состав, порядок по ободу условный. Подробные схемы каждого контура — ниже.</text>
 </svg>

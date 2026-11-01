@@ -1,0 +1,141 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 770" width="1000" height="770" role="img">
+<title>Основной экран «Установка»: что где</title>
+<desc>Раскладка основного экрана, одно окно без прокрутки. Вверху шапка в одну строку: слева «☰ Колесо-2» — меню, связь «● N из M на связи», значки режимов, ♨ у предела, ❗ тревога статики, звук, часы; справа «✎ Эксперимент…», «▶ Запустить N опытов», «⏹ Стоп после опыта» и «■ Всё стоп». Ниже слева — схема установки вживую. В левом верхнем углу схемы — мини-карточка: программа, опыт N из M, фаза словом и обратный отсчёт, полоска фаз старт, подготовка, проверка, исполнение, итоги, отдых, по строке на колесо — режим словом и значком. В правом верхнем углу схемы — «ⓘ как читать» и «⚙ Настройка». Два колеса крупно: внутри обода — откуда шум, дорожки источников к агентам; в середине колеса — сумма простых и темп, обороты, поле; снаружи — куда уходит, по способу: шина, кольцо, спицы, волны; над колесом — имя и сколько на связи. Дуга сверху между колёсами — простые генераторов к поглотителям другого колеса, дуга снизу — обратный шум. Между колёсами — измерители статики, расстояние между колёсами в миллиметрах, агент моторов. В нижних углах — агенты катушек, кнопки поля выкл, плюс, минус и остаток аккумуляторов в процентах. Внизу посередине всплывают сообщения и тают через 12 секунд, ниже — свободные платы. Справа колонка, её можно свернуть: статика — вывод крупно, датчики друг под другом с живым графиком за 10 секунд, эталон; таблица опытов значками; строка эксперимента. Под экраном — окна из меню.</desc>
+<style>
+text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d2228}
+.h{font-size:15px;font-weight:600}.t{font-size:13px}.q{font-size:12px}.s{font-size:12px;fill:#4a535e}.b{font-weight:600}
+.box{fill:#fff;stroke:#1d2228;stroke-width:1.3}.nb{fill:#fff;stroke:#4a535e;stroke-width:1}
+.bar{fill:#f6f7f9;stroke:#4a535e;stroke-width:1}
+.btn{fill:#fff;stroke:#1d2228;stroke-width:1.2}
+.ovl{fill:#fff;stroke:#1d2228;stroke-width:1.3;stroke-dasharray:5 3}
+.rim{fill:none;stroke:#8a929b;stroke-width:9}
+.lane{stroke:#4a535e;stroke-width:1.4;fill:none;stroke-dasharray:3 3}
+.arcG{stroke:#009E73;stroke-width:2.4;fill:none;stroke-dasharray:1 5;stroke-linecap:round}
+.arcB{stroke:#0072B2;stroke-width:2.4;fill:none;stroke-dasharray:8 4}
+.spark{stroke:#0072B2;stroke-width:1.4;fill:none}
+</style>
+<rect width="1000" height="770" fill="#ffffff"/>
+<text class="h" x="16" y="28">Основной экран «Установка»: что где</text>
+<text class="s" x="16" y="48">Одно окно без прокрутки (1280×800 и больше). Наведение — окошко с подробностями, нажатие — окно; на планшете первое касание —</text>
+<text class="s" x="16" y="64">окошко, второе — действие. Цвет никогда не единственный признак: у каждого состояния значок и слово.</text>
+
+<rect x="16" y="74" width="968" height="602" rx="10" fill="#fff" stroke="#1d2228" stroke-width="2"/>
+
+<!-- шапка -->
+<rect class="bar" x="24" y="82" width="952" height="38" rx="5"/>
+<rect class="btn" x="32" y="89" width="96" height="24" rx="4"/><text class="q b" x="80" y="105" text-anchor="middle">☰ Колесо-2</text>
+<text class="q" x="138" y="105">● 11 из 13 на связи</text>
+<text class="s" x="262" y="105">режимы · ♨ у предела · ❗ · звук · часы</text>
+<rect class="btn" x="504" y="89" width="104" height="24" rx="4"/><text class="q" x="556" y="105" text-anchor="middle">✎ Эксперимент…</text>
+<rect class="btn" x="614" y="89" width="136" height="24" rx="4" style="stroke-width:2"/><text class="q b" x="682" y="105" text-anchor="middle">▶ Запустить N опытов</text>
+<rect class="btn" x="756" y="89" width="126" height="24" rx="4"/><text class="q" x="819" y="105" text-anchor="middle">⏹ Стоп после опыта</text>
+<rect class="btn" x="888" y="89" width="80" height="24" rx="4" style="stroke-width:2.4"/><text class="q b" x="928" y="105" text-anchor="middle">■ Всё стоп</text>
+
+<!-- схема -->
+<rect class="nb" x="24" y="128" width="730" height="540" rx="6"/>
+
+<rect class="ovl" x="32" y="136" width="256" height="96" rx="5"/>
+<text class="q b" x="42" y="153">мини-карточка</text>
+<text class="q" x="42" y="169">программа · опыт N из M</text>
+<text class="q" x="42" y="185">фаза словом, обратный отсчёт</text>
+<text class="s" x="42" y="201">⚙ старт › ⟳ › ✓ › ▶ › ⇪ итоги › ⏸ отдых</text>
+<text class="s" x="42" y="217">К1, К2: режим словом и значком</text>
+
+<rect class="ovl" x="566" y="136" width="180" height="26" rx="5"/>
+<text class="q" x="656" y="153" text-anchor="middle">ⓘ как читать · ⚙ Настройка</text>
+
+<!-- колесо 1 -->
+<text class="q b" x="215" y="262" text-anchor="middle">колесо 1 · 6 из 6 на связи</text>
+<circle cx="215" cy="400" r="128" class="lane"/>
+<circle class="rim" cx="215" cy="400" r="105"/>
+<g fill="#fff" stroke="#1d2228" stroke-width="1.4">
+<circle cx="215" cy="295" r="11"/><circle cx="306" cy="347" r="11"/><circle cx="306" cy="452" r="11"/><circle cx="215" cy="505" r="11"/><circle cx="124" cy="452" r="11"/><circle cx="124" cy="347" r="11"/>
+</g>
+<g class="lane"><line x1="215" y1="307" x2="215" y2="345"/><line x1="296" y1="353" x2="262" y2="373"/><line x1="296" y1="446" x2="262" y2="427"/><line x1="215" y1="493" x2="215" y2="455"/><line x1="134" y1="446" x2="168" y2="427"/><line x1="134" y1="353" x2="168" y2="373"/></g>
+<text class="q" x="215" y="370" text-anchor="middle">внутри —</text>
+<text class="q" x="215" y="385" text-anchor="middle">откуда шум</text>
+<text class="q b" x="215" y="410" text-anchor="middle">Σ простых, темп</text>
+<text class="s" x="215" y="426" text-anchor="middle">обороты, поле</text>
+<text class="s" x="32" y="560">снаружи (пунктир) —</text>
+<text class="s" x="32" y="575">куда уходит: шина,</text>
+<text class="s" x="32" y="590">кольцо, спицы, волны</text>
+
+<!-- колесо 2 -->
+<text class="q b" x="565" y="262" text-anchor="middle">колесо 2 · 6 из 6 на связи</text>
+<circle cx="565" cy="400" r="128" class="lane"/>
+<circle class="rim" cx="565" cy="400" r="105"/>
+<g fill="#fff" stroke="#1d2228" stroke-width="1.4">
+<circle cx="565" cy="295" r="11"/><circle cx="656" cy="347" r="11"/><circle cx="656" cy="452" r="11"/><circle cx="565" cy="505" r="11"/><circle cx="474" cy="452" r="11"/><circle cx="474" cy="347" r="11"/>
+</g>
+<g class="lane"><line x1="565" y1="307" x2="565" y2="345"/><line x1="646" y1="353" x2="612" y2="373"/><line x1="646" y1="446" x2="612" y2="427"/><line x1="565" y1="493" x2="565" y2="455"/><line x1="484" y1="446" x2="518" y2="427"/><line x1="484" y1="353" x2="518" y2="373"/></g>
+<text class="q" x="565" y="370" text-anchor="middle">внутри —</text>
+<text class="q" x="565" y="385" text-anchor="middle">откуда шум</text>
+<text class="q b" x="565" y="410" text-anchor="middle">Σ простых, темп</text>
+<text class="s" x="565" y="426" text-anchor="middle">обороты, поле</text>
+
+<!-- дуги -->
+<path class="arcB" d="M300 300 Q390 236 480 300"/>
+<text class="q" x="390" y="256" text-anchor="middle">▶→▼ простые</text>
+<text class="q" x="390" y="240" text-anchor="middle">дуга сверху:</text>
+<path class="arcG" d="M300 500 Q390 564 480 500"/>
+<text class="q" x="390" y="556" text-anchor="middle">дуга снизу:</text>
+<text class="q" x="390" y="571" text-anchor="middle">↺ обратный шум</text>
+
+<!-- между колёсами -->
+<rect class="box" x="346" y="330" width="88" height="40" rx="4"/>
+<text class="q b" x="390" y="347" text-anchor="middle">◆ статика</text>
+<text class="s" x="390" y="362" text-anchor="middle">№8, №9</text>
+<text class="q" x="390" y="394" text-anchor="middle">↔ … мм</text>
+<rect class="box" x="346" y="410" width="88" height="40" rx="4"/>
+<text class="q b" x="390" y="427" text-anchor="middle">⟳ моторы</text>
+<text class="s" x="390" y="442" text-anchor="middle">№10</text>
+
+<!-- нижние углы -->
+<rect class="box" x="166" y="586" width="146" height="44" rx="4"/>
+<text class="q b" x="176" y="603">К1: катушка</text>
+<text class="q" x="176" y="620">выкл · + · −, аккум. %</text>
+<rect class="box" x="600" y="586" width="146" height="44" rx="4"/>
+<text class="q b" x="610" y="603">К2: катушка</text>
+<text class="q" x="610" y="620">выкл · + · −, аккум. %</text>
+<rect class="ovl" x="320" y="590" width="272" height="36" rx="5"/>
+<text class="q" x="456" y="612" text-anchor="middle">сообщения — тают через 12 с</text>
+<rect class="bar" x="32" y="636" width="714" height="26" rx="4"/>
+<text class="q" x="42" y="653">свободные платы: ○ №… ○ №…</text>
+
+<!-- колонка -->
+<rect class="nb" x="762" y="128" width="214" height="540" rx="6"/>
+<text class="s" x="966" y="146" text-anchor="end">⇥ свернуть</text>
+<rect class="box" x="770" y="152" width="198" height="50" rx="4"/>
+<text class="q b" x="780" y="170">◆ статика: вывод</text>
+<text class="t b" x="780" y="192">✓ как эталон</text>
+<g>
+<rect class="nb" x="770" y="210" width="198" height="40" rx="4"/><text class="q" x="778" y="226">№8 ADXL355</text><text class="s" x="778" y="242">СКО, толчки</text>
+<polyline class="spark" points="872,236 882,228 892,240 902,226 912,238 922,230 932,242 942,229 952,236 960,232"/>
+<rect class="nb" x="770" y="256" width="198" height="40" rx="4"/><text class="q" x="778" y="272">№9 телефон</text><text class="s" x="778" y="288">СКО, толчки</text>
+<polyline class="spark" points="872,282 882,276 892,286 902,274 912,284 922,278 932,288 942,275 952,282 960,279"/>
+</g>
+<text class="s" x="770" y="314">график 10 с: колебания ·</text>
+<text class="s" x="770" y="329">спектр · Гаусс; эталон 1/3/5 мин</text>
+<rect class="box" x="770" y="340" width="198" height="268" rx="4"/>
+<text class="q b" x="780" y="358">опыты — таблица значков</text>
+<text class="s" x="780" y="376">● № ⟳ ⇉ ⇄ ⋈ ∿ пр/с °C ◆</text>
+<g stroke="#4a535e" stroke-width="1"><line x1="776" y1="384" x2="962" y2="384"/><line x1="776" y1="408" x2="962" y2="408"/><line x1="776" y1="432" x2="962" y2="432"/><line x1="776" y1="456" x2="962" y2="456"/><line x1="776" y1="480" x2="962" y2="480"/></g>
+<text class="q" x="780" y="401">✓ 1 ■■ выкл ▶▶ ⋈</text>
+<text class="q" x="780" y="425">✓ 2 ⟳⟲ выкл ▶▶ ⋈</text>
+<text class="q" x="780" y="449">▶ 3 ⟳⟲ + + ▶▼ ⋈</text>
+<text class="q" x="780" y="473">→ 4 ■■ + + ▶▼ ⋈</text>
+<text class="s" x="780" y="500">наведение — всё словами</text>
+<text class="s" x="780" y="516">✓ сделан · ✗ испорчен</text>
+<text class="s" x="780" y="532">❗ отклонение статики</text>
+<text class="s" x="780" y="548">→ следующий · · ждёт</text>
+<rect class="nb" x="770" y="616" width="198" height="44" rx="4"/>
+<text class="q b" x="780" y="634">эксперимент</text>
+<text class="s" x="780" y="651">N опытов × повторы, время</text>
+
+<!-- окна -->
+<text class="q b" x="16" y="702">Окна из меню ☰:</text>
+<text class="q" x="122" y="702">✎ Эксперимент · ⚙ Состав и назначения · ⟳ Моторы вручную · ⊙ Калибровка колёс · ⚙ Настройка установки ·</text>
+<text class="q" x="122" y="720">◉ Найти плату · ☰ Разбор результатов · ◆ Статика подробно · ✚ Диагностика · ↻ Как работает · ? Документы</text>
+<text class="s" x="16" y="744">Окно агента — нажатием на агента на схеме; пока открыто окно, схема не движется. Пунктирная рамка — поверх схемы, полупрозрачно.</text>
+<text class="s" x="16" y="760">Числа и значки на рисунке — для примера.</text>
+</svg>

@@ -116,7 +116,6 @@ Licence: MIT ([LICENSE](LICENSE)).
   программа](docs/program.md) · [Групповой режим](docs/group_protocol.md) · [Поглощение](docs/scatter.md) ·
   [Откуда берётся случайность](docs/randomness.md) · [Температура агентов](docs/thermal.md) ·
   [Спецификация и смета](docs/spec.md).
-* Приложения: [А. История изменений](docs/history.md) · [Б. Концепт пульта и наблюдения](docs/ui_concept.md).
 
 Новая плата: подключить по USB — на основном экране «⋯ ещё → ⇪ прошивка» → «прошить по USB» (или
 двойной щелчок по `tools/new_board.cmd`); прошивается по USB один раз, дальше — по Wi-Fi.

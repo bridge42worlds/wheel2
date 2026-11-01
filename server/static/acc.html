@@ -119,7 +119,7 @@ td.r, th.r { text-align:right; }
 <script>
 const PALETTE = ["#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#F0E442", "#7f7f7f"];
 const DASHES = [[], [7, 4], [2, 3], [10, 3, 2, 3]];
-const AX = ["x", "y", "z"];
+const AX = ["вертикаль", "горизонталь"];      // статика считается по тяжести: положение датчика неважно
 // Те же слова и значки, что в ui.js (STATIC_VERDICT, KIND) — планшетка, наблюдение, отчёт говорят одинаково
 const VERDICT = {
   ok: ["✓ как эталон — продолжать", "всё как в эталоне"],
@@ -207,7 +207,7 @@ function renderLegend(d) {
 
 const mid = mac => mac.replace(/:/g, "");
 function cardShell(s) {                       // каркас карточки: график не трогается, пока не придёт новый спектр
-  const ax = axSel[s.mac] ?? 2;
+  const ax = Math.min(axSel[s.mac] ?? 0, AX.length - 1);
   return `<section class="panel card">
     <div class="hd"><span><span class="id">${s.id ? "№" + s.id : "…" + s.mac.slice(-5)}</span> <span class="mut small">${s.id ? esc(s.label || "") + " · …" + s.mac.slice(-5) : "не в реестре"}</span></span>
       <span class="btns">${AX.map((a, i) => `<button class="axbtn${i === ax ? " on" : ""}" data-mac="${s.mac}" data-ax="${i}">${a}</button>`).join("")}</span></div>
@@ -219,29 +219,29 @@ function cardShell(s) {                       // каркас карточки: 
 
 function cardInfo(s) {
   const l = s.last || {}, t = s.tel || {}, acc = t.acc || {}, imu = t.imu || {};
-  const row = (k, f) => `<tr><td class="mut">${k}</td>${[0, 1, 2].map(i => `<td class="r">${f(i)}</td>`).join("")}</tr>`;
+  const row = (k, f) => `<tr><td class="mut">${k}</td>${AX.map((_, i) => `<td class="r">${f(i)}</td>`).join("")}</tr>`;
   const bdev = i => {                          // полосы против эталона, дБ
     if (!l.band_db || !s.base || !s.base.band_mean || !s.base.fits) return "—";
     const d = l.band_db[i].map((v, b) => v - (s.base.band_mean[i][b] ?? v));
     const worst = d.reduce((m, v, b) => Math.abs(v) > Math.abs(m.v) ? { v, b } : m, { v: 0, b: 0 });
     return `${worst.v >= 0 ? "+" : ""}${fmt(worst.v, 1)} дБ <span class="mut">(${esc((last.bands || [])[worst.b] || "")})</span>`;
   };
-  const qtxt = i => {
+  const qtxt = () => {                         // квантование — по осям самого датчика
     if (!l.q) return "—";
-    const q = l.q[i]; let step = 1;
-    q.forEach((v, k) => { if (v > 0.9) step = 2 ** (k + 1); });
-    return step > 1 ? `<span class="bad">кратны ${step}</span>` : `чётных ${fmt(100 * q[0], 0)} %`;
+    return l.q.map((q, i) => { let step = 1; q.forEach((v, k) => { if (v > 0.9) step = 2 ** (k + 1); });
+      return `${"xyz"[i]}: ${step > 1 ? `<span class="bad">кратны ${step}</span>` : `чётных ${fmt(100 * q[0], 0)} %`}`; }).join(" · ");
   };
+  const pose = s.pose ? `лежит: вверх ось ${esc(s.pose.up)} датчика${s.pose.deg >= 1 ? `, наклон ${fmt(s.pose.deg, 0)}°` : ""} · ` : "";
   return `<div class="tw"><table>
       <tr><th></th>${AX.map(a => `<th class="r">${a}</th>`).join("")}</tr>
       ${row("разброс, мкg", i => fmt(l.sd && l.sd[i], 0))}
-      ${row("среднее, мg", i => fmt(l.mean && l.mean[i] / 1000, 2))}
+      ${row("среднее, мg", i => i ? `${fmt(l.mean && l.mean[i] / 1000, 2)} <span class="mut">(наклон)</span>` : fmt(l.mean && l.mean[i] / 1000, 2))}
       ${row("эксцесс", i => fmt(l.kurt && l.kurt[i], 2))}
       ${row("асимметрия", i => fmt(l.skew && l.skew[i], 2))}
-      ${row("квантование", qtxt)}
       ${row("полоса дальше всех от эталона", bdev)}
+      <tr><td class="mut">квантование</td><td class="r" colspan="${AX.length}">${qtxt()}</td></tr>
     </table></div>
-    <div class="small mut" style="margin-top:4px">${fmt(s.fs || s.hz, 2)} Гц · ±${(s.mode || [])[1] ?? acc.afs ?? "?"} g · пропущено отсчётов ${fmt(s.lost, 0)}` +
+    <div class="small mut" style="margin-top:4px">${pose}${fmt(s.fs || s.hz, 2)} Гц · ±${(s.mode || [])[1] ?? acc.afs ?? "?"} g · пропущено отсчётов ${fmt(s.lost, 0)}` +
       `${acc.wait ? ` · ждут отправки ${fmt(acc.wait, 0)}` : ""}${imu.ovf ? ` · <span class="warn">FIFO переполнялся ${imu.ovf}</span>` : ""}` +
       `${imu.err ? ` · <span class="warn">ошибок I2C ${imu.err}</span>` : ""}` +
       `${imu.cfg ? ` · регистры ${imu.cfg.map(v => "0x" + v.toString(16)).join(" ")} / FIFO ${(imu.fifo || []).map(v => "0x" + v.toString(16)).join(" ")}` : ""}` +
@@ -280,7 +280,7 @@ function drawSpectra() {
     if (!el) continue;
     if (typeof uPlot === "undefined") { el.innerHTML = `<div class="empty">библиотека графиков не загрузилась (нужен интернет)</div>`; continue; }
     if (!sp || !sp.f || !sp.f.length) { el.innerHTML = `<div class="empty">спектр появится через 10–20 с</div>`; continue; }
-    const ax = axSel[s.mac] ?? 2, a = sp.axes[ax], hasB = !!a.base;
+    const ax = Math.min(axSel[s.mac] ?? 0, sp.axes.length - 1), a = sp.axes[ax], hasB = !!a.base;
     const marks = sp.f.map(() => null);
     (sp.finds || []).filter(x => x.ax === ax).forEach(x => {
       let k = 0; for (let i = 1; i < sp.f.length; i++) if (Math.abs(sp.f[i] - x.f) < Math.abs(sp.f[k] - x.f)) k = i;
@@ -311,9 +311,9 @@ function drawSpectra() {
 // ---------- графики по времени: все статические ----------
 const TCHARTS = [
   { id: "zmax", title: "Наибольшее отклонение от эталона, z (каждые 10 с)", metric: "s_zmax" },
-  { id: "sdz", title: "Разброс за секунду по z, мкg — толчки видны у всех сразу", metric: "s_sd_z" },
-  { id: "sdx", title: "Разброс за секунду по x, мкg", metric: "s_sd_x" },
-  { id: "kz", title: "Эксцесс по z (форма шума; у гаусса 0)", metric: "s_kurt_z" },
+  { id: "sdz", title: "Разброс за секунду по вертикали, мкg — толчки видны у всех сразу", metric: "s_sd_v" },
+  { id: "sdx", title: "Разброс за секунду по горизонтали, мкg", metric: "s_sd_h" },
+  { id: "kz", title: "Эксцесс по вертикали (форма шума; у гаусса 0)", metric: "s_kurt_v" },
 ];
 const timeTicks = (u, splits) => splits.map(v => new Date(v * 1000).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" }));
 async function renderCharts() {

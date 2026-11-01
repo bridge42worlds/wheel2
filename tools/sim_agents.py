@@ -7,9 +7,12 @@
 
 Агенты шлют телеметрию на 127.0.0.1:<порт> в тех же форматах, что прошивка, и
 принимают команды CFG на своём адресе 127.0.0.x:5007:
-  №1 (127.0.0.1) — с ICM-42688 на ободе: колесо r = 450 мм, обороты ходят
-       35 → 55 → 35 об/мин за 4 минуты (через невесомость 44,6); обороты, k и
-       |f| считает тот же WheelTracker, что в прошивке;
+  №1 (127.0.0.1) — с ICM-42688 на ободе: колесо r = 450 мм, обороты ступенями по 30 с
+       35 → 40 → 44,6 (невесомость) → 50 → 55 → 50 → 44,6 → 40 (за 4 минуты, переход 3 с);
+       гироскоп врёт на +1,2 % (масштаб), у акселерометра смещение нуля (12, −8, 15) мg,
+       шум 4 мg и вибрация 23 Гц 30 мg; обороты, k, форму кривой (пакет imc) считает тот
+       же WheelTracker, что в прошивке — масштаб гироскопа он сам подстраивает по тяжести.
+       Настоящие обороты (для «тахометра») — rpm_at(t) в этом файле;
   №2 (127.0.0.2) — с MLX90393: поле катушки 340 мкТл вдоль трубки плюс поле
        Земли 50 мкТл, вращающееся с колесом;
   три статических №40–42 (127.0.0.3–5, MAC …5a, …5b, …5c) — роль S: 500 Гц (1000 Гц,
@@ -26,7 +29,8 @@
        в телеметрии mot. Катушкой агент становится по составу: место «coil» и колесо.
 Все генераторы, получив run=1, «считают»: простые и кандидаты растут (сообща — медленнее),
 поглотитель (role=1) принимает простые и выпускает кадры; под счётом агент греется к 63 °C,
-стоя — остывает к 46 °C. Новый номер настройки (cid) — счётчики с нуля, как в прошивке.
+стоя — остывает к 46 °C. Новый номер настройки (cid) — счётчики с нуля, кроме остановки (run 1 → 0) с той
+же работой: итоги замирают — как keep_stats в прошивке. Молчание (tl 2) — молчат и пакеты обода и поля.
 """
 import argparse, base64, json, math, os, random, socket, sys, threading, time
 
@@ -48,9 +52,19 @@ stop = threading.Event()
 T_START = time.time()
 
 
+RPM_STEPS = (35.0, 40.0, 44.6, 50.0, 55.0, 50.0, 44.6, 40.0)    # по 30 с: ровные обороты — для калибровки обода
+GYRO_SCALE = 1.012                                 # гироскоп показывает на 1,2 % больше
+ACC_BIAS = (0.012, -0.008, 0.015)                  # смещение нуля акселерометра, g (в осях датчика)
+
+
 def rpm_at(t):
-    ph = (t % 240) / 240
-    return 35 + 20 * (1 - abs(2 * ph - 1))       # 35 → 55 → 35
+    i, x = int(t // 30) % len(RPM_STEPS), t % 30
+    a, b = RPM_STEPS[i - 1], RPM_STEPS[i]
+    return a + (b - a) * min(1.0, x / 3.0)        # переход 3 с, дальше ровно
+
+
+# настройки счёта (как same_work в прошивке): всё, кроме номера, run и параметров «на ходу»
+WORK_KEYS = ("src", "bits", "nb", "all", "td", "mode", "nr", "k", "pre", "cpu", "role", "sm", "sf", "cf", "sh", "bgr")
 
 
 class Agent:
@@ -75,8 +89,13 @@ class Agent:
         now = time.time()
         dt, self.t_cnt = now - self.t_cnt, now
         if self.cfg["cid"] != self.cid_seen:
+            # как keep_stats в прошивке (config.h): остановка (run 1 → 0) с той же работой — итоги замирают, не обнуляются
+            old, new = getattr(self, "cfg_seen", None) or {}, self.cfg
+            same = all(old.get(k) == new.get(k) for k in WORK_KEYS)
+            if not (same and old.get("run") == 1 and new.get("run") == 0):
+                self.n = {k: 0.0 for k in self.n}
             self.cid_seen = self.cfg["cid"]
-            self.n = {k: 0.0 for k in self.n}
+        self.cfg_seen = dict(self.cfg)
         run = self.cfg.get("run") == 1
         if run and self.cfg.get("role") == 1:
             self.n["prx"] += random.uniform(15, 25) * dt
@@ -145,7 +164,7 @@ def run_imu(ag):
     tr = WheelTracker(r_mm=450)
     rot = rot_axis()
     fs, theta, t, nxt = 200, 0.0, 0.0, 1.0
-    revs, samples, raw, n = [], [], [], 0
+    revs, rcs, samples, raw, n = [], [], [], [], 0
     last = time.time()
     while not stop.is_set():
         ag.poll_cmd()
@@ -163,12 +182,16 @@ def run_imu(ag):
             c, s = math.cos(theta), math.sin(theta)
             f_lab = (-w * w * R * c, -w * w * R * s + G, 0.0)
             f_body = [-(f_lab[0] * c + f_lab[1] * s) / G, (-f_lab[0] * s + f_lab[1] * c) / G, 0.0]
-            f = [v + random.gauss(0, 0.004) for v in mul(rot, f_body)]
-            wv = [v + random.gauss(0, 0.002) for v in mul(rot, [0, 0, w])]
+            vib = 0.03 * math.sin(2 * math.pi * 23 * t)              # вибрация колеса
+            f = [v + b + vib * (i == 2) + random.gauss(0, 0.004) for i, (v, b) in enumerate(zip(mul(rot, f_body), ACC_BIAS))]
+            wv = [v * GYRO_SCALE + random.gauss(0, 0.002) for v in mul(rot, [0, 0, w])]
             r = tr.add(f, wv, dt)
             if r:
                 revs.append([round(r["t"], 2), round(r["period"], 4), round(r["rpm"], 3), round(r["k"], 4),
                              round(r["k_r"], 4), round(r["r_mm"], 1), round(r["fmin"], 4), round(r["fmax"], 4)])
+                rcs.append([round(r["t"], 2), round(r["kc"], 4), round(r["a0"], 4), round(r["ph1"], 4),
+                            None if r["eps"] is None else round(r["eps"], 5), round(r["gs"], 5), round(r["h2"], 4),
+                            *[round(x, 4) for x in r["m"]], 1 if r["flat"] else 0])
             n += 1
             if n % 10 == 0:
                 wf = tr.wheel_frame(f)
@@ -185,12 +208,16 @@ def run_imu(ag):
             if ua and tr.radial:
                 p["ax"] = [round(x * 1000) for x in ua]
                 p["rd"] = [round(x * 1000) for x in tr.radial]
-            ag.send(p)
-            q = ag.head("imr")
-            q.update({"alsb": 2048, "glsb": 16.4, "raw": raw[-20:]})
-            ag.send(q)
+            if ag.cfg["tl"] != 2:                    # молчание: как прошивка — пакеты датчика тоже не уходят
+                ag.send(p)
+                q = ag.head("imr")
+                q.update({"alsb": 2048, "glsb": 16.4, "raw": raw[-20:]})
+                ag.send(q)
+                c = ag.head("imc")
+                c.update({"gs": round(tr.gs, 5), "rc": rcs[-6:]})
+                ag.send(c)
             ag.seq += 1
-            revs, samples, raw, n = [], [], [], 0
+            revs, rcs, samples, raw, n = [], [], [], [], 0
 
 
 def run_mag(ag):
@@ -216,7 +243,8 @@ def run_mag(ag):
             p.update({"n": len(buf), "gain": 7, "err": 0, "b": [round(sum(v[i] for v in buf) / len(buf), 2) for i in range(3)],
                       "babs": round(sum(ab) / len(ab), 2), "bmin": round(min(ab), 2), "bmax": round(max(ab), 2),
                       "t": 30.0, "s": [[round(x * 10) for x in v] for v in buf[-20:]]})
-            ag.send(p)
+            if ag.cfg["tl"] != 2:
+                ag.send(p)
             ag.seq += 1
             buf = []
 

@@ -2,7 +2,7 @@
 """Аккумуляторы контуров: INA219 у агента шины колеса или у агента катушки (прошивка: battery.h, docs/wiring.md).
 
 Агент раз в секунду шлёт "bat": {v — напряжение пары 18650, В; i — ток, мА; q — мА·ч с включения агента}.
-Здесь — по каждому агенту с INA219: сглаженные напряжение и ток, израсходовано с установки пары (ток × время;
+Здесь — по каждому агенту с INA219: сглаженные напряжение и ток (и последний замер — v_now, i_now), израсходовано с установки пары (ток × время;
 новая пара — напряжение после перерыва выросло), заряд по напряжению ячейки, сколько осталось при нынешнем токе,
 уровень: ок / пора менять / мало. «Мало» один раз на пару — сигнал серверу поставить программу на паузу.
 Ёмкость пары — заданная (по умолчанию 2500 мА·ч) или измеренная: пара разрядилась от полной до «мало» —
@@ -86,6 +86,8 @@ class Batteries:
                     self.log(f"[bat] {mac}: новая пара, {v:.2f} В")
                 st = self.s[mac] = {"v": v, "i": i, "q": 0.0, "t0": t, "t": t, "vmax": v, "vmin": v,
                                     "alarm": 0, "n": 0}
+            st["v_now"], st["i_now"], st["a"] = v, i, b.get("a")  # последний замер — на экран «сейчас»; адрес модуля
+            st["w"] = b.get("w") or 0                            # 1 — модуль на второй шине I2C агента (D8/D9)
             dt = t - st["t"]
             if 0 < dt <= 10:
                 st["q"] += max(0.0, i) * dt / 3600.0
@@ -105,21 +107,30 @@ class Batteries:
         left_min = left_mah / st["i"] * 60.0 if st["i"] > 20 else None
         level = "low" if st["v"] <= LOW_V else "warn" if st["v"] <= WARN_V or (left_min is not None and left_min < WARN_MIN) else "ok"
         return {"mac": mac, "v": round(st["v"], 3), "i": round(st["i"], 1), "w": round(st["v"] * st["i"] / 1000.0, 2),
+                "v_now": round(st.get("v_now", st["v"]), 3), "i_now": round(st.get("i_now", st["i"]), 1), "a": st.get("a"), "wire": st.get("w", 0),
                 "q": round(st["q"], 1), "soc": round(pct), "cap": cap, "measured": mac in self.measured,
                 "left_min": round(left_min) if left_min is not None else None, "level": level,
                 "age": round(now - st["t"], 1), "since": round(now - st["t0"])}
 
     def state(self, label_fn):
-        """Строки по контурам. label_fn(mac) -> {"label", "wheel", "kind", "id"} — берёт замок сервера, поэтому
+        """Строки по контурам. label_fn(mac, адрес, шина I2C) -> {"label", "wheel", "kind", "id"} — берёт замок сервера, поэтому
         зовётся без своего замка (порядок замков: сервер — потом этот)."""
         now = time.time()
         with self.lock:
             rows = [self._row(m, dict(st), now) for m, st in self.s.items()]
             cap = self.cap
         for r in rows:
-            r.update(label_fn(r["mac"]))
+            r.update(label_fn(r["mac"], r.get("a"), r.get("wire")))
         rows.sort(key=lambda r: (r.get("wheel") or "9", r.get("kind") != "bus", r.get("id") or 999))
         return {"cap": cap, "warn_v": WARN_V, "low_v": LOW_V, "list": rows}
+
+    def addr(self, key):
+        with self.lock:
+            return (self.s.get(key) or {}).get("a")
+
+    def wire(self, key):
+        with self.lock:
+            return (self.s.get(key) or {}).get("w", 0)
 
     def check_low(self):
         """Пары, только что ставшие «мало» (по разу на пару) — для паузы программы: [(mac, v)]."""

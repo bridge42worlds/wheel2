@@ -1,11 +1,12 @@
 #include "prime_log.h"
+#include "psram.h"
 
 namespace plog {
 
 static const size_t RING = 16384;
 struct Head { uint32_t ms; uint16_t nbytes; uint8_t src, pad; };   // 8 байт перед числом
 
-static uint8_t           s_ring[RING];
+static uint8_t*          s_ring = nullptr;     // RING байт — в PSRAM, при первом включении журнала
 static volatile uint32_t s_w = 0, s_r = 0;      // байтовые указатели, растут без остановки (степень двойки)
 static volatile uint32_t s_recs = 0, s_total = 0, s_lost = 0;
 static volatile bool     s_on = false;
@@ -22,6 +23,7 @@ static void get_bytes(uint32_t from, uint8_t* d, size_t n) {
 }
 
 void configure(bool on, uint32_t cid) {
+  if (on && !s_ring) s_ring = (uint8_t*)big_alloc(RING);   // до s_on: push пишет только во включённый
   portENTER_CRITICAL(&s_mux);
   if (cid != s_cid || on != s_on) {
     s_w = s_r = 0;

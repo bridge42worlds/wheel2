@@ -264,6 +264,22 @@ void add_imu(Out& o) {
   add(o, "]");
 }
 
+// Форма кривой за оборот — отдельным пакетом (в imu нет места): t (как у оборота в imu), k по форме, постоянная
+// часть |f|², фаза тяжести, остаток ошибки гироскопа (null — оборот не подряд), поправка масштаба гироскопа,
+// вторая гармоника к первой, среднее ускорение x y z (g), ровный ли оборот
+void add_imc(Out& o) {                          // из того же снимка, что add_imu
+  const ImuAcc& a = s_isnap;
+  add(o, ",\"gs\":%.5f,\"rc\":[", s_wheel.gs());
+  for (int i = 0; i < a.nrev; ++i) {
+    const WheelRev& r = a.rev[i];
+    char e[16];
+    if (isnan(r.eps)) snprintf(e, sizeof e, "null"); else snprintf(e, sizeof e, "%.5f", r.eps);
+    add(o, "%s[%.2f,%.4f,%.4f,%.4f,%s,%.5f,%.4f,%.4f,%.4f,%.4f,%d]", i ? "," : "", r.t, r.kc, r.a0, r.ph1, e, r.gs, r.h2,
+        r.m[0], r.m[1], r.m[2], r.flat ? 1 : 0);
+  }
+  add(o, "]");
+}
+
 void add_imr(Out& o) {                          // из того же снимка, что add_imu
   const ImuAcc& a = s_isnap;
   add(o, ",\"alsb\":%.0f,\"glsb\":%.1f,\"raw\":[", s_imu.accel_lsb(), s_imu.gyro_lsb());

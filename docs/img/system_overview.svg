@@ -1,0 +1,188 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1010" width="1000" height="1010" role="img">
+<title>Как работает установка «Колесо-2»: кто что делает и кто кому что шлёт</title>
+<desc>Функциональная схема установки, не проводка. Вверху — установка на раме. Слева колесо 1: обод — труба с обмоткой катушки, на ободе шесть агентов на шине 5,1 В: №3, №5, №11, №12, №20 и №6; места на ободе условны. У №6 датчик обода ICM-42688 — обороты и k; у №20 магнитометр MLX90393 — поле катушки. В середине колеса — мотор M1 на оси; внутри колеса агенты говорят между собой по ESP-NOW: группа и пульс. Под колесом 1 — агент катушки №13 (роль M): мост DRV8871 питает обмотку обода. Справа колесо 2 с агентами №14–№19 и мотором M2; агента катушки колеса 2 пока нет. Дуга ESP-NOW между колёсами: простые генераторов уходят поглотителям другого колеса, обратно — обратный шум. Между колёсами, неподвижно на раме: №8 — статика, роль S, акселерометр ADXL355, 500 Гц, по центру оси; №9 — телефон, акселерометр и магнитометр; ниже — №10, агент моторов, роль M: два моста DRV8871 от 12 В, провода к моторам M1 и M2. Под установкой — сеть опыта: свой роутер Wi-Fi 2,4 ГГц; все платы и телефон по Wi-Fi, ноутбук-сервер — кабелем. Между сетью и сервером шесть потоков. Вниз к серверу: телеметрия агентов по UDP 5005 — пакеты tel, grp, nbr, imu, mag, acc; телефон — HTTP POST /api/ingest, те же пакеты строками. Вверх к агентам: команды по UDP 5007 — CFG (настройка), MOT (моторы и катушка), OTA, IDENT; маяк сервера всем по UDP 5006 — строка «W2SRV 5005» раз в 2 секунды, по нему агенты находят сервер; образ прошивки по HTTP 8090 — /fw/prime_lab.bin, агент скачивает его по команде OTA. Справа — планшет: основной экран «Установка» в браузере, http://сервер:8090/, страница и /api в обе стороны. Сервер — ноутбук, server/monitor.py, Python 3 без сторонних библиотек, статика — numpy, запуск tools/monitor.cmd. Его части: приём UDP 5005, пакеты как есть в data/raw; простые — primecheck перепроверяет, считает ложные; статика — static_watch: спектр, эталон, тревога; программа — опыты, контроль, итоги; моторы и катушки — motors и coils шлют MOT раз в секунду; калибровка колёс — analysis и rimcal: масштаб гироскопа, радиус, k, тахометр; маяк UDP 5006; команды UDP 5007; HTTP 8090: экран, /api, /api/ingest, /fw. Всё пишется в data/. Условные знаки: телеметрия — синяя сплошная; команды — красно-оранжевый пунктир; маяк — оранжевый штрихпунктир; прошивка — сиреневые длинные штрихи; ESP-NOW — зелёные точки; HTTP планшета — серая толстая; провода к моторам и катушке — чёрная толстая.</desc>
+<defs>
+<marker id="mB" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#0072B2"/></marker>
+<marker id="mV" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#D55E00"/></marker>
+<marker id="mO" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#E69F00"/></marker>
+<marker id="mP" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#CC79A7"/></marker>
+<marker id="mG" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#009E73"/></marker>
+<marker id="mK" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="11" markerHeight="11" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#4a535e"/></marker>
+</defs>
+<style>
+text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d2228}
+.h{font-size:15px;font-weight:600}.t{font-size:13px}.q{font-size:12px}.s{font-size:12px;fill:#4a535e}.b{font-weight:600}
+.box{fill:#fff;stroke:#1d2228;stroke-width:1.3}.nb{fill:#fff;stroke:#4a535e;stroke-width:1}
+.dash{fill:#fff;stroke:#4a535e;stroke-width:1.3;stroke-dasharray:6 4}
+.tel{stroke:#0072B2;stroke-width:2.6;fill:none}
+.cmd{stroke:#D55E00;stroke-width:2.6;fill:none;stroke-dasharray:8 5}
+.bcn{stroke:#E69F00;stroke-width:2.6;fill:none;stroke-dasharray:12 4 2 4}
+.fw{stroke:#CC79A7;stroke-width:3;fill:none;stroke-dasharray:16 5}
+.esp{stroke:#009E73;stroke-width:3;fill:none;stroke-dasharray:1 6;stroke-linecap:round}
+.web{stroke:#4a535e;stroke-width:3.4;fill:none}
+.wire{stroke:#1d2228;stroke-width:3.6;fill:none}
+.rim{fill:none;stroke:#8a929b;stroke-width:12}.coil{fill:none;stroke:#1d2228;stroke-width:12;stroke-dasharray:2 5}
+</style>
+<rect width="1000" height="1010" fill="#ffffff"/>
+<text class="h" x="16" y="28">Как работает установка: кто что делает и кто кому что шлёт</text>
+<text class="s" x="16" y="48">Функциональная схема (провода и питание — на схемах подключения). Все платы — XIAO ESP32-S3 с прошивкой prime_lab;</text>
+<text class="s" x="16" y="64">роль задаёт сервер: ▶ генерация, ▼ поглощение, ◆ статика (S), ⚙ моторы или катушка (M).</text>
+
+<!-- установка -->
+<rect class="nb" x="16" y="76" width="968" height="410" rx="8"/>
+<text class="t b" x="28" y="98">Установка на раме</text>
+<text class="s" x="28" y="114">места агентов на ободе — условно</text>
+
+<!-- колесо 1 -->
+<circle class="rim" cx="250" cy="270" r="125"/><circle class="coil" cx="250" cy="270" r="125"/>
+<circle class="esp" cx="250" cy="270" r="100"/>
+<text class="s" x="250" y="134" text-anchor="middle">обод: труба с обмоткой</text>
+<text class="t b" x="250" y="222" text-anchor="middle">колесо 1</text>
+<text class="q" x="250" y="238" text-anchor="middle">шина 5,1 В, 6 агентов</text>
+<circle cx="250" cy="270" r="17" fill="#fff" stroke="#1d2228" stroke-width="2"/>
+<text class="t b" x="250" y="275" text-anchor="middle">M1</text>
+<text class="q" x="250" y="306" text-anchor="middle">ESP-NOW:</text>
+<text class="q" x="250" y="320" text-anchor="middle">группа, пульс</text>
+<g>
+<rect class="box" x="166" y="151" width="44" height="22" rx="4"/><text class="q b" x="188" y="167" text-anchor="middle">№3</text>
+<rect class="box" x="290" y="151" width="44" height="22" rx="4"/><text class="q b" x="312" y="167" text-anchor="middle">№5</text>
+<rect class="box" x="353" y="259" width="44" height="22" rx="4"/><text class="q b" x="375" y="275" text-anchor="middle">№11</text>
+<rect class="box" x="290" y="367" width="44" height="22" rx="4"/><text class="q b" x="312" y="383" text-anchor="middle">№12</text>
+<rect class="box" x="166" y="367" width="44" height="22" rx="4" style="stroke-width:2.4"/><text class="q b" x="188" y="383" text-anchor="middle">№20</text>
+<rect class="box" x="103" y="259" width="44" height="22" rx="4" style="stroke-width:2.4"/><text class="q b" x="125" y="275" text-anchor="middle">№6</text>
+</g>
+<text class="q b" x="96" y="266" text-anchor="end">ICM-42688</text>
+<text class="s" x="96" y="281" text-anchor="end">обороты, k</text>
+<text class="q b" x="160" y="400" text-anchor="end">MLX90393</text>
+<text class="s" x="160" y="414" text-anchor="end">поле катушки</text>
+
+<!-- катушка К1 -->
+<line class="wire" x1="250" y1="432" x2="250" y2="402"/>
+<rect class="box" x="170" y="432" width="160" height="44" rx="5"/>
+<text class="q b" x="250" y="450" text-anchor="middle">№13 · катушка К1 (M)</text>
+<text class="s" x="250" y="466" text-anchor="middle">мост DRV8871 → обмотка</text>
+
+<!-- колесо 2 -->
+<circle class="rim" cx="750" cy="270" r="125"/><circle class="coil" cx="750" cy="270" r="125"/>
+<circle class="esp" cx="750" cy="270" r="100"/>
+<text class="s" x="750" y="134" text-anchor="middle">обод: труба с обмоткой</text>
+<text class="t b" x="750" y="222" text-anchor="middle">колесо 2</text>
+<text class="q" x="750" y="238" text-anchor="middle">шина 5,1 В, 6 агентов</text>
+<circle cx="750" cy="270" r="17" fill="#fff" stroke="#1d2228" stroke-width="2"/>
+<text class="t b" x="750" y="275" text-anchor="middle">M2</text>
+<text class="q" x="750" y="306" text-anchor="middle">ESP-NOW:</text>
+<text class="q" x="750" y="320" text-anchor="middle">группа, пульс</text>
+<g>
+<rect class="box" x="666" y="151" width="44" height="22" rx="4"/><text class="q b" x="688" y="167" text-anchor="middle">№14</text>
+<rect class="box" x="790" y="151" width="44" height="22" rx="4"/><text class="q b" x="812" y="167" text-anchor="middle">№15</text>
+<rect class="box" x="853" y="259" width="44" height="22" rx="4"/><text class="q b" x="875" y="275" text-anchor="middle">№16</text>
+<rect class="box" x="790" y="367" width="44" height="22" rx="4"/><text class="q b" x="812" y="383" text-anchor="middle">№17</text>
+<rect class="box" x="666" y="367" width="44" height="22" rx="4"/><text class="q b" x="688" y="383" text-anchor="middle">№18</text>
+<rect class="box" x="603" y="259" width="44" height="22" rx="4"/><text class="q b" x="625" y="275" text-anchor="middle">№19</text>
+</g>
+<rect class="dash" x="670" y="432" width="160" height="44" rx="5"/>
+<text class="q b" x="750" y="450" text-anchor="middle">катушка К2</text>
+<text class="s" x="750" y="466" text-anchor="middle">агента катушки пока нет</text>
+
+<!-- ESP-NOW между колёсами -->
+<path class="esp" d="M336 158 Q500 70 664 158" marker-start="url(#mG)" marker-end="url(#mG)"/>
+<text class="q b" x="500" y="140" text-anchor="middle">ESP-NOW между колёсами:</text>
+<text class="q" x="500" y="155" text-anchor="middle">простые → поглотителям,</text>
+<text class="q" x="500" y="170" text-anchor="middle">↺ обратный шум</text>
+
+<!-- статика и телефон -->
+<rect class="box" x="420" y="190" width="160" height="56" rx="5"/>
+<text class="q b" x="500" y="207" text-anchor="middle">№8 · статика (S)</text>
+<text class="q" x="500" y="222" text-anchor="middle">ADXL355, 500 Гц</text>
+<text class="s" x="500" y="237" text-anchor="middle">по центру оси</text>
+<rect class="box" x="415" y="262" width="170" height="56" rx="5"/>
+<text class="q b" x="500" y="279" text-anchor="middle">№9 · телефон</text>
+<text class="q" x="500" y="294" text-anchor="middle">акселерометр и</text>
+<text class="q" x="500" y="309" text-anchor="middle">магнитометр</text>
+<text class="s" x="500" y="345" text-anchor="middle">неподвижно, на раме между колёсами</text>
+<text class="s" x="500" y="360" text-anchor="middle">сами не считают — шлют оси</text>
+
+<!-- моторы -->
+<line class="wire" x1="415" y1="423" x2="263" y2="282"/>
+<line class="wire" x1="585" y1="423" x2="737" y2="282"/>
+<rect class="box" x="415" y="400" width="170" height="46" rx="5"/>
+<text class="q b" x="500" y="418" text-anchor="middle">№10 · моторы (M)</text>
+<text class="s" x="500" y="435" text-anchor="middle">2 моста DRV8871, 12 В</text>
+
+<!-- сеть -->
+<rect x="16" y="498" width="968" height="40" rx="6" fill="#eef1f4" stroke="#4a535e" stroke-width="1.2"/>
+<text class="t" x="500" y="523" text-anchor="middle"><tspan class="b">Сеть опыта:</tspan> свой роутер Wi‑Fi 2,4 ГГц — все платы и телефон по Wi‑Fi, ноутбук-сервер — кабелем</text>
+
+<!-- потоки -->
+<line class="tel" x1="50" y1="542" x2="50" y2="646" marker-end="url(#mB)"/>
+<text class="q b" x="60" y="566">телеметрия</text><text class="q" x="60" y="581">UDP 5005</text>
+<text class="s" x="60" y="596">tel, grp, nbr,</text><text class="s" x="60" y="611">imu, mag, acc</text>
+
+<line class="tel" x1="186" y1="542" x2="186" y2="646" marker-end="url(#mB)"/>
+<text class="q b" x="196" y="566">телефон</text><text class="q" x="196" y="581">HTTP POST</text>
+<text class="s" x="196" y="596">/api/ingest —</text><text class="s" x="196" y="611">те же пакеты</text>
+
+<line class="cmd" x1="322" y1="646" x2="322" y2="542" marker-end="url(#mV)"/>
+<text class="q b" x="332" y="566">команды</text><text class="q" x="332" y="581">UDP 5007</text>
+<text class="s" x="332" y="596">CFG, MOT,</text><text class="s" x="332" y="611">OTA, IDENT</text>
+
+<line class="bcn" x1="458" y1="646" x2="458" y2="542" marker-end="url(#mO)"/>
+<text class="q b" x="468" y="566">маяк — всем</text><text class="q" x="468" y="581">UDP 5006</text>
+<text class="s" x="468" y="596">«W2SRV 5005»</text><text class="s" x="468" y="611">раз в 2 с</text>
+
+<line class="fw" x1="594" y1="646" x2="594" y2="542" marker-end="url(#mP)"/>
+<text class="q b" x="604" y="566">прошивка</text><text class="q" x="604" y="581">HTTP 8090</text>
+<text class="s" x="604" y="596">/fw/prime_lab.bin</text><text class="s" x="604" y="611">по команде OTA</text>
+
+<line class="web" x1="760" y1="542" x2="760" y2="646" marker-start="url(#mK)" marker-end="url(#mK)"/>
+<text class="q b" x="772" y="566">планшет</text><text class="q" x="772" y="581">HTTP 8090:</text>
+<text class="s" x="772" y="596">страница и /api</text>
+
+<!-- сервер -->
+<rect class="box" x="16" y="650" width="690" height="256" rx="8" style="stroke-width:1.8"/>
+<text class="h" x="28" y="674">Ноутбук-сервер · server/monitor.py</text>
+<text class="s" x="28" y="692">Python 3 без сторонних библиотек, статика — numpy; запуск — tools/monitor.cmd</text>
+<g>
+<rect class="nb" x="28" y="704" width="214" height="46" rx="4"/><text class="q b" x="38" y="723">приём · UDP 5005</text><text class="s" x="38" y="740">пакеты как есть → data/raw</text>
+<rect class="nb" x="254" y="704" width="214" height="46" rx="4"/><text class="q b" x="264" y="723">простые · primecheck</text><text class="s" x="264" y="740">перепроверка, ложные</text>
+<rect class="nb" x="480" y="704" width="214" height="46" rx="4"/><text class="q b" x="490" y="723">статика · static_watch</text><text class="s" x="490" y="740">спектр, эталон, тревога</text>
+<rect class="nb" x="28" y="758" width="214" height="46" rx="4"/><text class="q b" x="38" y="777">программа · program</text><text class="s" x="38" y="794">опыты, контроль, итоги</text>
+<rect class="nb" x="254" y="758" width="214" height="46" rx="4"/><text class="q b" x="264" y="777">моторы · motors, coils</text><text class="s" x="264" y="794">MOT раз в секунду</text>
+<rect class="nb" x="480" y="758" width="214" height="46" rx="4"/><text class="q b" x="490" y="777">калибровка · rimcal</text><text class="s" x="490" y="794">гироскоп, радиус, k, тахометр</text>
+<rect class="nb" x="28" y="812" width="214" height="46" rx="4"/><text class="q b" x="38" y="831">маяк · UDP 5006</text><text class="s" x="38" y="848">агенты находят сервер</text>
+<rect class="nb" x="254" y="812" width="214" height="46" rx="4"/><text class="q b" x="264" y="831">команды · UDP 5007</text><text class="s" x="264" y="848">CFG, MOT, OTA, IDENT</text>
+<rect class="nb" x="480" y="812" width="214" height="46" rx="4"/><text class="q b" x="490" y="831">HTTP · 8090</text><text class="s" x="490" y="848">экран, /api, /api/ingest, /fw</text>
+</g>
+<text class="q" x="28" y="880"><tspan class="b">data/</tspan> — сырьё по дням, отсчёты статики, программы и итоги, журнал простых, эталоны</text>
+<text class="s" x="28" y="896">/api/health — самопроверка сервера</text>
+
+<!-- планшет -->
+<rect class="box" x="730" y="650" width="254" height="256" rx="8" style="stroke-width:1.8"/>
+<rect x="742" y="662" width="230" height="170" rx="12" fill="#fff" stroke="#1d2228" stroke-width="2"/>
+<rect x="754" y="674" width="206" height="146" rx="3" fill="#f6f7f9" stroke="#4a535e" stroke-width="1"/>
+<rect x="758" y="678" width="198" height="18" rx="2" fill="#fff" stroke="#4a535e" stroke-width="1"/>
+<text class="q" x="764" y="691">☰ шапка: ▶ запуск · ■ стоп</text>
+<rect x="760" y="702" width="58" height="18" rx="2" fill="#fff" stroke="#4a535e" stroke-width="1"/>
+<text class="s" x="789" y="715" text-anchor="middle">карточка</text>
+<circle cx="796" cy="762" r="30" fill="#fff" stroke="#1d2228" stroke-width="1.6"/><text class="q b" x="796" y="767" text-anchor="middle">К1</text>
+<circle cx="878" cy="762" r="30" fill="#fff" stroke="#1d2228" stroke-width="1.6"/><text class="q b" x="878" y="767" text-anchor="middle">К2</text>
+<text class="s" x="837" y="812" text-anchor="middle">колёса вживую</text>
+<rect x="922" y="702" width="34" height="114" rx="2" fill="#fff" stroke="#4a535e" stroke-width="1"/>
+<text class="s" x="943" y="759" text-anchor="middle" transform="rotate(-90 943 759)">статика · опыты</text>
+<text class="t b" x="857" y="852" text-anchor="middle">основной экран «Установка»</text>
+<text class="q" x="857" y="869" text-anchor="middle">браузер: http://&lt;сервер&gt;:8090/</text>
+<text class="s" x="857" y="885" text-anchor="middle">планшет, телефон или ноутбук</text>
+
+<!-- условные знаки -->
+<text class="q b" x="16" y="936">Условные знаки</text>
+<line class="tel" x1="16" y1="956" x2="52" y2="956"/><text class="q" x="60" y="960">телеметрия</text>
+<line class="cmd" x1="150" y1="956" x2="186" y2="956"/><text class="q" x="194" y="960">команды</text>
+<line class="bcn" x1="270" y1="956" x2="306" y2="956"/><text class="q" x="314" y="960">маяк</text>
+<line class="fw" x1="366" y1="956" x2="402" y2="956"/><text class="q" x="410" y="960">прошивка</text>
+<line class="esp" x1="490" y1="956" x2="526" y2="956"/><text class="q" x="534" y="960">ESP-NOW — платы между собой</text>
+<line class="web" x1="730" y1="956" x2="766" y2="956"/><text class="q" x="774" y="960">HTTP планшета</text>
+<line class="wire" x1="16" y1="984" x2="52" y2="984"/><text class="q" x="60" y="988">провода: мосты → моторы, обмотка</text>
+<rect class="box" x="290" y="976" width="30" height="16" rx="3" style="stroke-width:2.4"/><text class="q" x="328" y="988">агент с датчиком обода</text>
+<rect class="dash" x="510" y="976" width="30" height="16" rx="3"/><text class="q" x="548" y="988">пока нет</text>
+<text class="s" x="640" y="988">порты: 5005 · 5006 · 5007 · 8090</text>
+</svg>

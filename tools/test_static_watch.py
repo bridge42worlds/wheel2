@@ -15,6 +15,10 @@
 7. Шум с выбросами (эксцесс) — «форма шума», «проверить».
 8. Пропуск отсчётов — «пропуск», «повторить».
 9. Без эталона — вывод «нет эталона», толчки всё равно видны.
+10. Показатели для программы: по вертикали и горизонтали.
+11. Положение неважно: эталон с вибрацией пола 30 Гц по вертикали комнаты, потом датчик положили иначе
+    (повернули на 70°) — одно окно «новое положение», дальше «продолжать»: линия осталась на вертикали.
+12. Сдвиг внутри положения (наклон 0,5°) — «сдвиг» один раз, дальше — от нового среднего.
 """
 import base64, math, os, re, shutil, sys, tempfile
 
@@ -41,11 +45,17 @@ class Agent:
     def __init__(self, watch, mac):
         self.w, self.mac, self.i, self.t = watch, mac, 0, 1_000_000.0
 
-    def send(self, seconds, line=None, knock_at=None, quant=None, spikes=0.0, drop=None):
+    def send(self, seconds, line=None, knock_at=None, quant=None, spikes=0.0, drop=None, rot=None, floor=None):
+        """rot — поворот «комната → датчик» (как датчик лежит); floor — (частота, амплитуда) вибрации пола
+        по вертикали комнаты. Остальное — в осях датчика."""
         n = int(seconds * HZ)
         tt = (self.i + np.arange(n)) / HZ
         g = rng.normal(0, SIG, (n, 3))
-        g[:, 2] += 1.0
+        lab = np.zeros((n, 3))
+        lab[:, 2] = 1.0
+        if floor:
+            lab[:, 2] += floor[1] * np.sin(2 * np.pi * floor[0] * tt)
+        g += lab @ (rot if rot is not None else np.eye(3)).T
         if line:
             f, a = line
             g[:, 2] += a * np.sin(2 * np.pi * f * tt)
@@ -160,10 +170,51 @@ try:
 
     print("10. Показатели для программы")
     m = W.metrics(A.t - 60, A.t)[A.mac]
-    check("полосы, разброс, эксцесс", m and "p4_z" in m and "sd_z" in m and "kurt_x" in m,
+    check("полосы, разброс, эксцесс, среднее", m and "p4_v" in m and "sd_h" in m and "kurt_v" in m and "mean_h2" in m,
           ", ".join(f"{k} {v:.1f}" for k, v in list(m.items())[:6]) if m else "нет")
+    check("вертикаль ≈ 1 g", m and abs(m["mean_v"] - 1e6) < 2000, f"{m['mean_v']:.0f} мкg" if m else "")
     sp = W.spectrum(A.mac)
-    check("спектр для графика с эталоном", sp["f"] and "lo" in sp["axes"][2], f"бинов {len(sp['f'])}")
+    check("спектр для графика с эталоном", sp["f"] and "lo" in sp["axes"][0] and len(sp["axes"]) == 2, f"бинов {len(sp['f'])}")
+
+    print("11. Положение неважно: вибрация пола по вертикали комнаты, датчик повернули на 70°")
+    C = Agent(W, "68:ee:8f:00:00:03")
+    FL = (30.0, 400e-6)
+    C.send(30, floor=FL)
+    W.rec = {"t0": C.t, "t1": C.t + 180, "minutes": 3, "macs": [C.mac], "busy": []}
+    C.send(185, floor=FL)
+    W.tick(C.t + 5)
+    check("эталон записан (вертикаль — ось z датчика)", W.sensors[C.mac].base is not None and
+          (W.sensors[C.mac].base.get("pose") or {}).get("up") == "+z", str((W.sensors[C.mac].base or {}).get("pose")))
+    ax = np.array([1.0, 1.0, 0.3]) / np.linalg.norm([1.0, 1.0, 0.3])
+    th = math.radians(70)
+    K = np.array([[0, -ax[2], ax[1]], [ax[2], 0, -ax[0]], [-ax[1], ax[0], 0]])
+    ROT = np.eye(3) + math.sin(th) * K + (1 - math.cos(th)) * K @ K
+    t0 = C.t
+    C.send(20, floor=FL, rot=ROT)
+    v = W.verdict(t0, C.t, [C.mac])
+    rs = v["sensors"].get(C.mac, {}).get("reasons", [])
+    check("переложили — одно окно «повторить», новое положение", v["verdict"] == "repeat" and any("положили иначе" in r for r in rs),
+          v["verdict"] + " " + "; ".join(rs)[:160])
+    t0 = C.t
+    C.send(90, floor=FL, rot=ROT)
+    v = W.verdict(t0, C.t, [C.mac])
+    rs = v["sensors"].get(C.mac, {}).get("reasons", [])
+    check("дальше «продолжать»: линия 30 Гц та же, на вертикали", v["verdict"] == "ok", v["verdict"] + " " + "; ".join(rs)[:200])
+    st = next(x for x in W.summary()["sensors"] if x["mac"] == C.mac)
+    check("видно, как лежит", st.get("pose") and st["pose"]["deg"] > 30, str(st.get("pose")))
+
+    print("12. Сдвиг внутри положения: наклон 0,5°")
+    t2 = math.radians(0.5)
+    TILT = np.array([[1, 0, 0], [0, math.cos(t2), -math.sin(t2)], [0, math.sin(t2), math.cos(t2)]])
+    t0 = C.t
+    C.send(30, floor=FL, rot=ROT @ TILT)
+    v = W.verdict(t0, C.t, [C.mac])
+    rs = v["sensors"].get(C.mac, {}).get("reasons", [])
+    check("«сдвиг» — повторить", v["verdict"] == "repeat" and any("сдвинули" in r for r in rs), v["verdict"] + " " + "; ".join(rs)[:160])
+    t0 = C.t
+    C.send(60, floor=FL, rot=ROT @ TILT)
+    v = W.verdict(t0, C.t, [C.mac])
+    check("дальше — от нового среднего, «продолжать»", v["verdict"] == "ok", v["verdict"])
 finally:
     for fs in W.files.values():
         for h in fs:

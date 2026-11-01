@@ -27,7 +27,7 @@
     --data DIR     другая папка данных (проверка на имитации: tools/sim_agents.py)
     --no-beacon    без маяка — настоящие агенты такой сервер не найдут
 """
-import argparse, hashlib, hmac, math, csv, json, os, queue, random, re, shutil, socket, subprocess, sys, threading, time
+import argparse, hashlib, hmac, io, math, csv, json, os, queue, random, re, shutil, socket, subprocess, sys, threading, time
 from collections import deque
 from datetime import datetime
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -39,6 +39,8 @@ from agent_rating import Ratings
 from motors import Motors
 from coils import Coils
 from battery import Batteries
+from rimcal import RimCal
+from analysis import G as G_STD, gyro_eps, rim_fit
 from primecheck import BASES, is_probable_prime, Pool as PrimePool
 try:
     from static_watch import Watch
@@ -151,14 +153,15 @@ OPTIONS = {"bits": [32, 64, 128, 256, 512, 1024, 2048], "nb_max": len(BASES), "b
 DEFAULT_CFG = {"src": 1, "bits": 256, "nb": 8, "all": 0, "td": 1000, "tmax": 73, "mode": 0, "nr": 1,
                "k": 24, "pre": 1, "tp": 1000, "cpu": 240, "txp": 20, "ping": 100, "led": 1,
                "role": 0, "sm": 1, "sf": 0, "cf": 0, "sh": 0, "bgr": 0, "tl": 0, "tq": 0, "rmm": 450, "afs": 2,
-               "avg": 2, "pl": 0, "dc": 0, "gv": 0, "rk": 1, "pw": 0, "raw": 0, "hb": 1, "dur": 0, "ro": 0}
+               "avg": 2, "pl": 0, "dc": 0, "gv": 0, "rk": 1, "pw": 0, "raw": 0, "hb": 1, "dur": 0, "ro": 0,
+               "ba": []}
 # Свои у каждого агента (не задано — как общие).
-OWN_KEYS = ("src", "raw", "tmax", "txp", "cpu", "ping", "led", "role", "sf", "tl", "rmm", "afs", "avg")
+OWN_KEYS = ("src", "raw", "tmax", "txp", "cpu", "ping", "led", "role", "sf", "tl", "rmm", "afs", "avg", "ba")
 # Меняются на ходу: номер настройки прежний, счёт не обнуляется.
 SOFT_KEYS = ("tmax", "txp", "ping", "hb", "led", "tp", "tl", "tq", "rmm", "afs", "avg", "pl", "dur", "ro")
 # Всё остальное — «работа»: смена даёт новый номер, счёт с нуля (в группе — у всех).
 HARD_KEYS = ("src", "bits", "nb", "all", "td", "mode", "nr", "k", "pre", "cpu", "run", "grp", "gm",
-             "role", "sm", "sf", "cf", "sh", "bgr", "bg", "bm", "dc", "gv", "rk", "pw", "raw")
+             "role", "sm", "sf", "cf", "sh", "bgr", "bg", "bm", "ba", "dc", "gv", "rk", "pw", "raw")
 SCAT_KEYS = ("role", "sm", "sf", "cf", "sh", "bgr", "ann", "adrop", "heard", "prx", "stx", "sdrop", "swait",
              "chs", "chf", "chd", "slat", "sn", "sbg", "bclost", "rxdrop")
 
@@ -179,7 +182,9 @@ def load_registry():
     reg = {}
     if os.path.exists(REGISTRY):
         for r in csv.DictReader(open(REGISTRY, encoding="utf-8")):
-            reg[r["mac"].strip().lower()] = {"id": int(r["id"]), "label": r["label"], "role": r.get("role", "")}
+            reg[r["mac"].strip().lower()] = {"id": int(r["id"]), "label": r["label"], "role": r.get("role", ""),
+                                             "chip": r.get("chip", ""), "added": r.get("added", ""),
+                                             "notes": r.get("notes") or ""}
     return reg
 
 
@@ -265,7 +270,7 @@ def derive(a, p):
         out["g_us_cand"] = out["g_us_ent"] + out["g_us_td"] + out["g_us_mr"]
     if d("tpn") > 0:
         out["g_ms_prime"] = d("tps") / d("tpn") / 1000.0
-    for k in ("ann", "prx", "stx", "heard", "sdrop", "sbg"):   # рассеяние: штук в секунду
+    for k in ("ann", "adrop", "prx", "stx", "heard", "sdrop", "sbg"):   # рассеяние: штук в секунду (adrop — простые, не ушедшие поглотителям)
         if k in p:
             out[f"g_{k}_s"] = d(k) / dt
     if d("sn") > 0:
@@ -494,6 +499,8 @@ def ingest(t, ip, text, live=False):
                 resend = (cfg_line(want), ip)
         if isinstance(p.get("bat"), dict):          # аккумуляторы контура (INA219): шина колеса или катушка
             batteries.ingest(mac, p["bat"], t)
+        if isinstance(p.get("bat2"), dict):         # второй INA219 того же агента (у агента катушки — шина колеса)
+            batteries.ingest(mac + "#2", p["bat2"], t)
         recent.setdefault(mac, deque(maxlen=RECENT_LEN)).append({"rx": tt, **p})
     if resend:
         send_line(*resend)
@@ -521,17 +528,59 @@ def ingest_imu(a, mac, p, tt):
         for r in revs:
             ts = round(tt - (t_last - r[0]), 3)    # конец оборота по часам сервера
             rev = dict(zip(("t_agent", "period", "rpm", "k", "k_r", "r_mm", "fmin", "fmax"), r), ts=ts)
+            if rev.get("period"):
+                rev["w"] = 2 * math.pi / rev["period"]
             a["wrevs"].append(rev)
             for key, v in (("w_rpm", r[2]), ("w_k", r[3]), ("w_kr", r[4]), ("w_r", r[5]),
                            ("w_fmin", r[6]), ("w_fmax", r[7])):
                 put(mac, key, ts, v)
         a["imu"]["last_rev"] = a["wrevs"][-1]
+        imc_merge(a, mac)                  # форма кривой могла прийти раньше оборотов
+    a["imu"]["gs"] = (a.get("imc") or {}).get("gs")
     put(mac, "w_rpm_now", tt, round((p.get("w") or 0) * 60 / (2 * math.pi), 3))
     s_ = p.get("s") or []                # к центру, по ходу, вдоль оси, |f| — мg, 20 Гц
     for i, v in enumerate(s_):
         ts = round(tt - (len(s_) - 1 - i) * 0.05, 3)
         for key, x in zip(("w_ar", "w_at", "w_aa", "w_am"), v):
             put(mac, key, ts, x / 1000.0, SENSOR_LEN)
+
+
+IMC_KEYS = ("t_agent", "kc", "a0", "ph1", "eps", "gs", "h2", "mx", "my", "mz", "flat")
+
+
+def ingest_imc(a, mac, p, tt):
+    """Форма кривой за оборот (прошивка с 29.10.2026): k по форме |f|², фаза тяжести, ошибка и поправка масштаба
+    гироскопа, вторая гармоника, среднее по осям датчика. Приходит после imu того же снимка — к его оборотам
+    (по времени агента); что не нашло пары — ждёт следующего imu."""
+    a["imc"] = {"gs": p.get("gs"), "t_rx": tt}
+    pend = a.setdefault("imc_pend", deque(maxlen=24))
+    for r in p.get("rc") or []:
+        if len(r) >= len(IMC_KEYS):
+            pend.append(dict(zip(IMC_KEYS, r)))
+    imc_merge(a, mac)
+    if a.get("imu") is not None:
+        a["imu"]["gs"] = p.get("gs")
+
+
+def imc_merge(a, mac):
+    """Ждущие строки формы кривой — в обороты wrevs с тем же временем агента (%.2f с — допуск 6 мс)."""
+    pend, revs = a.get("imc_pend"), a.get("wrevs")
+    if not pend or not revs:
+        return
+    tail = list(revs)[-24:]
+    left = deque(maxlen=pend.maxlen)
+    for c in pend:
+        rev = next((r for r in reversed(tail) if abs(r["t_agent"] - c["t_agent"]) < 0.006), None)
+        if rev is None:
+            if tail and c["t_agent"] > tail[-1]["t_agent"]:
+                left.append(c)                   # оборот ещё не пришёл
+            continue
+        rev.update(kc=c["kc"], a0=c["a0"], ph1=c["ph1"], eps=c["eps"], gs=c["gs"], h2=c["h2"],
+                   m=(c["mx"], c["my"], c["mz"]), flat=bool(c["flat"]))
+        for key, v in (("w_kc", c["kc"]), ("w_gs", c["gs"]), ("w_eps", c["eps"])):
+            if v is not None:
+                put(mac, key, rev["ts"], v)
+    a["imc_pend"] = left
 
 
 def ingest_imr(a, mac, p, tt):
@@ -553,6 +602,10 @@ def ingest_mag(a, mac, p, tt):
     for key in ("babs", "bmin", "bmax", "gain"):
         if p.get(key) is not None:
             put(mac, "m_" + key, tt, p[key])
+    if p.get("bmin") is not None and p.get("bmax") is not None and b[0] is not None:   # MLX90393 на колесе — поле катушки по датчику
+        c = compose_state()
+        if c["wheels"].get(mac) and c["slot"].get(mac) not in ("S", "coil"):
+            coils.field_sample(c["wheels"][mac], mac, b, p["bmax"] - p["bmin"], tt)
     s_ = p.get("s") or []                # мкТл × div
     keep = int(hz * MAG_KEEP_S)
     ring = a.get("mag_s")
@@ -666,7 +719,7 @@ def field_live(mac, sec=60.0, since=None):
     return res
 
 
-SENSOR_INGEST = {"imu": ingest_imu, "imr": ingest_imr, "mag": ingest_mag}
+SENSOR_INGEST = {"imu": ingest_imu, "imr": ingest_imr, "imc": ingest_imc, "mag": ingest_mag}
 
 
 def ingest_acc(t, ip, text):
@@ -1002,7 +1055,8 @@ def cfg_line(c):
             f" dc={c.get('dc', 0)} gv={c.get('gv', 0)} rk={c.get('rk', 1)} pw={c.get('pw', 0)} raw={c.get('raw', 0)}"
             f" dur={c.get('dur', 0)} ro={c.get('ro', 0)}"                 # шаг на агенте: длительность, радио выкл
             f" bg={','.join(str(i) for i in c.get('bg', []))}"          # сет B — всегда, пустой тоже:
-            f" bm={','.join(m.replace(':', '') for m in c.get('bm', []))}")   # иначе агент помнит старый
+            f" bm={','.join(m.replace(':', '') for m in c.get('bm', []))}"   # иначе агент помнит старый
+            f" ba={','.join(str(i) for i in c.get('ba', []))}")          # чьи простые поглощать (пусто — всех)
     if c.get("mode") == 1:
         line += " grp=" + ",".join(str(i) for i in c.get("grp") or [])   # пусто — стоп без группы
         if c.get("gm"):                    # MAC участников: агенты узнают о новых без перепрошивки
@@ -1032,7 +1086,10 @@ def validate_cfg(c):
                "afs": int(c.get("afs", 2)), "avg": int(c.get("avg", 2)), "pl": 1 if c.get("pl", 0) else 0,
                "dc": 1 if c.get("dc", 0) else 0,
                "gv": int(c.get("gv", 0)), "rk": int(c.get("rk", 1)), "pw": int(c.get("pw", 0)),
-               "raw": int(c.get("raw", 0))}
+               "raw": int(c.get("raw", 0)),
+               # сет B: чьи простые поглощать — номера генераторов (пусто — всех); «3,5» или [3, 5]
+               "ba": sorted({int(x) for x in (str(c.get("ba")).split(",") if isinstance(c.get("ba"), str)
+                                              else c.get("ba") or []) if str(x).strip()})}
     except (KeyError, TypeError, ValueError):
         raise ValueError("нужны поля src, bits, nb, td")
     if not 40 <= out["tmax"] <= 75:
@@ -1057,6 +1114,8 @@ def validate_cfg(c):
         raise ValueError("простых за ход от 1 до 16")
     if not 0 <= out["pw"] <= 5000:
         raise ValueError("ожидание кусочков от 0 (ждать всех) до 5000 мс")
+    if any(not 1 <= i <= 63 for i in out["ba"]):
+        raise ValueError("ba — номера генераторов от 1 до 63")
     if out["raw"] not in (0, 1, 2):
         raise ValueError("шум: 0 — с хешем, 1 — без хеша, 2 — без хеша с выравниванием фон Неймана")
     if out["cpu"] not in (80, 160, 240):
@@ -1120,14 +1179,16 @@ def soft_mismatch(want, p):
     return any(p.get(k) is not None and p.get(k) != want.get(k, DEFAULT_CFG[k]) for k in SOFT_KEYS)
 
 
-def apply_control(targets, cfg, own=None, force=False, remember=True, label=None):
+def apply_control(targets, cfg, own=None, force=False, remember=True, label=None, keep_own=True):
     """Настройки выбранным агентам: общие + свои у каждого. Возвращает номер (cid).
 
     Номер новый, если сменилось что-то кроме параметров «на ходу» (или force —
     «сбросить счётчики»); в группе номер один на всех участников. Сменились
     только параметры «на ходу» — номер прежний, агент применит их без сброса счёта.
     remember — запомнить как «общие» формы (составы этого не делают: у каждой группы свои);
-    label — подпись запуска в журнале опытов (например «группа 1 · эстафета»)."""
+    label — подпись запуска в журнале опытов (например «группа 1 · эстафета»);
+    keep_own=False — свои параметры только на этот раз, не запоминать (молчание на исполнении опыта: иначе
+    «tl 2» оставалось бы у агентов в своих, и следующий опыт они начинали бы молча — номер не подтвердить)."""
     cfg = validate_cfg(cfg)
     sends = []
     with lock:
@@ -1135,10 +1196,16 @@ def apply_control(targets, cfg, own=None, force=False, remember=True, label=None
             own = control.get("own") or {}
         else:                                      # свои параметры дополняют прежние (не стирают остальных агентов);
             cleared = [m.lower() for m, d in own.items() if not d]   # пустые {} — снять свои у этого агента
-            merged = {**(control.get("own") or {}), **validate_own(own)}
+            base = control.get("own") or {}
+            if keep_own:                           # у агента его свои заменяются целиком
+                merged = {**base, **validate_own(own)}
+            else:                                  # на этот раз: поверх запомненных своих, по ключам
+                merged = {**base, **{m: {**base.get(m, {}), **d} for m, d in validate_own(own).items()}}
             for m in cleared:
                 merged.pop(m, None)
-            control["own"] = own = merged
+            if keep_own:
+                control["own"] = merged
+            own = merged
         if remember:
             control["common"] = {k: v for k, v in cfg.items() if k != "run"}
         if targets == "all":
@@ -1246,7 +1313,7 @@ PRESET_BY_KEY = {p["key"]: p for p in PRESETS}
 QUENCH_CFG = {"mode": 0, "gv": 0, "dc": 0, "sm": 1, "sh": 1, "bgr": 50, "run": 1}   # все — рассеяние: свой шум в эфир
 STANDBY_CFG = {"run": 0, "cpu": 80, "led": 0}                                         # стоять и остывать
 SLOTS = ["idle"] + [f"{g}{r}" for g in "1234" for r in "AB"] + ["S", "coil"]   # coil — агент M катушки колеса (wheels)
-# Свои параметры группы поверх набора (пульт, docs/ui_concept.md): что ищем, шум, проверка, связь, тепло, журнал.
+# Свои параметры группы поверх набора (пульт): что ищем, шум, проверка, связь, тепло, журнал.
 GROUP_CFG_KEYS = ("bits", "nb", "all", "td", "src", "raw", "dc", "rk", "pw", "k", "pre", "nr", "txp", "cpu", "tmax", "pl",
                   "sm", "sh", "bgr", "sf", "cf")
 GROUP_KEYS = "1234"
@@ -1487,6 +1554,11 @@ def server_ip_for(agent_ip):
     return (same or ips or ["127.0.0.1"])[0]
 
 
+# Загрузке прошивки нужна свободная внутренняя память: 28.10.2026 у №6 и №20 (датчики обода, без PSRAM) было 43 КБ —
+# загрузка съела её до 9 КБ и оборвалась, после чего агент (36 КБ) отказывал «low heap»; при 48 КБ проходила.
+OTA_HEAP_MIN = 45000
+
+
 def ota_start(targets, force=False):
     """Разослать выбранным агентам (на связи) подписанную команду прошиться по Wi-Fi. Сначала всем — стоять."""
     if session_active["s"] is not None or runner.active:
@@ -1505,6 +1577,7 @@ def ota_start(targets, force=False):
         else:
             macs = [m.lower() for m in targets if m.lower() in agents and agents[m.lower()]["ip"]]
         todo = [(m, agents[m]["ip"], agents[m]["fw"], agents[m].get("ota")) for m in macs]
+        heap = {m: (agents[m].get("values") or {}).get("heap") for m in macs}
     if not todo:
         raise ValueError("нет агентов на связи")
     apply_control([m for m, _, _, _ in todo], {**(control.get("common") or DEFAULT_CFG), "run": 0})
@@ -1519,6 +1592,10 @@ def ota_start(targets, force=False):
             continue
         if ota and ota[1]:
             skipped[m] = "прошлая прошивка ещё не подтверждена — подождите минуту"
+            continue
+        if heap.get(m) and heap[m] < OTA_HEAP_MIN and not force:
+            skipped[m] = (f"мало памяти: {heap[m] // 1024} КБ свободно — загрузка оборвётся (нужно от "
+                          f"{OTA_HEAP_MIN // 1024}); прошить по USB")
             continue
         url = f"http://{server_ip_for(ip)}:{HTTP_PORT}/fw/prime_lab.bin"
         msg = f"{url}|{fw['md5']}|{fw['size']}|{fw['version']}|{t}"
@@ -1582,6 +1659,175 @@ def usb_done(res, err):
         f.write(json.dumps({"t": round(time.time(), 3), "usb_flash": [{"port": p, "mac": m, "id": i} for p, m, i in res or []],
                             "error": err}, ensure_ascii=False) + "\n")
     print(f"[usb] {'прошиты: ' + ', '.join(f'№{i} {p}' for p, _, i in res) if res else 'ошибка: ' + str(err)}", flush=True)
+
+
+# ---------------- состав и назначения: все платы реестра ----------------
+# Окно «Состав и назначения» на основном экране: каждая плата реестра (и незаписанные, что выходили на связь) — где
+# стоит, на связи ли и когда была последний раз, с какой прошивкой, на USB ли сейчас. Когда плата была на связи и с
+# какой прошивкой, сервер помнит и после перезапуска (fleet.json в папке данных, раз в 30 с). Убрать из списка — роль
+# retired в реестре: строка остаётся, плату можно вернуть; её место в составе освобождается.
+FLEET = {}                  # mac -> {"t": когда последний раз на связи, "fw", "kind", "id"}
+
+
+def fleet_path():
+    return os.path.join(DATA, "fleet.json")
+
+
+def fleet_load():
+    try:
+        FLEET.update(json.load(open(fleet_path(), encoding="utf-8")))
+    except (OSError, ValueError):
+        pass
+
+
+def fleet_seed():
+    """Кого нет в памяти (первый запуск, новая плата): когда плата реестра была на связи и с какой прошивкой — из
+    сырых журналов, от свежих дней к старым, каждый день — с конца кусками по 8 МБ, всего не больше 1,5 ГБ."""
+    rx_re, mac_re = re.compile(r'"rx": ([\d.]+)'), re.compile(r'\\"mac\\":\\"([0-9a-f:]{17})\\"')
+    fw_re = re.compile(r'\\"fw\\":\\"([^\\"]+)\\"')
+    with lock:
+        need = set(REG) - set(FLEET)
+    try:
+        days = sorted((f for f in os.listdir(RAW_DIR) if f.endswith(".jsonl")), reverse=True)[:30]
+    except OSError:
+        return
+    budget, CH = 1_500_000_000, 8_000_000
+    for name in days:
+        path = os.path.join(RAW_DIR, name)
+        try:
+            end = os.path.getsize(path)
+        except OSError:
+            continue
+        with open(path, "rb") as f:
+            while need and end > 0 and budget > 0:
+                start = max(0, end - CH)
+                f.seek(start)
+                buf = f.read(end - start)
+                budget -= len(buf)
+                cut = buf.find(b"\n") + 1 if start else 0           # первая строка куска обрезана — её дочитает следующий
+                for line in reversed(buf[cut:].decode("utf-8", "replace").splitlines()):
+                    m = mac_re.search(line)
+                    if not m or m.group(1) not in need:
+                        continue
+                    r, w = rx_re.search(line), fw_re.search(line)
+                    if r and w:
+                        with lock:
+                            FLEET[m.group(1)] = {"t": round(float(r.group(1)), 1), "fw": w.group(1), "kind": "",
+                                                 "id": (REG.get(m.group(1)) or {}).get("id", 0)}
+                        need.discard(m.group(1))
+                end = start + cut
+        if not need or budget <= 0:
+            break
+    print(f"[fleet] из журналов: когда были на связи — {len(FLEET)} плат", flush=True)
+
+
+def fleet_ticker():
+    with lock:
+        REG_MTIME[1] = 0.0
+        refresh_registry()                             # без пакетов агентов реестр ещё не прочитан
+        missing = bool(set(REG) - set(FLEET))
+    if missing:                                        # кого в памяти нет — поискать в журналах (раз при запуске)
+        try:
+            fleet_seed()
+        except Exception as e:                         # noqa: BLE001
+            print(f"[fleet] журналы не прочитаны: {e}", flush=True)
+    while True:
+        time.sleep(30)
+        try:
+            with lock:
+                for m, a in agents.items():
+                    if a["last"]:
+                        f = FLEET.get(m) or {}
+                        FLEET[m] = {"t": round(a["last"], 1), "fw": a["fw"] or f.get("fw", ""),
+                                    "kind": a.get("kind") or f.get("kind", ""), "id": a["id"]}
+                snap = dict(FLEET)
+            os.makedirs(DATA, exist_ok=True)
+            tmp = fleet_path() + ".tmp"
+            with open(tmp, "w", encoding="utf-8") as f:
+                json.dump(snap, f, ensure_ascii=False)
+            replace_retry(tmp, fleet_path())
+        except Exception as e:                         # noqa: BLE001
+            print(f"[fleet] не записал: {e}", flush=True)
+
+
+def fleet_brief():
+    now = time.time()
+    fw = fw_info() or {}
+    with lock:
+        refresh_registry()
+        c = compose_state()
+        on_usb = {m: p for p, m in usb["boards"] if m}
+        out = []
+        for m in set(REG) | set(agents):
+            r, a, f = REG.get(m) or {}, agents.get(m), FLEET.get(m) or {}
+            last = (a or {}).get("last") or f.get("t")
+            v, g = (a or {}).get("values") or {}, (a or {}).get("gen") or {}
+            out.append({"mac": m, "id": r.get("id") or (a or {}).get("id") or 0, "label": r.get("label", ""),
+                        "registered": bool(r), "retired": r.get("role") == "retired", "chip": r.get("chip", ""),
+                        "added": r.get("added", ""), "notes": r.get("notes", ""),
+                        "online": bool(a and a["last"] and now - a["last"] < 10),
+                        "since_start": bool(a and a["last"]),         # выходила на связь после запуска сервера
+                        "last": round(last, 1) if last else None, "age": round(now - last, 1) if last else None,
+                        "fw": (a or {}).get("fw") or f.get("fw", ""), "kind": (a or {}).get("kind") or f.get("kind", ""),
+                        "wheel": c["wheels"].get(m, ""), "slot": c["slot"].get(m, ""),
+                        "temp": v.get("temp"), "rssi": v.get("rssi"), "net": g.get("net"), "usb": on_usb.get(m),
+                        "heap": v.get("heap"), "hblk": v.get("hblk"), "ps": v.get("ps")})
+    out.sort(key=lambda x: (x["id"] or 999, x["mac"]))
+    return {"time": round(now, 1), "fw": fw.get("version"), "heap_min": OTA_HEAP_MIN, "agents": out}
+
+
+def registry_role(mac, role, note):
+    """Роль платы в реестре (retired — убрана из списка, bench / static — вернуть) и заметка с датой. Правится только
+    её строка: остальные строки файла остаются как были."""
+    text = open(REGISTRY, encoding="utf-8", newline="").read()
+    nl = "\r\n" if "\r\n" in text else "\n"
+    lines = text.split(nl)
+    for k in range(1, len(lines)):
+        if not lines[k].strip():
+            continue
+        row = next(csv.reader([lines[k]]))
+        if len(row) > 1 and row[1].strip().lower() == mac:
+            row += [""] * (8 - len(row))
+            row[4] = role
+            row[7] = (row[7] + "; " if row[7] else "") + note
+            buf = io.StringIO()
+            csv.writer(buf, lineterminator="").writerow(row)
+            lines[k] = buf.getvalue()
+            break
+    else:
+        raise ValueError("этой платы нет в реестре")
+    tmp = REGISTRY + ".tmp"
+    with open(tmp, "w", encoding="utf-8", newline="") as f:
+        f.write(nl.join(lines))
+    replace_retry(tmp, REGISTRY)
+
+
+def fleet_action(body):
+    """POST /api/fleet {mac, action: retire | restore}."""
+    mac, act = str(body.get("mac", "")).lower(), body.get("action")
+    day = datetime.now().strftime("%d.%m.%Y")
+    with lock:
+        r = REG.get(mac)
+    if not r:
+        raise ValueError("этой платы нет в реестре")
+    if act == "retire":
+        why = str(body.get("why") or "").replace("\n", " ")[:120]
+        registry_role(mac, "retired", f"убрана из списка {day} с планшетки" + (f": {why}" if why else ""))
+        with lock:
+            c = compose_state()
+            for k in ("wheels", "slot", "sub"):
+                c[k].pop(mac, None)
+            save_control()
+        print(f"[fleet] №{r['id']} убрана из списка", flush=True)
+    elif act == "restore":
+        registry_role(mac, "static" if r.get("chip") == "Android" else "bench", f"возвращена {day}")
+        print(f"[fleet] №{r['id']} возвращена в список", flush=True)
+    else:
+        raise ValueError("action: retire или restore")
+    with lock:
+        REG_MTIME[1] = 0.0                             # перечитать реестр сейчас, а не через 5 с
+        refresh_registry()
+    return fleet_brief()
 
 
 # ---------------- отдых по очереди (docs/thermal.md, § 4.3) ----------------
@@ -1716,15 +1962,17 @@ def rest_tick():
 
 
 batteries = Batteries(lambda: os.path.join(DATA, "battery.json"), log=lambda text: print(text, flush=True))
+rimcal = RimCal(lambda: os.path.join(DATA, "rim_cal.json"), log=lambda text: print(text, flush=True))
 
 
-rig = {"gap_cm": None, "t": None, "hist": []}      # установка руками: расстояние между колёсами, см, и его история
+rig = {"gap_cm": None, "t": None, "hist": [], "radius": {}, "swap": False}   # установка руками: расстояние между колёсами, см, радиусы агентов, мм, колесо 1 на мосту b; история
 
 
 def rig_load():
     try:
         d = json.load(open(RIG_FILE, encoding="utf-8"))
-        rig.update(gap_cm=d.get("gap_cm"), t=d.get("t"), hist=d.get("hist") or [])
+        rig.update(gap_cm=d.get("gap_cm"), t=d.get("t"), hist=d.get("hist") or [], radius=d.get("radius") or {},
+                   swap=bool(d.get("swap")))
     except (OSError, ValueError):
         pass
 
@@ -1744,19 +1992,95 @@ def rig_set(gap):
     print(f"[rig] расстояние между колёсами: {was} → {g} см", flush=True)
 
 
+def rig_radius_set(radius):
+    """Радиусы агентов на колесе, мм — линейкой от оси до датчика (чипа) агента: {mac: мм или пусто}. У каждого агента
+    своё k = ω²r/g: невесомость ровно наверху только у того, чей радиус задаёт обороты. Изменения — в историю."""
+    if not isinstance(radius, dict):
+        raise ValueError("radius: {mac: мм}")
+    with lock:
+        R = rig.setdefault("radius", {})
+        for mac, v in radius.items():
+            mac = str(mac).lower()
+            r = None if v in (None, "") else round(float(v), 1)
+            if r is not None and not 100 <= r <= 2000:
+                raise ValueError(f"радиус {r} мм: 100–2000 мм")
+            was = R.get(mac)
+            if r is None:
+                R.pop(mac, None)
+            else:
+                R[mac] = r
+            rig["hist"] = (rig["hist"] + [{"t": round(time.time(), 1), "mac": mac, "r_mm": r, "was": was}])[-500:]
+            print(f"[rig] радиус {_agent_name(mac)}: {was} → {r} мм", flush=True)
+        body = json.dumps(rig, ensure_ascii=False)
+    with open(RIG_FILE, "w", encoding="utf-8") as f:
+        f.write(body)
+
+
+def rig_swap_set(swap):
+    """Мотор колеса 1 подключён к мосту b агента моторов (D2/D3), колеса 2 — к мосту a: сервер меняет выходы местами."""
+    with lock:
+        was = bool(rig.get("swap"))
+        rig["swap"] = bool(swap)
+        rig["hist"] = (rig["hist"] + [{"t": round(time.time(), 1), "swap": rig["swap"], "was": was}])[-500:]
+        body = json.dumps(rig, ensure_ascii=False)
+    with open(RIG_FILE, "w", encoding="utf-8") as f:
+        f.write(body)
+    print(f"[rig] колесо 1 на мосту {'b' if swap else 'a'}", flush=True)
+
+
+def run_extras(t0, t1):
+    """К записи опыта: аккумуляторы контуров в конце (напряжение, ток, заряд), средние обороты колёс по датчику обода
+    за опыт и поле катушек по магнитометру колеса (показания минус фон, со знаком) в конце опыта."""
+    out = {}
+    try:
+        out["bat"] = {r["label"]: {"v": r.get("v_now", r["v"]), "i": r.get("i_now", r["i"]), "soc": r["soc"], "kind": r.get("kind"),
+                                   "wheel": r.get("wheel")} for r in batteries.state(battery_label)["list"] if r.get("alive")}
+    except Exception:                                  # noqa: BLE001 — без аккумуляторов запись опыта не теряется
+        pass
+    with lock:
+        c, rpm = compose_state(), {}
+        for (mac, key), ser in list(series.items()):
+            if key == "w_rpm_now" and c["wheels"].get(mac):
+                v = [x for t, x in ser if t0 <= t <= t1]
+                if v:
+                    rpm[c["wheels"][mac]] = round(abs(sum(v) / len(v)), 2)
+        out["rpm"] = rpm
+        radius = dict(rig.get("radius") or {})
+    cf = {w: rimcal.factor(w) for w in rpm}
+    if any(v != 1.0 for v in cf.values()):
+        out["rpm_tach"] = {w: round(rpm[w] * cf[w], 2) for w in rpm}        # обороты с поправкой по тахометру
+    if radius:                                         # радиусы линейкой и k каждого агента при средних оборотах опыта
+        out["radius"] = {_agent_name(m): r for m, r in radius.items()}
+        out["k"] = {_agent_name(m): k for w in rpm for m, k in agent_k(w, rpm[w] * cf[w]).items()}
+    out["coil_sense"] = {w: {k: x.get(k) for k in ("proj", "dabs", "seen", "cmd", "agree", "ref")}
+                         for w, x in (coils.brief().get("sense") or {}).items()}
+    with lock:                                         # свободная внутренняя память агентов в конце опыта, КБ
+        now = time.time()
+        out["mem"] = {str(a.get("id")): (a.get("values") or {}).get("heap", 0) // 1024 for a in agents.values()
+                      if a.get("last") and now - a["last"] < 10 and (a.get("values") or {}).get("heap")}
+    return out
+
+
 def rig_brief():
-    return {"gap_cm": rig["gap_cm"], "t": rig["t"]}
+    return {"gap_cm": rig["gap_cm"], "t": rig["t"], "radius": dict(rig.get("radius") or {}), "swap": bool(rig.get("swap"))}
 
 
-def battery_label(mac):
-    """Чей INA219: шина колеса (агент на шине) или катушка (агент катушки)."""
+def battery_label(key, addr=None, wire=None):
+    """Чей INA219: шина колеса или катушка. key — mac агента, у второго модуля того же агента — mac#2.
+    У агента на шине — шина; у агента катушки модуль на D4/D5 с адресом 0x40 — катушка, на своих выводах D8/D9
+    (wire 1) или 0x41 (перемычка A0) — шина того же колеса."""
+    mac = key.split("#")[0]
+    if addr is None:
+        addr = batteries.addr(key)
+    if wire is None:
+        wire = batteries.wire(key)
     with lock:
         c = compose_state()
         a = agents.get(mac) or {}
-        w, coil = c["wheels"].get(mac, ""), c["slot"].get(mac) == "coil"
+        w, coil = c["wheels"].get(mac, ""), c["slot"].get(mac) == "coil" and addr != 0x41 and not wire
         alive = bool(a.get("last") and time.time() - a["last"] < 10)
-    return {"wheel": w, "kind": "coil" if coil else "bus", "id": a.get("id"), "alive": alive,
-            "label": (f"катушка К{w}" if coil else f"шина К{w}") if w else f"№{a.get('id')}"}
+    return {"wheel": w, "kind": "coil" if coil else "bus", "id": a.get("id"), "alive": alive, "addr": addr,
+            "label": (f"катушка К{w}" if coil else f"шина К{w}") if w else f"№{a.get('id')}" + (" · 2" if "#" in key else "")}
 
 
 def battery_brief():
@@ -1796,7 +2120,7 @@ def rest_brief():
                         for m, st in rest_rot.items() if st.get("on") and m in agents}}
 
 
-# ---------------- телеметрия всей установки (docs/ui_concept.md) ----------------
+# ---------------- телеметрия всей установки ----------------
 # Обычная / редкая / молчание — у всех генераторов сразу; статические говорят всегда. Команда уходит
 # каждому сразу: агент в молчании сам ничего не шлёт — сервер не дождался бы пакета, чтобы ответить.
 def telemetry_set(tl):
@@ -2058,13 +2382,67 @@ def phone_link():
 
 
 def wheel_rpm(wheel):
-    """Обороты колеса ("1"/"2") сейчас — по ICM-42688 агентов на его ободе (пакет imu не старше 3 с); нет — None."""
+    """Обороты колеса ("1"/"2") сейчас — по ICM-42688 агентов на его ободе (пакет imu не старше 3 с); нет — None.
+    С поправкой по тахометру, если она включена (rimcal)."""
     now = time.time()
     with lock:
         wheels = compose_state()["wheels"]
         ws = [abs(a["imu"].get("w") or 0) * 60 / (2 * math.pi) for m, a in agents.items()
               if wheels.get(m) == wheel and a.get("imu") and now - (a["imu"].get("t_rx") or 0) < 3]
-    return sum(ws) / len(ws) if ws else None
+    return sum(ws) / len(ws) * rimcal.factor(wheel) if ws else None
+
+
+CAL_WINDOW_S = 1800                # калибровка обода — по оборотам последних 30 мин
+TACH_WINDOW_S = 6                  # точка тахометра: средние обороты обода за последние 6 с
+
+
+def rim_revs(wheel, since):
+    """Обороты датчиков обода колеса не раньше since: {mac: [оборот, …]}. Под lock."""
+    wheels = compose_state()["wheels"]
+    return {m: [r for r in a["wrevs"] if r["ts"] >= since] for m, a in agents.items()
+            if wheels.get(m) == wheel and a.get("wrevs")}
+
+
+def rim_now(wheel, sec=TACH_WINDOW_S):
+    """Обороты обода за последние sec секунд — по оборотам целиком (без поправки по тахометру): {rpm, sd_pct, n,
+    span_pct, steady, gs}; оборотов меньше двух — None. Ровно — обороты расходятся не больше чем на 1 %."""
+    now = time.time()
+    with lock:
+        by = rim_revs(wheel, now - sec)
+        gs = [(agents[m].get("imu") or {}).get("gs") for m in by]
+        inst = [abs((agents[m].get("imu") or {}).get("w") or 0) * 60 / (2 * math.pi) for m in by
+                if now - ((agents[m].get("imu") or {}).get("t_rx") or 0) < 3]
+    rp = [r["rpm"] for v in by.values() for r in v if r.get("rpm")]
+    if len(rp) < 2:
+        return None
+    mean = sum(rp) / len(rp)
+    sd = (sum((x - mean) ** 2 for x in rp) / (len(rp) - 1)) ** 0.5
+    gs = [g for g in gs if g is not None]
+    w_now = sum(inst) / len(inst) if inst else None
+    # ровно: обороты окна расходятся не больше чем на 1 % и скорость сейчас — та же (±0,5 %): обороты целиком
+    # запаздывают на оборот, и сразу после смены скорости окно ещё «старое»
+    steady = (max(rp) - min(rp)) <= 0.01 * mean and w_now is not None and abs(w_now - mean) <= 0.005 * mean
+    return {"rpm": round(mean, 4), "sd_pct": round(100 * sd / mean, 3), "n": len(rp),
+            "span_pct": round(100 * (max(rp) - min(rp)) / mean, 3), "steady": steady,
+            "rpm_inst": round(w_now, 3) if w_now is not None else None, "gs": round(sum(gs) / len(gs), 5) if gs else None}
+
+
+def wheel_fit(wheel):
+    """Подстройка гироскопа и радиус по наклону — по каждому датчику обода колеса за CAL_WINDOW_S: {mac: {...}}."""
+    now = time.time()
+    with lock:
+        by = rim_revs(wheel, now - CAL_WINDOW_S)
+    out = {}
+    for m, revs in by.items():
+        withc = [r for r in revs if "kc" in r]
+        if not withc:
+            out[m] = {"imc": False, "n": len(revs)}
+            continue
+        last = withc[-1]
+        out[m] = {"imc": True, "n": len(revs), "gyro": gyro_eps(withc), "fit": rim_fit(withc),
+                  "kc": last.get("kc"), "k": last.get("k"), "a0": last.get("a0"), "h2": last.get("h2"),
+                  "flat_n": sum(1 for r in withc if r.get("flat"))}
+    return out
 
 
 def is_m_agent(m, a, c):
@@ -2121,23 +2499,72 @@ def coils_state():
 
 def wheel_radius(wheel):
     """Радиус, который меряет датчик на ободе колеса (медиана последних 5 оборотов не старше 15 с), и k последнего
-    оборота (по этому радиусу): (мм, k) или (None, None)."""
+    оборота (по этому радиусу): (мм, k, откуда) или (None, None, None).
+    С галочкой «радиус по наклону» (rimcal) — радиус rim_fit: без смещения нуля акселерометра, и k — по нему.
+    С поправкой по тахометру радиус делится на c²: он посчитан по ω гироскопа (r = k·g/ω²), а обороты для моторов
+    уже умножены на c — невесомость остаётся на k = 1."""
     now = time.time()
     with lock:
         wheels = compose_state()["wheels"]
         revs = [r for m, a in agents.items() if wheels.get(m) == wheel for r in list(a.get("wrevs") or [])[-5:]
                 if now - r["ts"] < 15 and r.get("r_mm")]
     if not revs:
-        return None, None
+        return None, None, None
+    c = rimcal.factor(wheel)
     rs = sorted(r["r_mm"] for r in revs)
     last = max(revs, key=lambda r: r["ts"])
+    if rimcal.fit_on(wheel):
+        fits = [f["fit"]["r_mm"] for f in wheel_fit(wheel).values() if f.get("fit") and 100 <= f["fit"]["r_mm"] <= 2000]
+        if fits:
+            r_fit = sum(fits) / len(fits)
+            k = last["w"] ** 2 * r_fit / 1000.0 / G_STD if last.get("w") else last.get("k")
+            return r_fit / c ** 2, k, "обод, по наклону" + (" и тахометру" if c != 1.0 else "")
     # k — измеренный (|среднее f| за оборот), а не k_r по радиусу из настроек: невесомость держится по измеренному
     # радиусу, и k_r при ней равен rmm/r_изм — значок «✓ невесомость наверху» у моторов врал бы при любом другом rmm
-    return rs[len(rs) // 2], last.get("k")
+    return rs[len(rs) // 2] / c ** 2, last.get("k"), "обод" + (", по тахометру" if c != 1.0 else "")
+
+
+def agent_k(wheel, rpm=None):
+    """k = ω²r/g каждого агента колеса с радиусом линейкой — при оборотах колеса сейчас (или rpm): {mac: k}."""
+    rpm = wheel_rpm(wheel) if rpm is None else rpm
+    if not rpm:
+        return {}
+    w2 = (rpm * 2 * math.pi / 60) ** 2
+    with lock:
+        wheels = compose_state()["wheels"]
+        return {m: round(w2 * r / 1000.0 / G_STD, 4) for m, r in (rig.get("radius") or {}).items() if wheels.get(m) == wheel}
+
+
+def rimcal_state():
+    """Окно «калибровка колеса»: по каждому колесу — обороты обода сейчас, подстройка гироскопа и радиус по наклону
+    у датчиков обода, точки тахометра, радиусы агентов линейкой и их k."""
+    cal = rimcal.brief()
+    out = {}
+    for w in ("1", "2"):
+        fits = wheel_fit(w)
+        now = time.time()
+        with lock:
+            c = compose_state()
+            wm = [m for m, a in agents.items() if c["wheels"].get(m) == w and c["slot"].get(m) not in ("S", "coil")
+                  and not is_m_agent(m, a, c)]
+            ag = [{"mac": m, "id": agents[m].get("id"), "r_mm": (rig.get("radius") or {}).get(m), "rim": m in fits}
+                  for m in wm]
+            rims = {}
+            for m, f in fits.items():
+                i = agents[m].get("imu") or {}
+                rims[m] = {"id": agents[m].get("id"), "live": bool(i) and now - (i.get("t_rx") or 0) < 10,
+                           "gs": i.get("gs"), "r_set": i.get("r_set"), **f}
+        rpm = wheel_rpm(w)
+        rr = wheel_radius(w)
+        out[w] = {"now": rim_now(w), "rpm": round(rpm, 3) if rpm else None, "factor": rimcal.factor(w),
+                  "radius": {"r_mm": round(rr[0], 1) if rr[0] else None, "k": rr[1], "src": rr[2]},
+                  "rims": rims, "agents": sorted(ag, key=lambda x: x["id"] or 999), "k": agent_k(w, rpm), **cal[w]}
+    return {"wheels": out, "window_s": TACH_WINDOW_S, "cal_window_s": CAL_WINDOW_S}
 
 
 motors = Motors(motor_agents, lambda line, ip: send_line(line, ip), wheel_rpm, radius_fn=wheel_radius,
-                rmm_fn=lambda: (control.get("common") or DEFAULT_CFG).get("rmm", 450), log=lambda text: print(text, flush=True))
+                rmm_fn=lambda: (control.get("common") or DEFAULT_CFG).get("rmm", 450), swap_fn=lambda: rig.get("swap"),
+                log=lambda text: print(text, flush=True))
 
 
 def motors_state():
@@ -2305,12 +2732,14 @@ RSV_KEYS = ("gath", "cands", "surv", "rdrop", "starts", "fillw", "early")
 def sensor_summary():
     """Колесо (imu), поле (mag), статические акселерометры — последнее по каждому агенту."""
     wheel, field, stat = [], [], []
+    cw = compose_state()["wheels"]
     for mac, a in agents.items():
         if a.get("imu"):
             i = a["imu"]
             wheel.append({"mac": mac, "id": a["id"], **{k: i.get(k) for k in ("hz", "w", "t", "revs", "r_set",
                                                                               "err", "frame", "t_rx", "last_rev")},
-                          "rpm_now": round((i.get("w") or 0) * 60 / (2 * math.pi), 2),
+                          "rpm_now": round((i.get("w") or 0) * 60 / (2 * math.pi) * rimcal.factor(cw.get(mac)), 2),
+                          "rpm_raw": round((i.get("w") or 0) * 60 / (2 * math.pi), 2), "gs": i.get("gs"),
                           "set": a.get("kind")})
         if a.get("mag"):
             field.append({"mac": mac, "id": a["id"], **a["mag"], "set": a.get("kind")})
@@ -2602,7 +3031,7 @@ def run_session(x, stop):
         step_end(x, st, True, f"настройка №{cid}: все считают")
         if x.get("quiet"):                              # молчать во время работы: это «на ходу», номер прежний
             own_q = {m: {**(x.get("own") or {}).get(m, {}), "tl": 2} for m in macs}
-            apply_control(macs, {**x["cfg"], "run": 1, "tl": 2}, own_q)
+            apply_control(macs, {**x["cfg"], "run": 1, "tl": 2}, own_q, keep_own=False)
 
         st = step_begin(x, "run")
         x["state"] = "running"
@@ -2704,6 +3133,8 @@ class Handler(BaseHTTPRequestHandler):
         body = open(path, "rb").read()
         self.send_response(200)
         self.send_header("Content-Type", ctype)
+        if ctype.startswith(("text/html", "text/javascript", "text/css")):
+            self.send_header("Cache-Control", "no-cache")   # страницы правятся на ходу: браузер планшета сверяется
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -2727,7 +3158,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_file(os.path.join(STATIC, "index.html"), "text/html; charset=utf-8")
         if u.path in ("/acc", "/acc.html"):              # статические акселерометры — второй экран
             return self.send_file(os.path.join(STATIC, "acc.html"), "text/html; charset=utf-8")
-        if u.path in ("/pult", "/pult.html"):            # экран 1: пульт (docs/ui_concept.md)
+        if u.path in ("/pult", "/pult.html"):            # экран 1: пульт
             return self.send_file(os.path.join(STATIC, "pult.html"), "text/html; charset=utf-8")
         if u.path in ("/watch", "/watch.html"):          # экран 2: наблюдение — статика и простые
             return self.send_file(os.path.join(STATIC, "watch.html"), "text/html; charset=utf-8")
@@ -2761,12 +3192,16 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(watch.spectrum(q.get("mac", "").lower(), int(q.get("n", 6))))
         if u.path == "/api/motors":                    # моторы колёс: режимы, что шлём, что на мостах
             return self.send_json(motors_state())
+        if u.path == "/api/rimcal":                    # калибровка колеса: гироскоп по тяжести, тахометр, радиусы агентов
+            return self.send_json(rimcal_state())
         if u.path == "/api/rig":                       # установка руками: расстояние между колёсами и история изменений
             with lock:
                 body = {**rig_brief(), "hist": list(rig["hist"][-50:])}
             return self.send_json(body)
         if u.path == "/api/battery":                   # аккумуляторы контуров (INA219): напряжение, ток, осталось
             return self.send_json(battery_brief())
+        if u.path == "/api/fleet":                     # все платы реестра: место, связь, прошивка, USB
+            return self.send_json(fleet_brief())
         if u.path == "/api/coils":                     # катушки колёс: поле, кто задал, агенты катушек
             return self.send_json(coils_state())
         if u.path == "/api/field/live":                # магнитометр вживую (планшетка, окно агента)
@@ -2869,7 +3304,7 @@ class Handler(BaseHTTPRequestHandler):
                           "/api/program/pause", "/api/program/continue",
                           "/api/static/baseline", "/api/ota",
                           "/api/usb", "/api/rest_rot", "/api/telemetry", "/api/ident", "/api/motors", "/api/coils",
-                          "/api/battery", "/api/rig"):
+                          "/api/battery", "/api/rig", "/api/fleet", "/api/clientlog", "/api/rimcal"):
             return self.send_error(404)
         try:
             n = int(self.headers.get("Content-Length", 0))
@@ -2888,9 +3323,25 @@ class Handler(BaseHTTPRequestHandler):
                     watch.rec_clear(body.get("macs", "all"))
                     return self.send_json({"ok": True})
                 raise ValueError("action: start, stop или clear")
-            if u.path == "/api/rig":                    # {gap_cm}: расстояние между колёсами, см (пусто — не задано)
-                rig_set(body.get("gap_cm"))
+            if u.path == "/api/rig":                    # {gap_cm}: расстояние между колёсами, см (пусто — не задано); {radius: {mac: мм}}; {swap}: колесо 1 на мосту b
+                if "radius" in body:
+                    rig_radius_set(body["radius"])
+                if "swap" in body:
+                    rig_swap_set(body["swap"])
+                if "gap_cm" in body or not ({"radius", "swap"} & set(body)):
+                    rig_set(body.get("gap_cm"))
                 return self.send_json({"ok": True, **rig_brief()})
+            if u.path == "/api/rimcal":                 # {wheel, tach} — точка; {wheel, del: i}; {wheel, clear}; {wheel, tach_on, fit_on}
+                w = str(body.get("wheel"))
+                if body.get("tach") not in (None, ""):
+                    rimcal.add(w, body["tach"], rim_now(w))
+                elif body.get("del") is not None:
+                    rimcal.delete(w, body["del"])
+                elif body.get("clear"):
+                    rimcal.clear(w)
+                else:
+                    rimcal.set(w, tach_on=body.get("tach_on"), fit_on=body.get("fit_on"))
+                return self.send_json({"ok": True, **rimcal_state()})
             if u.path == "/api/battery":                # ёмкость пары по умолчанию: {cap: мА·ч}
                 batteries.set_cap(body.get("cap"))
                 return self.send_json({"ok": True, **battery_brief()})
@@ -2917,6 +3368,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"ok": True, "on": rest_rot_on(), "mode": rest_rot_mode()})
             if u.path == "/api/usb":                    # первая прошивка новых плат по USB
                 return self.send_json({"ok": True, "job": usb_flash(body.get("ports") or [], self.client_address[0])})
+            if u.path == "/api/clientlog":              # ошибка в браузере планшетки — в журнал сервера (разбор)
+                rec = {"t": round(time.time(), 1), "ip": self.client_address[0], "ua": str(self.headers.get("User-Agent", ""))[:160],
+                       **{k: str(body.get(k, ""))[:1500] for k in ("where", "msg", "stack", "page")}}
+                print(f"[client] {rec['ip']} {rec['where']}: {rec['msg']}", flush=True)
+                with open(os.path.join(DATA, "client_errors.jsonl"), "a", encoding="utf-8") as f:
+                    f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+                return self.send_json({"ok": True})
+            if u.path == "/api/fleet":                  # состав и назначения: убрать плату из списка или вернуть
+                return self.send_json({"ok": True, **fleet_action(body)})
             if u.path == "/api/ident":                  # найти плату: светодиод агента мигает secs секунд (0 — перестать)
                 mac = str(body.get("mac", "")).lower()
                 secs = max(0, min(120, int(body.get("secs", 20))))
@@ -3058,10 +3518,11 @@ def _prog_baseline(minutes, stop):
 
 
 runner = Runner({"apply": lambda t, c, o, f: apply_all(t, c, o, f), "confirmed": _prog_confirmed,
+                 "apply_once": lambda t, c, o: apply_control(t, c, o, remember=False, keep_own=False),   # молчание: не запоминать
                  "targets": _prog_targets, "snapshot": lambda macs: snapshot_results(macs),
                  "verdict": lambda t0, t1: watch.verdict(t0, t1) if watch else None,
                  "metrics": lambda t0, t1: watch.metrics(t0, t1) if watch else {},
-                 "field": field_step,
+                 "field": field_step, "extras": run_extras,
                  "coil": lambda field, src: coils.set_field(field, src),
                  "coil_off": lambda src: coils.all_off(src),
                  "motor": lambda spec, src: motors.apply_spec(spec, src),
@@ -3134,8 +3595,10 @@ def main():
         os.makedirs(PROG_DIR, exist_ok=True)
         print(f"[srv] данные: {DATA}", flush=True)
     load_control()
+    fleet_load()
     sessions_load()
     rig_load()
+    rimcal.load()
     runner.mark_interrupted()                          # «идёт» с прошлого запуска — прервана, можно продолжить
     try:                                               # документация в HTML — всегда как в markdown
         sys.path.insert(0, os.path.join(ROOT, "tools"))
@@ -3157,6 +3620,7 @@ def main():
     spawn("runs", run_ticker)
     spawn("rest", rest_ticker)
     spawn("battery", battery_ticker)
+    spawn("fleet", fleet_ticker)
     if Watch:
         watch = Watch(DATA, put=put_locked, log=lambda text: print(text, flush=True))
         watch.known_fn = known_lines

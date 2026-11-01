@@ -452,7 +452,7 @@ function renderSvc(d) {
       ${todo.length ? `<button class="btn" id="sUsb">прошить по USB: ${todo.map(b => esc(b.port)).join(", ")}</button>` : ""}</div>
     <div><b>Отдых в группах</b>: ${rr.on ? (rr.mode === "group" ? "вся группа" : "по очереди") : "выключен"} <span class="small mut">(опыты 06.10: прироста не дал)</span></div>
     ${hearingTable(d)}
-    <div><b>Документация</b>: <a href="/docs/modes.html" target="docs">режимы</a> · <a href="/docs/ui_concept.html" target="docs">экраны</a> · <a href="/docs/thermal.html" target="docs">тепло</a> · <a href="/docs/program.html" target="docs">программа</a> · <a href="/docs/static_watch.html" target="docs">статика</a></div>`;
+    <div><b>Документация</b>: <a href="/docs/modes.html" target="docs">режимы</a> · <a href="/docs/how_it_works.html" target="docs">как всё работает</a> · <a href="/docs/thermal.html" target="docs">тепло</a> · <a href="/docs/program.html" target="docs">программа</a> · <a href="/docs/static_watch.html" target="docs">статика</a></div>`;
   $("sOta").onclick = async () => { if (!confirm("Обновить прошивку всех агентов на связи по Wi-Fi? Счёт остановится.")) return;
     try { const r = await postJSON("/api/ota", { targets: "all" }); note(`✓ команда ушла ${r.sent.length} агентам`, "ok"); } catch (e) { note("✗ " + e.message, "bad"); } };
   const su = $("sUsb"); if (su) su.onclick = async () => { if (!confirm("Прошить по USB (сборка 1–3 мин, кабели не отключать)?")) return;

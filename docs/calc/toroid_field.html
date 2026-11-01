@@ -1,0 +1,1478 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head><body>
+<title>Поле тороида</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Лист чертежа: слева пульт параметров, справа сводка, три вида по ГОСТ, изометрия, развёртка вдоль кольца.
+   Интерфейс монохромный, цвет только у физики. */
+:root{
+  --paper:#f2f3f1; --sheet:#fcfcfb; --ink:#13171a; --ink2:#4a5055; --muted:#7f858a;
+  --line:#dcdfdd; --axis:#c0c4c2;
+  --s-field:#2a78d6; --s-thick:#eb6834; --s-dens:#1baf7a;
+  --div-neg:#2a78d6; --div-mid:#f0efec; --div-pos:#e34948;
+  --seq-1:#cde2fb; --seq-2:#3987e5; --seq-3:#0d366b;
+  --f-display:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0e1011; --sheet:#18191a; --ink:#eceeed; --ink2:#bdc2c0; --muted:#868b89;
+    --line:#2a2c2c; --axis:#3b3e3e;
+    --s-field:#3987e5; --s-thick:#d95926; --s-dens:#199e70;
+    --div-neg:#3987e5; --div-mid:#383835; --div-pos:#e66767;
+    --seq-1:#14263b; --seq-2:#2a78d6; --seq-3:#cde2fb;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0e1011; --sheet:#18191a; --ink:#eceeed; --ink2:#bdc2c0; --muted:#868b89;
+  --line:#2a2c2c; --axis:#3b3e3e;
+  --s-field:#3987e5; --s-thick:#d95926; --s-dens:#199e70;
+  --div-neg:#3987e5; --div-mid:#383835; --div-pos:#e66767;
+  --seq-1:#14263b; --seq-2:#2a78d6; --seq-3:#cde2fb;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font:15px/1.5 var(--f-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:1440px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+h1,h2,h3{font-family:var(--f-display);font-weight:600;margin:0;text-wrap:balance;letter-spacing:.005em}
+h1{font-size:30px;line-height:1.1}
+h2{font-size:19px}
+h3{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink2);font-weight:600}
+p{margin:0}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;border-bottom:1.5px solid var(--ink);padding-bottom:12px}
+header.top .lead{max-width:70ch;color:var(--ink2);margin-top:6px}
+.status{display:flex;flex-direction:column;align-items:flex-end;gap:6px;min-width:220px}
+.status .txt{font-family:var(--f-mono);font-size:13px;color:var(--ink2)}
+.bar{width:220px;height:3px;background:var(--line);border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--ink);transition:width .15s}
+.layout{display:grid;grid-template-columns:300px minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:960px){.layout{grid-template-columns:minmax(0,1fr)}}
+aside.ctrl{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;display:flex;flex-direction:column;gap:14px;
+  background:var(--sheet);border:1px solid var(--line);border-radius:4px;padding:14px 16px}
+@media (max-width:960px){aside.ctrl{position:static;max-height:none}}
+.grp{display:flex;flex-direction:column;gap:9px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.grp:last-child{border-bottom:0;padding-bottom:0}
+.row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 10px}
+.row label{font-size:13.5px;color:var(--ink2)}
+.row output{font-family:var(--f-mono);font-size:13px;font-variant-numeric:tabular-nums}
+.row input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--ink);margin:0}
+.nums{display:grid;grid-template-columns:1fr 1fr;gap:8px 10px}
+.nums label{display:flex;flex-direction:column;gap:2px;font-size:12.5px;color:var(--ink2)}
+.nums input{font:13px var(--f-mono);padding:5px 7px;border:1px solid var(--axis);border-radius:3px;background:var(--paper);color:var(--ink);width:100%}
+.check{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;color:var(--ink2)}
+.check input{accent-color:var(--ink);margin-top:3px}
+.hint{font-size:12.5px;color:var(--muted);line-height:1.45}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg button,.btn{font:13px var(--f-body);padding:5px 10px;border:1px solid var(--axis);background:var(--paper);color:var(--ink);border-radius:3px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--sheet);border-color:var(--ink)}
+.btn:hover,.seg button:hover{border-color:var(--ink)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--s-field);outline-offset:2px}
+.legend{display:flex;flex-direction:column;gap:8px}
+.legend canvas{width:100%;height:12px;border-radius:2px;display:block}
+.legend .ticks{display:flex;justify-content:space-between;font:11.5px var(--f-mono);color:var(--muted);margin-top:2px}
+main{display:flex;flex-direction:column;gap:18px;min-width:0}
+.card{background:var(--sheet);border:1px solid var(--line);border-radius:4px;padding:14px 16px;min-width:0}
+.card-h{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:4px 16px;margin-bottom:10px}
+.card-h .meta{font:12px var(--f-mono);color:var(--muted)}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:2px 24px}
+.kv{display:flex;flex-direction:column;gap:1px;padding:9px 0;border-top:1px solid var(--line)}
+.kv .k{font-size:12.5px;color:var(--ink2)}
+.kv .v{font:500 19px var(--f-mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.kv .s{font-size:12px;color:var(--muted)}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+@media (max-width:1180px){.two{grid-template-columns:minmax(0,1fr)}}
+.fig{position:relative;width:100%}
+.fig canvas{display:block;width:100%}
+.iso-wrap{position:relative;width:100%;aspect-ratio:1/1;max-width:100%;touch-action:none;cursor:grab;border-radius:2px;overflow:hidden}
+.iso-wrap:active{cursor:grabbing}
+.iso-wrap canvas{width:100%;height:100%;display:block}
+.iso-tools{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;align-items:center}
+.iso-tools .check{font-size:12.5px}
+.tip{position:absolute;pointer-events:none;background:var(--sheet);border:1px solid var(--axis);border-radius:3px;padding:6px 9px;font:12px var(--f-mono);
+  color:var(--ink);white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.12);z-index:5}
+.tip b{font-weight:500}
+.sw{display:inline-block;width:10px;height:2px;vertical-align:middle;margin-right:6px}
+.keys{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--ink2);margin-bottom:6px}
+.keys span{display:inline-flex;align-items:center}
+.keys i{display:inline-block;width:18px;height:0;margin-right:6px;border-top:2.5px solid}
+.keys i.k-th{border-top-style:dashed}.keys i.k-de{border-top-style:dotted;border-top-width:3px}
+.note{color:var(--ink2);max-width:80ch;display:flex;flex-direction:column;gap:8px;font-size:14px}
+.warn{color:var(--div-pos)}
+.ok{color:var(--ink2)}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+.dnav{font-size:13px;color:var(--ink2)}.dnav a{color:var(--ink2)}
+</style>
+
+<div class="wrap">
+  <nav class="dnav"><a href="index.html">← Колесо-2 · документация</a> · <span class="muted">ядро и проверка: tools/toroid (node tools/toroid/test.js)</span></nav>
+  <header class="top">
+    <div>
+      <h1>Поле тороида</h1>
+      <p class="lead">Кольцевая катушка без сердечника с неравномерной толщиной трубки и неравномерной намоткой. Поле считается по закону Био–Савара для каждого витка прямо в браузере. Главная величина на картах — отклонение от идеального тора, у которого внутри B = μ₀NI/(2πr).</p>
+    </div>
+    <div class="status" aria-live="polite">
+      <span class="txt" id="status">Готовлю расчёт…</span>
+      <span class="bar"><i id="prog"></i></span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="ctrl" aria-label="Параметры">
+      <div class="grp">
+        <h3>Что показывать</h3>
+        <div class="seg" role="group" aria-label="Величина на картах">
+          <button type="button" id="m-dev" aria-pressed="true">Отклонение от идеала</button>
+          <button type="button" id="m-mag" aria-pressed="false">|B|, мТл</button>
+          <button type="button" id="m-tilt" aria-pressed="false">Наклон поля</button>
+        </div>
+        <div class="legend">
+          <div><canvas id="lg-in" width="256" height="12"></canvas><div class="ticks" id="lg-in-t"></div></div>
+          <p class="hint" id="lg-in-h"></p>
+          <div class="row">
+            <label for="rng">Шкала внутри</label><output id="rng-o">авто</output>
+            <input type="range" id="rng" min="0" max="40" step="1" value="0">
+          </div>
+          <div><canvas id="lg-out" width="256" height="12"></canvas><div class="ticks"><span>≤ 0,1%</span><span>1%</span><span>≥ 10% B₀</span></div></div>
+          <p class="hint">Снаружи трубки: модуль поля в долях B₀, логарифмическая шкала. У идеального тора снаружи поля нет, всё видимое здесь создают неоднородности.</p>
+        </div>
+      </div>
+
+      <div class="grp">
+        <h3>Утолщения трубки</h3>
+        <div class="row"><label for="thickAmp">Утолщение до</label><output id="thickAmp-o"></output>
+          <input type="range" id="thickAmp" min="0" max="40" step="1" value="20"></div>
+        <div class="row"><label for="thickCount">Число утолщений по кольцу</label><output id="thickCount-o"></output>
+          <input type="range" id="thickCount" min="1" max="24" step="1" value="8"></div>
+        <div class="row"><label for="thickIrr">Нерегулярность</label><output id="thickIrr-o"></output>
+          <input type="range" id="thickIrr" min="0" max="100" step="5" value="30"></div>
+      </div>
+
+      <div class="grp">
+        <h3>Плотность намотки</h3>
+        <div class="row"><label for="densAmp">Размах</label><output id="densAmp-o"></output>
+          <input type="range" id="densAmp" min="0" max="40" step="1" value="20"></div>
+        <div class="row"><label for="densWaves">Характерное число волн</label><output id="densWaves-o"></output>
+          <input type="range" id="densWaves" min="1" max="24" step="1" value="5"></div>
+        <div class="row"><label for="densIrr">Нерегулярность</label><output id="densIrr-o"></output>
+          <input type="range" id="densIrr" min="0" max="100" step="5" value="30"></div>
+        <p class="hint">Плотность и утолщения независимы друг от друга.</p>
+      </div>
+
+      <div class="grp">
+        <h3>Случайная реализация</h3>
+        <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
+          <span class="mono" id="seed-o">№ 1</span>
+          <button type="button" class="btn" id="reseed">Другая реализация</button>
+        </div>
+      </div>
+
+      <div class="grp">
+        <h3>Катушка</h3>
+        <div class="nums">
+          <label for="R">R, мм (до оси трубки)<input id="R" type="number" min="30" max="2000" step="1" value="165"></label>
+          <label for="a">a, мм (радиус трубки)<input id="a" type="number" min="2" max="400" step="0.5" value="11.5"></label>
+          <label for="N">Витков N<input id="N" type="number" min="50" max="6000" step="10" value="1380"></label>
+          <label for="wire">Провод, мм<input id="wire" type="number" min="0.05" max="5" step="0.01" value="0.67"></label>
+          <label for="I">Ток I, А<input id="I" type="number" min="0.001" max="1000" step="0.1" value="0.9"></label>
+        </div>
+        <p class="hint">По умолчанию — катушка колеса «Колесо-2»: R 165 мм (радиус обода в настройках), трубка 19 × 23 мм (a — наружный радиус 11,5 мм), провод 0,67 мм в один слой, ток ≈ 0,9 А при 4,5 В. N ≈ 1380 — оценка по сопротивлению ≈ 5 Ом, а не счёт витков: уточните. Замер магнитометром в трубке — 1,2–1,26 мТл.</p>
+        <p class="hint" id="fit"></p>
+        <label class="check"><input type="checkbox" id="helix" checked><span>Учитывать ход провода вдоль кольца. Наматываясь, провод обходит кольцо один раз и сам становится одним большим витком вокруг оси кольца. Внутри трубки это добавляет доли процента поперёк поля.</span></label>
+      </div>
+    </aside>
+
+    <main>
+      <section class="card" aria-labelledby="sum-h">
+        <div class="card-h"><h2 id="sum-h">Сводка</h2><span class="meta" id="sum-meta"></span></div>
+        <div class="summary" id="summary"></div>
+      </section>
+
+      <section class="card" aria-labelledby="front-h">
+        <div class="card-h"><h2 id="front-h">Главный вид · разрез А–А</h2><span class="meta">плоскость XZ (y = 0) · нажмите на сечение, чтобы открыть его крупно</span></div>
+        <div class="fig"><canvas id="cv-front"></canvas><div class="tip" id="tip-front" hidden></div></div>
+      </section>
+
+      <section class="card" aria-labelledby="side-h">
+        <div class="card-h"><h2 id="side-h">Вид слева · разрез Б–Б</h2><span class="meta">плоскость YZ (x = 0), взгляд вдоль +X</span></div>
+        <div class="fig"><canvas id="cv-side"></canvas><div class="tip" id="tip-side" hidden></div></div>
+      </section>
+
+      <div class="two">
+        <section class="card" aria-labelledby="top-h">
+          <div class="card-h"><h2 id="top-h">Вид сверху · z = 0</h2><span class="meta">нажмите на кольцо, чтобы выбрать сечение</span></div>
+          <div class="fig"><canvas id="cv-top"></canvas><div class="tip" id="tip-top" hidden></div></div>
+        </section>
+        <section class="card" aria-labelledby="iso-h">
+          <div class="card-h"><h2 id="iso-h">Изометрия</h2><span class="meta">тянуть: поворот · колесо: масштаб · Shift или правая кнопка: сдвиг</span></div>
+          <div class="iso-wrap" id="iso-wrap"><canvas id="cv-iso"></canvas></div>
+          <div class="iso-tools">
+            <button type="button" class="btn" id="v-iso">Изометрия</button>
+            <button type="button" class="btn" id="v-top">Сверху</button>
+            <button type="button" class="btn" id="v-front">Спереди</button>
+            <button type="button" class="btn" id="v-sect">К сечению</button>
+            <label class="check"><input type="checkbox" id="s-wire" checked>витки</label>
+            <label class="check"><input type="checkbox" id="s-cuts" checked>разрезы</label>
+            <label class="check"><input type="checkbox" id="s-tube" checked>трубка</label>
+            <label class="check"><input type="checkbox" id="s-quarter" checked>вырез четверти</label>
+          </div>
+          <p class="hint" id="iso-note" style="margin-top:8px">Цвет витков показывает местную плотность намотки: чем гуще, тем насыщеннее.</p>
+        </section>
+      </div>
+
+      <section class="card" aria-labelledby="ring-h">
+        <div class="card-h"><h2 id="ring-h">Вдоль кольца</h2><span class="meta">развёртка по углу φ · нажмите или тяните, чтобы выбрать сечение</span></div>
+        <div class="keys">
+          <span><i class="k-th" style="border-color:var(--s-thick)"></i>толщина трубки a/a₀ − 1 (штрихи)</span>
+          <span><i class="k-de" style="border-color:var(--s-dens)"></i>плотность намотки n/n̄ − 1 (точки)</span>
+          <span><i style="border-color:var(--s-field)"></i>поле на оси трубки b − 1 (сплошная)</span>
+        </div>
+        <div class="fig"><canvas id="cv-prof"></canvas><div class="tip" id="tip-prof" hidden></div></div>
+        <div class="fig" style="margin-top:6px"><canvas id="cv-strip"></canvas></div>
+        <p class="hint" style="margin-top:6px">Нижняя полоса: средняя плоскость z = 0, развёрнутая по φ. По вертикали расстояние от оси трубки, растянуто для наглядности.</p>
+      </section>
+
+      <div class="two">
+        <section class="card" aria-labelledby="sec-h">
+          <div class="card-h"><h2 id="sec-h">Сечение трубки</h2><span class="meta" id="sec-meta"></span></div>
+          <div class="row" style="margin-bottom:8px"><label for="phiStar">Угол сечения φ</label><output id="phiStar-o"></output>
+            <input type="range" id="phiStar" min="0" max="359.5" step="0.5" value="30"></div>
+          <div class="fig"><canvas id="cv-sect"></canvas><div class="tip" id="tip-sect" hidden></div></div>
+          <p class="hint" style="margin-top:6px">Смотрим вдоль поля: слева ось кольца, справа наружная сторона. Стрелки показывают поперечную часть поля (B_r, B_z), их длина условная. Именно эта часть наклоняет силовые линии.</p>
+        </section>
+        <section class="card" aria-labelledby="spec-h">
+          <div class="card-h"><h2 id="spec-h">Гармоники вдоль кольца</h2><span class="meta">по вертикали амплитуда, % · по горизонтали число волн m</span></div>
+          <div class="keys">
+            <span><i class="k-th" style="border-color:var(--s-thick)"></i>толщина — первый столбик</span>
+            <span><i class="k-de" style="border-color:var(--s-dens)"></i>плотность — второй</span>
+            <span><i style="border-color:var(--s-field)"></i>поле на оси — третий</span>
+          </div>
+          <div class="fig"><canvas id="cv-spec"></canvas><div class="tip" id="tip-spec" hidden></div></div>
+          <p class="hint" style="margin-top:6px">Медленные волны (малый номер) доходят до оси трубки почти целиком, быстрые гаснут к центру. Для плотности до оси доходит доля около ka·K₁(ka), где k = m/R, m — номер гармоники.</p>
+        </section>
+      </div>
+
+      <section class="card" aria-labelledby="how-h">
+        <div class="card-h"><h2 id="how-h">Как считается</h2></div>
+        <div class="note">
+          <p>Каждый из N витков — круговая петля в своей меридиональной плоскости, с радиусом трубки a(φ) в этом месте. Её поле считается точно, через эллиптические интегралы. Петли дальше 10a от точки заменяются диполем, это даёт ошибку меньше 10⁻⁵ от B₀. Углы витков задаёт профиль плотности n(φ), полное число витков всегда N. Ход провода вдоль кольца моделируется током I, размазанным по поверхности трубки шестнадцатью горизонтальными кольцами.</p>
+          <p>Проверка. Идеальный тор с теми же R, a и N даёт внутри b = 1 с точностью 2·10⁻⁵, снаружи поле меньше 3·10⁻⁵ B₀. Одна синусоида плотности ±10% с шестью волнами по кольцу даёт на оси трубки ±7,81%; аналитическая оценка для соленоида ka·K₁(ka) даёт ±7,8%.</p>
+          <p>Числа в сводке не учитывают пристеночный слой толщиной полтора шага намотки. Там поле рябит от отдельных витков, и эта рябь гаснет за один шаг.</p>
+          <p>Обозначения: B₀ = μ₀NI/(2πR) — поле идеального тора на оси трубки; b = B_φ·2πr/(μ₀NI) — продольное поле в долях идеального в той же точке. У идеального тора b = 1 во всём объёме трубки, хотя само поле падает от внутренней стенки к внешней как 1/r.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+// ================= ядро расчёта (то же самое уходит в фоновые потоки) =================
+function torCoreFactory(root) {
+  function loopField(A, rho, z, eps2, out) {
+    const r2 = rho * rho + z * z;
+    const s = A * A + r2;
+    let a2 = s - 2 * A * rho;
+    if (a2 < eps2) a2 = eps2;
+    const b2 = s + 2 * A * rho;
+    const beta = Math.sqrt(b2);
+    let m1 = a2 / b2;
+    if (m1 < 1e-15) m1 = 1e-15;
+    const L = -Math.log(m1);
+    const K = (1.38629436112 + m1 * (0.09666344259 + m1 * (0.03590092383 + m1 * (0.03742563713 + m1 * 0.01451196212))))
+      + L * (0.5 + m1 * (0.12498593597 + m1 * (0.06880248576 + m1 * (0.03328355346 + m1 * 0.00441787012))));
+    const E = (1 + m1 * (0.44325141463 + m1 * (0.06260601220 + m1 * (0.04757383546 + m1 * 0.01736506451))))
+      + L * m1 * (0.24998368310 + m1 * (0.09200180037 + m1 * (0.04069697526 + m1 * 0.00526449639)));
+    const pre = 1 / (2 * a2 * beta);
+    out[0] = pre * ((A * A - r2) * E + a2 * K);
+    out[1] = rho > 1e-6 * A ? pre * z / rho * (s * E - a2 * K) : 0;
+  }
+  function rng32(seed) {
+    let t = seed >>> 0;
+    return function () {
+      t = (t + 0x6D2B79F5) >>> 0;
+      let x = Math.imul(t ^ (t >>> 15), 1 | t);
+      x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+      return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const NPROF = 3600;
+  function thickProfile(count, irr, seed) {
+    const rnd = rng32(seed * 7919 + 13);
+    const F = new Float64Array(NPROF);
+    if (count < 1) return F;
+    const step = 2 * Math.PI / count, off = rnd() * step;
+    const bumps = [];
+    for (let j = 0; j < count; j++) {
+      bumps.push({
+        c: off + step * (j + irr * 0.45 * (2 * rnd() - 1)),
+        w: step * 0.26 * (1 + irr * 0.5 * (2 * rnd() - 1)),
+        h: 1 - irr * 0.55 * rnd(),
+      });
+    }
+    let mx = -Infinity, mn = Infinity;
+    for (let i = 0; i < NPROF; i++) {
+      const ph = 2 * Math.PI * i / NPROF;
+      let v = 0;
+      for (const b of bumps) {
+        let d = ph - b.c;
+        d -= 2 * Math.PI * Math.round(d / (2 * Math.PI));
+        v += b.h * Math.exp(-d * d / (2 * b.w * b.w));
+      }
+      F[i] = v; if (v > mx) mx = v; if (v < mn) mn = v;
+    }
+    for (let i = 0; i < NPROF; i++) F[i] = (F[i] - mn) / (mx - mn || 1);
+    return F;
+  }
+  function densProfile(waves, irr, seed) {
+    const rnd = rng32(seed * 104729 + 7);
+    const G = new Float64Array(NPROF);
+    const comps = [];
+    const width = 0.35 + irr * Math.max(1, waves) * 0.6;
+    for (let m = 1; m <= 40; m++) {
+      const w = Math.exp(-0.5 * Math.pow((m - waves) / width, 2));
+      if (w < 0.02) continue;
+      const amp = irr > 0 ? w * (0.4 + 0.6 * rnd()) : w;
+      comps.push({ m, amp, ph: 2 * Math.PI * rnd() });
+    }
+    if (!comps.length) return G;
+    let mx = -Infinity, mn = Infinity;
+    for (let i = 0; i < NPROF; i++) {
+      const ph = 2 * Math.PI * i / NPROF;
+      let v = 0;
+      for (const c of comps) v += c.amp * Math.cos(c.m * ph + c.ph);
+      G[i] = v; if (v > mx) mx = v; if (v < mn) mn = v;
+    }
+    const mid = (mx + mn) / 2, half = (mx - mn) / 2 || 1;
+    for (let i = 0; i < NPROF; i++) G[i] = (G[i] - mid) / half;
+    return G;
+  }
+  function sampleProf(P, phi) {
+    let u = phi / (2 * Math.PI) * NPROF;
+    u -= NPROF * Math.floor(u / NPROF);
+    const i = Math.floor(u), f = u - i;
+    return P[i % NPROF] * (1 - f) + P[(i + 1) % NPROF] * f;
+  }
+  function buildCoil(p) {
+    const F = thickProfile(p.thickCount, p.thickIrr, p.seed);
+    const G = densProfile(p.densWaves, p.densIrr, p.seed);
+    const aRel = new Float64Array(NPROF), nRel = new Float64Array(NPROF);
+    let mean = 0;
+    for (let i = 0; i < NPROF; i++) {
+      aRel[i] = 1 + p.thickAmp * F[i];
+      nRel[i] = 1 + 0.5 * p.densAmp * G[i];
+      mean += nRel[i];
+    }
+    mean /= NPROF;
+    for (let i = 0; i < NPROF; i++) nRel[i] /= mean;
+    const N = p.N, cum = new Float64Array(NPROF + 1);
+    for (let i = 0; i < NPROF; i++) cum[i + 1] = cum[i] + nRel[i];
+    const scale = N / cum[NPROF];
+    const phiK = new Float64Array(N);
+    let j = 0;
+    for (let k = 0; k < N; k++) {
+      const target = (k + 0.5) / scale;
+      while (cum[j + 1] < target) j++;
+      const f = (target - cum[j]) / (cum[j + 1] - cum[j]);
+      phiK[k] = 2 * Math.PI * (j + f) / NPROF;
+    }
+    const cx = new Float64Array(N), cy = new Float64Array(N), tx = new Float64Array(N), ty = new Float64Array(N);
+    const A = new Float64Array(N), cut2 = new Float64Array(N), pdip = new Float64Array(N);
+    for (let k = 0; k < N; k++) {
+      const c = Math.cos(phiK[k]), s = Math.sin(phiK[k]);
+      cx[k] = p.R * c; cy[k] = p.R * s; tx[k] = -s; ty[k] = c;
+      A[k] = p.a * sampleProf(aRel, phiK[k]);
+      cut2[k] = Math.pow(p.dipCut * A[k], 2);
+      pdip[k] = Math.PI * A[k] * A[k] / 4;
+    }
+    const NR = p.helix ? 16 : 0;
+    const ringR = new Float64Array(NR), ringZ = new Float64Array(NR);
+    for (let j2 = 0; j2 < NR; j2++) {
+      const th = 2 * Math.PI * (j2 + 0.5) / NR;
+      ringR[j2] = p.R + p.a * Math.cos(th); ringZ[j2] = p.a * Math.sin(th);
+    }
+    return { p, aRel, nRel, phiK, cx, cy, tx, ty, A, cut2, pdip, ringR, ringZ, eps2: Math.pow(p.wire / 2, 2) };
+  }
+  function fieldAt(coil, x, y, z, out, tmp) {
+    const { cx, cy, tx, ty, A, cut2, pdip, eps2 } = coil;
+    const N = A.length;
+    let bx = 0, by = 0, bz = 0;
+    for (let k = 0; k < N; k++) {
+      const dx = x - cx[k], dy = y - cy[k];
+      const d2 = dx * dx + dy * dy + z * z;
+      const zl = dx * tx[k] + dy * ty[k];
+      if (d2 > cut2[k]) {
+        const inv2 = 1 / d2, inv3 = inv2 * Math.sqrt(inv2);
+        const f = pdip[k] * inv3, g = 3 * zl * inv2;
+        bx += f * (g * dx - tx[k]); by += f * (g * dy - ty[k]); bz += f * g * z;
+      } else {
+        const u = dx * ty[k] - dy * tx[k];
+        const rho = Math.sqrt(u * u + z * z);
+        loopField(A[k], rho, zl, eps2, tmp);
+        const br = rho > 0 ? tmp[1] / rho : 0;
+        bx += tmp[0] * tx[k] + br * u * ty[k];
+        by += tmp[0] * ty[k] - br * u * tx[k];
+        bz += br * z;
+      }
+    }
+    const NR = coil.ringR.length;
+    if (NR) {
+      const rr = Math.sqrt(x * x + y * y), w = 1 / NR;
+      for (let j = 0; j < NR; j++) {
+        loopField(coil.ringR[j], rr, z - coil.ringZ[j], eps2, tmp);
+        const br = rr > 0 ? w * tmp[1] / rr : 0;
+        bx += br * x; by += br * y; bz += w * tmp[0];
+      }
+    }
+    out[0] = bx; out[1] = by; out[2] = bz;
+  }
+  function fieldMany(coil, pts, from, to, res) {
+    const out = [0, 0, 0], tmp = [0, 0];
+    for (let i = from; i < to; i++) {
+      fieldAt(coil, pts[3 * i], pts[3 * i + 1], pts[3 * i + 2], out, tmp);
+      res[3 * i] = out[0]; res[3 * i + 1] = out[1]; res[3 * i + 2] = out[2];
+    }
+  }
+  root.TorCore = { NPROF, sampleProf, buildCoil, fieldMany };
+}
+torCoreFactory(window);
+const Core = window.TorCore;
+
+// ================= фоновые потоки =================
+const workerSrc = '(' + torCoreFactory.toString() + ')(self);\n' +
+  'let coil = null, key = "";\n' +
+  'onmessage = function (e) { const d = e.data; if (d.key !== key) { coil = TorCore.buildCoil(d.params); key = d.key; }\n' +
+  '  const n = d.pts.length / 3, res = new Float32Array(3 * n); TorCore.fieldMany(coil, d.pts, 0, n, res);\n' +
+  '  postMessage({ job: d.job, s: d.s, res: res }, [res.buffer]); };';
+
+const pool = {
+  workers: [], broken: false, jobId: 0,
+  init() {
+    try {
+      const url = URL.createObjectURL(new Blob([workerSrc], { type: 'text/javascript' }));
+      const n = Math.max(2, Math.min(8, (navigator.hardwareConcurrency || 4) - 1));
+      for (let i = 0; i < n; i++) { const w = new Worker(url); w.busy = false; this.workers.push(w); }
+    } catch (e) { this.broken = true; this.workers = []; }
+  },
+  threads() { return this.broken || !this.workers.length ? 1 : this.workers.length; },
+  // pts: Float64Array xyz → Promise<Float32Array> (или null, если задание устарело)
+  run(params, pts, onProgress) {
+    const my = ++this.jobId;
+    if (this.broken || !this.workers.length) return this.runMain(params, pts, onProgress, my);
+    const n = pts.length / 3, CH = 2000, chunks = [];
+    for (let s = 0; s < n; s += CH) chunks.push([s, Math.min(n, s + CH)]);
+    const res = new Float32Array(3 * n), key = JSON.stringify(params);
+    return new Promise((resolve) => {
+      let next = 0, done = 0, failed = false;
+      const feed = (w) => {
+        if (this.jobId !== my || next >= chunks.length) return;
+        const [s, e] = chunks[next++];
+        w.busy = true;
+        const part = pts.slice(3 * s, 3 * e);
+        w.postMessage({ job: my, s, key, params, pts: part }, [part.buffer]);
+      };
+      for (const w of this.workers) {
+        w.onmessage = (ev) => {
+          w.busy = false;
+          const d = ev.data;
+          if (d.job === my) {
+            res.set(d.res, 3 * d.s); done++;
+            onProgress(done / chunks.length);
+            if (done === chunks.length) { resolve(res); return; }
+          }
+          feed(w);
+        };
+        w.onerror = (ev) => {
+          if (ev && ev.preventDefault) ev.preventDefault();
+          if (failed) return;
+          failed = true; this.broken = true;
+          this.runMain(params, pts, onProgress, my).then(resolve);
+        };
+        if (!w.busy) feed(w);
+      }
+    });
+  },
+  async runMain(params, pts, onProgress, my) {
+    const coil = Core.buildCoil(params);
+    const n = pts.length / 3, res = new Float32Array(3 * n), CH = 800;
+    for (let s = 0; s < n; s += CH) {
+      if (this.jobId !== my) return null;
+      const e = Math.min(n, s + CH);
+      Core.fieldMany(coil, pts, s, e, res);
+      onProgress(e / n);
+      await new Promise(r => setTimeout(r, 0));
+    }
+    return this.jobId === my ? res : null;
+  },
+};
+pool.init();
+
+// ================= утилиты =================
+const $ = (s) => document.querySelector(s);
+const TAU = 2 * Math.PI;
+const fmt = (x, d = 1) => (x < -0.5 * Math.pow(10, -d) ? '−' : '') + Math.abs(x).toFixed(d).replace('.', ',');
+const fmtS = (x, d = 1) => (x > 0.5 * Math.pow(10, -d) ? '+' : '') + fmt(x, d);
+const pct = (x, d = 1) => fmt(100 * x, d) + '%';
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+function fmtSmall(x) { // доли B₀ → проценты с разумной точностью
+  const v = 100 * x;
+  if (v >= 10) return fmt(v, 0) + '%';
+  if (v >= 1) return fmt(v, 1) + '%';
+  if (v >= 0.1) return fmt(v, 2) + '%';
+  return fmt(v, 3) + '%';
+}
+
+// ---------- цвета из токенов ----------
+let COL = {};
+function tok(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function hex2rgb(h) { h = h.replace('#', ''); if (h.length === 3) h = h.split('').map(c => c + c).join(''); const v = parseInt(h, 16); return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; }
+const s2l = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+const l2s = (c) => { const v = c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(Math.max(c, 0), 1 / 2.4) - 0.055; return clamp(Math.round(v * 255), 0, 255); };
+function toLab(rgb) {
+  const r = s2l(rgb[0]), g = s2l(rgb[1]), b = s2l(rgb[2]);
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s, 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s];
+}
+function fromLab(c) {
+  const l = Math.pow(c[0] + 0.3963377774 * c[1] + 0.2158037573 * c[2], 3);
+  const m = Math.pow(c[0] - 0.1055613458 * c[1] - 0.0638541728 * c[2], 3);
+  const s = Math.pow(c[0] - 0.0894841775 * c[1] - 1.2914855480 * c[2], 3);
+  return [l2s(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s), l2s(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s), l2s(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)];
+}
+function makeLut(stops) {
+  const labs = stops.map(h => toLab(hex2rgb(h))), lut = new Uint8ClampedArray(256 * 3);
+  for (let i = 0; i < 256; i++) {
+    const t = i / 255 * (labs.length - 1), j = Math.min(labs.length - 2, Math.floor(t)), f = t - j;
+    lut.set(fromLab(labs[j].map((v, k) => v + (labs[j + 1][k] - v) * f)), 3 * i);
+  }
+  return lut;
+}
+function readColors() {
+  const names = ['paper', 'sheet', 'ink', 'ink2', 'muted', 'line', 'axis', 's-field', 's-thick', 's-dens', 'div-neg', 'div-mid', 'div-pos', 'seq-1', 'seq-2', 'seq-3'];
+  const c = {}; for (const n of names) c[n] = tok('--' + n);
+  c.div = makeLut([c['div-neg'], c['div-mid'], c['div-pos']]);
+  c.seq = makeLut([c['seq-1'], c['seq-2'], c['seq-3']]);
+  c.inkRgb = hex2rgb(c.ink);
+  c.lineRgb = hex2rgb(c.line); c.densRgb = hex2rgb(c['s-dens']);
+  COL = c;
+}
+
+// ---------- холсты ----------
+function sizeCanvas(cv, cssH) {
+  const w = Math.max(200, cv.parentElement.clientWidth);
+  const h = cssH(w);
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  cv.style.height = h + 'px';
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { ctx, w, h };
+}
+function niceStep(span, target) {
+  const raw = span / target, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+  return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+}
+
+// ================= состояние =================
+const S = {
+  seed: 1, mode: 'dev', rangeFixed: 0, phiStar: 30 * Math.PI / 180,
+  p: null, coil: null, grids: null, data: null, busy: false, pendingSection: false,
+  az: -Math.PI / 4, el: Math.atan(1 / Math.SQRT2), zoom: 1, pan: [0, 0, 0],
+};
+
+function readParams() {
+  const num = (id, lo, hi, def) => { const v = parseFloat($('#' + id).value); return isFinite(v) ? clamp(v, lo, hi) : def; };
+  const R = num('R', 30, 2000, 165);
+  return {
+    R, a: num('a', 2, R / 2.5, 11.5), N: Math.round(num('N', 50, 6000, 1380)), wire: num('wire', 0.05, 5, 0.67), I: num('I', 0.001, 1000, 0.9),
+    thickAmp: num('thickAmp', 0, 40, 20) / 100, thickCount: Math.round(num('thickCount', 1, 24, 8)), thickIrr: num('thickIrr', 0, 100, 30) / 100,
+    densAmp: num('densAmp', 0, 40, 20) / 100, densWaves: Math.round(num('densWaves', 1, 24, 5)), densIrr: num('densIrr', 0, 100, 30) / 100,
+    seed: S.seed, helix: $('#helix').checked, dipCut: 10,
+  };
+}
+const coreKey = (p) => { const q = Object.assign({}, p); delete q.I; return JSON.stringify(q); };
+
+// ================= сетки точек =================
+function makeGrids(p) {
+  const ext = 2.2 * p.a;
+  const polar = { nPhi: 720, nR: 65, rmin: p.R - ext, rmax: p.R + ext };
+  const X = p.R + ext, nx = 440, nz = Math.max(48, Math.round(nx * ext / X));
+  return { ext, polar, front: { nx, nz, X, Z: ext }, side: { nx, nz, X, Z: ext }, sect: { ns: 104, ext } };
+}
+function polarPts(g) {
+  const { nPhi, nR, rmin, rmax } = g.polar, pts = new Float64Array(3 * nPhi * nR);
+  for (let iR = 0; iR < nR; iR++) {                     // строка 0 — наружный край
+    const r = rmax - (rmax - rmin) * iR / (nR - 1);
+    for (let i = 0; i < nPhi; i++) { const ph = TAU * i / nPhi, o = 3 * (iR * nPhi + i); pts[o] = r * Math.cos(ph); pts[o + 1] = r * Math.sin(ph); }
+  }
+  return pts;
+}
+function planePts(g, which) {                           // which: 'front' (y=0) или 'side' (x=0, горизонталь = −y)
+  const { nx, nz, X, Z } = g[which], pts = new Float64Array(3 * nx * nz);
+  for (let iz = 0; iz < nz; iz++) {
+    const z = Z - (iz + 0.5) * 2 * Z / nz;
+    for (let ix = 0; ix < nx; ix++) {
+      const h = -X + (ix + 0.5) * 2 * X / nx, o = 3 * (iz * nx + ix);
+      if (which === 'front') { pts[o] = h; pts[o + 1] = 0; } else { pts[o] = 0; pts[o + 1] = -h; }
+      pts[o + 2] = z;
+    }
+  }
+  return pts;
+}
+function sectPts(p, g, phi) {
+  const { ns, ext } = g.sect, pts = new Float64Array(3 * ns * ns), c = Math.cos(phi), s = Math.sin(phi);
+  for (let iz = 0; iz < ns; iz++) {
+    const z = ext - (iz + 0.5) * 2 * ext / ns;
+    for (let iu = 0; iu < ns; iu++) {
+      const r = p.R - ext + (iu + 0.5) * 2 * ext / ns, o = 3 * (iz * ns + iu);
+      pts[o] = r * c; pts[o + 1] = r * s; pts[o + 2] = z;
+    }
+  }
+  return pts;
+}
+
+// Из поля в точках — величины для карт
+function derive(p, coil, pts, res) {
+  const n = pts.length / 3;
+  const d = { n, b: new Float32Array(n), mag: new Float32Array(n), tilt: new Float32Array(n), br: new Float32Array(n), bz: new Float32Array(n), dw: new Float32Array(n), pts };
+  const kb = 2 / p.N, k0 = 2 * p.R / p.N;
+  for (let i = 0; i < n; i++) {
+    const x = pts[3 * i], y = pts[3 * i + 1], z = pts[3 * i + 2];
+    const r = Math.hypot(x, y) || 1e-9, c = x / r, s = y / r;
+    const Bx = res[3 * i], By = res[3 * i + 1], Bz = res[3 * i + 2];
+    const Bp = -Bx * s + By * c, Br = Bx * c + By * s;
+    d.b[i] = Bp * kb * r;
+    d.mag[i] = Math.hypot(Bx, By, Bz) * k0;
+    d.tilt[i] = Math.atan2(Math.hypot(Br, Bz), Math.abs(Bp)) * 180 / Math.PI;
+    d.br[i] = Br * k0; d.bz[i] = Bz * k0;
+    const aloc = p.a * Core.sampleProf(coil.aRel, Math.atan2(y, x));
+    d.dw[i] = aloc - Math.hypot(r - p.R, z);
+  }
+  return d;
+}
+
+// ================= расчёт =================
+let recalcTimer = 0, sectTimer = 0;
+function scheduleRecalc(delay = 260) { clearTimeout(recalcTimer); recalcTimer = setTimeout(recalc, delay); }
+
+function setStatus(t, prog) { $('#status').textContent = t; if (prog != null) $('#prog').style.width = (100 * prog).toFixed(1) + '%'; }
+
+async function recalc() {
+  const p = readParams();
+  const coil = Core.buildCoil(p);
+  const g = makeGrids(p);
+  S.p = p; S.coil = coil;
+  updateFit();
+  drawProfiles(); drawStripFrame();
+  const parts = [polarPts(g), planePts(g, 'front'), planePts(g, 'side'), sectPts(p, g, S.phiStar)];
+  const total = parts.reduce((s, a) => s + a.length, 0), all = new Float64Array(total);
+  let off = 0; const offs = [];
+  for (const a of parts) { offs.push(off / 3); all.set(a, off); off += a.length; }
+  const params = Object.assign({}, p); delete params.I;
+  S.busy = true;
+  const t0 = performance.now();
+  setStatus('Считаю поле… 0%', 0);
+  const res = await pool.run(params, all, (f) => setStatus('Считаю поле… ' + Math.round(100 * f) + '%', f));
+  if (!res) return;                                      // задание устарело
+  const sl = (k) => {
+    const a = offs[k], b = k + 1 < offs.length ? offs[k + 1] : total / 3;
+    return derive(p, coil, all.subarray(3 * a, 3 * b), res.subarray(3 * a, 3 * b));
+  };
+  S.grids = g; S.gridPhi = S.phiStar;
+  S.data = { polar: sl(0), front: sl(1), side: sl(2), sect: sl(3) };
+  S.busy = false;
+  const dt = (performance.now() - t0) / 1000;
+  const npts = total / 3;
+  setStatus('Готово за ' + fmt(dt, 1) + ' с · ' + npts.toLocaleString('ru-RU') + ' точек · потоков: ' + pool.threads(), 1);
+  computeStats();
+  renderAll();
+  build3d();
+  if (Math.abs(S.phiStar - S.gridPhi) > 1e-9) scheduleSection(0);
+}
+
+function scheduleSection(delay = 120) { clearTimeout(sectTimer); sectTimer = setTimeout(recalcSection, delay); }
+async function recalcSection() {
+  if (S.busy || !S.data) { scheduleSection(200); return; }
+  const p = S.p, g = S.grids, phi = S.phiStar;
+  const pts = sectPts(p, g, phi);
+  const params = Object.assign({}, p); delete params.I;
+  S.busy = true;
+  const res = await pool.run(params, pts, () => {});
+  S.busy = false;
+  if (!res) return;
+  S.data.sect = derive(p, S.coil, pts, res);
+  S.gridPhi = phi;
+  computeStats(true);
+  drawSection(); update3dSection(); render3d();
+}
+
+// ================= статистика =================
+function computeStats(sectOnly) {
+  const p = S.p, D = S.data, coil = S.coil;
+  const pitchOut = TAU * (p.R + p.a * (1 + p.thickAmp)) / p.N * (1 + p.densAmp);
+  const wall = Math.max(0.8, 1.5 * pitchOut);
+  S.wall = wall;
+  // ось трубки: средняя строка полярной сетки
+  const pol = S.grids.polar, mid = (pol.nR - 1) / 2;
+  const axis = new Float64Array(pol.nPhi);
+  for (let i = 0; i < pol.nPhi; i++) axis[i] = D.polar.b[mid * pol.nPhi + i];
+  S.axis = axis;
+  // по объёму (все разрезы), без пристеночного слоя
+  const vals = [], tilts = [];
+  let outBins = [0, 0, 0, 0];                            // 0,5a 1a 2a 5a
+  const binC = [0.5, 1, 2, 5];
+  for (const key of ['polar', 'front', 'side', 'sect']) {
+    const d = D[key];
+    for (let i = 0; i < d.n; i++) {
+      if (d.dw[i] > wall) { vals.push(d.b[i]); tilts.push(d.tilt[i]); }
+      else if (d.dw[i] < 0) {
+        const dist = -d.dw[i] / p.a;
+        for (let k = 0; k < 4; k++) if (Math.abs(dist - binC[k]) < 0.08 * Math.max(1, binC[k])) outBins[k] = Math.max(outBins[k], d.mag[i]);
+      }
+    }
+  }
+  vals.sort((x, y) => x - y); tilts.sort((x, y) => x - y);
+  const q = (arr, f) => arr[clamp(Math.floor(f * (arr.length - 1)), 0, arr.length - 1)];
+  let mean = 0; for (const v of vals) mean += v; mean /= vals.length || 1;
+  let sd = 0; for (const v of vals) sd += (v - mean) * (v - mean); sd = Math.sqrt(sd / (vals.length || 1));
+  let am = 0, amn = Infinity, amx = -Infinity; for (const v of axis) { am += v; amn = Math.min(amn, v); amx = Math.max(amx, v); } am /= axis.length;
+  let asd = 0; for (const v of axis) asd += (v - am) * (v - am); asd = Math.sqrt(asd / axis.length);
+  // центр кольца
+  const fr = S.grids.front, cIdx = Math.floor(fr.nz / 2) * fr.nx + Math.floor(fr.nx / 2);
+  // укладка: минимальный шаг по внутренней стороне
+  let minPitch = Infinity;
+  for (let k = 0; k < p.N; k++) {
+    const k2 = (k + 1) % p.N;
+    let dphi = coil.phiK[k2] - coil.phiK[k]; if (dphi <= 0) dphi += TAU;
+    const rin = p.R - Math.max(coil.A[k], coil.A[k2]);
+    minPitch = Math.min(minPitch, dphi * rin);
+  }
+  S.stats = {
+    vMin: q(vals, 0.001), vMax: q(vals, 0.999), vMean: mean, vSd: sd, vP99: q(vals.map(v => Math.abs(v - 1)).sort((x, y) => x - y), 0.99),
+    tiltMax: q(tilts, 0.999), tiltMed: q(tilts, 0.5),
+    aMin: amn, aMax: amx, aMean: am, aSd: asd,
+    out: outBins, hole: D.front.mag[cIdx], minPitch,
+  };
+  // для шкалы |B|: диапазон внутри
+  let mlo = Infinity, mhi = -Infinity;
+  for (const key of ['polar', 'front', 'side', 'sect']) { const d = D[key]; for (let i = 0; i < d.n; i++) if (d.dw[i] > wall) { mlo = Math.min(mlo, d.mag[i]); mhi = Math.max(mhi, d.mag[i]); } }
+  S.stats.magLo = mlo; S.stats.magHi = mhi;
+  if (!sectOnly) renderSummary();
+  else renderSummary();
+}
+
+function updateFit() {
+  const p = S.p, coil = S.coil;
+  let minPitch = Infinity;
+  for (let k = 0; k < p.N; k++) {
+    const k2 = (k + 1) % p.N;
+    let dphi = coil.phiK[k2] - coil.phiK[k]; if (dphi <= 0) dphi += TAU;
+    minPitch = Math.min(minPitch, dphi * (p.R - Math.max(coil.A[k], coil.A[k2])));
+  }
+  const ok = minPitch >= p.wire;
+  $('#fit').innerHTML = 'Самый плотный шаг по внутренней стороне: <span class="mono">' + fmt(minPitch, 2) + ' мм</span> при проводе ' + fmt(p.wire, 2) + ' мм. ' +
+    (ok ? '<span class="ok">Ложится в один слой.</span>' : '<span class="warn">В один слой не ложится, витки налезают.</span>');
+  const B0 = 0.2 * p.N * p.I / p.R;
+  $('#sum-meta').textContent = 'R ' + fmt(p.R, 0) + ' мм · a ' + fmt(p.a, 1) + ' мм · N ' + p.N + ' · I ' + fmt(p.I, 2) + ' А · B₀ ' + fmt(B0, 3) + ' мТл';
+}
+
+function renderSummary() {
+  const p = S.p, st = S.stats, B0 = 0.2 * p.N * p.I / p.R;
+  const half = (lo, hi) => '±' + fmt(50 * (hi - lo), 1) + '%';
+  const items = [
+    ['Поле идеального тора на оси трубки', fmt(B0, 3) + ' мТл', 'B₀ = μ₀NI/(2πR)'],
+    ['Неоднородность на оси трубки', half(st.aMin, st.aMax), 'от ' + fmtS(100 * (st.aMin - 1), 1) + '% до ' + fmtS(100 * (st.aMax - 1), 1) + '%, СКО ' + pct(st.aSd, 2)],
+    ['Неоднородность по всему объёму', half(st.vMin, st.vMax), 'b от ' + fmt(st.vMin, 3) + ' до ' + fmt(st.vMax, 3) + ', СКО ' + pct(st.vSd, 2)],
+    ['Спад 1/r самого тора поперёк трубки', fmtS(100 * (p.R / (p.R - p.a) - 1), 1) + '…' + fmtS(100 * (p.R / (p.R + p.a) - 1), 1) + '%', 'от внутренней стенки к внешней; в b он вычтен'],
+    ['Наклон силовых линий', fmt(st.tiltMax, 2) + '°', 'максимум; медиана ' + fmt(st.tiltMed, 2) + '°'],
+    ['Поле снаружи на 0,5a от трубки', fmtSmall(st.out[0]) + ' B₀', 'максимум по разрезам'],
+    ['Поле снаружи на 1a от трубки', fmtSmall(st.out[1]) + ' B₀', 'на 2a: ' + fmtSmall(st.out[2]) + ', на 5a: ' + fmtSmall(st.out[3])],
+    ['Поле в центре кольца', fmtSmall(st.hole) + ' B₀', p.helix ? 'в основном от хода провода вдоль кольца' : 'ход провода не учтён'],
+  ];
+  $('#summary').innerHTML = items.map(([k, v, s]) => '<div class="kv"><span class="k">' + k + '</span><span class="v">' + v + '</span><span class="s">' + s + '</span></div>').join('');
+}
+
+// ================= раскраска =================
+function rangeIn() {
+  const st = S.stats, p = S.p;
+  if (S.mode === 'dev') {
+    if (S.rangeFixed) return S.rangeFixed / 100;
+    const nice = [0.002, 0.005, 0.01, 0.02, 0.03, 0.04, 0.05, 0.06, 0.08, 0.1, 0.12, 0.15, 0.2, 0.25, 0.3, 0.4];
+    return nice.find(v => v >= st.vP99) || 0.4;
+  }
+  if (S.mode === 'mag') {
+    const B0 = 0.2 * p.N * p.I / p.R;
+    return [st.magLo * B0, st.magHi * B0];
+  }
+  return S.rangeFixed ? S.rangeFixed / 10 : Math.max(0.05, st.tiltMax);
+}
+function colorAt(d, i, rng, outRGBA, o, outScale) {
+  if (d.dw[i] >= 0) {
+    let t;
+    if (S.mode === 'dev') t = 0.5 + 0.5 * (d.b[i] - 1) / rng;
+    else if (S.mode === 'mag') { const B0 = 0.2 * S.p.N * S.p.I / S.p.R; t = (d.mag[i] * B0 - rng[0]) / (rng[1] - rng[0] || 1); }
+    else t = d.tilt[i] / rng;
+    const j = 3 * clamp(Math.round(255 * t), 0, 255), L = S.mode === 'dev' ? COL.div : COL.seq;
+    outRGBA[o] = L[j]; outRGBA[o + 1] = L[j + 1]; outRGBA[o + 2] = L[j + 2]; outRGBA[o + 3] = 255;
+  } else {
+    const m = d.mag[i];
+    const t = m > 0 ? clamp((Math.log10(m) + 3) / 2, 0, 1) : 0;    // 0,1% … 10% B₀
+    outRGBA[o] = COL.inkRgb[0]; outRGBA[o + 1] = COL.inkRgb[1]; outRGBA[o + 2] = COL.inkRgb[2];
+    outRGBA[o + 3] = Math.round(255 * OUT_ALPHA * t * outScale);
+  }
+}
+const OUT_ALPHA = 0.5;
+const IMG = {};
+function gridImage(name, d, w, h, outScale = 1) {
+  let cv = IMG[name];
+  if (!cv) { cv = IMG[name] = document.createElement('canvas'); }
+  const key = S.mode + '|' + JSON.stringify(rangeIn()) + '|' + colorsKey + '|' + w + 'x' + h + '|' + outScale;
+  if (cv._d === d && cv._key === key) return cv;
+  cv._d = d; cv._key = key;
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext('2d'), im = ctx.createImageData(w, h), rng = rangeIn();
+  for (let i = 0; i < w * h; i++) colorAt(d, i, rng, im.data, 4 * i, outScale);
+  ctx.putImageData(im, 0, 0);
+  return cv;
+}
+
+function drawLegend() {
+  const cv = $('#lg-in'), ctx = cv.getContext('2d'), L = S.mode === 'dev' ? COL.div : COL.seq;
+  const im = ctx.createImageData(256, 12);
+  for (let x = 0; x < 256; x++) for (let y = 0; y < 12; y++) { const o = 4 * (y * 256 + x); im.data[o] = L[3 * x]; im.data[o + 1] = L[3 * x + 1]; im.data[o + 2] = L[3 * x + 2]; im.data[o + 3] = 255; }
+  ctx.putImageData(im, 0, 0);
+  const co = $('#lg-out'), cto = co.getContext('2d'), im2 = cto.createImageData(256, 12);
+  const bg = hex2rgb(COL.sheet);
+  for (let x = 0; x < 256; x++) {
+    const a = OUT_ALPHA * x / 255;
+    for (let y = 0; y < 12; y++) { const o = 4 * (y * 256 + x); for (let k = 0; k < 3; k++) im2.data[o + k] = Math.round(bg[k] * (1 - a) + COL.inkRgb[k] * a); im2.data[o + 3] = 255; }
+  }
+  cto.putImageData(im2, 0, 0);
+  const t = $('#lg-in-t'), h = $('#lg-in-h');
+  if (!S.stats) return;
+  const r = rangeIn();
+  if (S.mode === 'dev') {
+    t.innerHTML = '<span>' + fmtS(-100 * r, r < 0.01 ? 1 : 0) + '%</span><span>0</span><span>' + fmtS(100 * r, r < 0.01 ? 1 : 0) + '%</span>';
+    h.textContent = 'Внутри трубки: b − 1, отклонение продольного поля от идеального тора в той же точке. Синий — слабее идеала, красный — сильнее.';
+    $('#rng-o').textContent = S.rangeFixed ? '±' + S.rangeFixed + '%' : 'авто, ±' + fmt(100 * r, r < 0.01 ? 1 : 0) + '%';
+  } else if (S.mode === 'mag') {
+    t.innerHTML = '<span>' + fmt(r[0], 3) + '</span><span>мТл</span><span>' + fmt(r[1], 3) + '</span>';
+    h.textContent = 'Внутри трубки: модуль поля. Здесь виден и спад 1/r самого тора: у внутренней стенки поле сильнее.';
+    $('#rng-o').textContent = 'по данным';
+  } else {
+    t.innerHTML = '<span>0°</span><span>угол</span><span>' + fmt(r, 2) + '°</span>';
+    h.textContent = 'Внутри трубки: угол между полем и направлением вдоль кольца.';
+    $('#rng-o').textContent = S.rangeFixed ? fmt(S.rangeFixed / 10, 1) + '°' : 'авто';
+  }
+}
+
+// ================= виды =================
+function drawAxisFrame(ctx, x0, y0, w, h) {
+  ctx.strokeStyle = COL.axis; ctx.lineWidth = 1; ctx.strokeRect(x0 + 0.5, y0 + 0.5, w - 1, h - 1);
+}
+function dashDot(ctx) { ctx.setLineDash([10, 3, 2, 3]); }
+
+// Главный вид и вид слева: полосы с двумя сечениями трубки
+function drawPlane(which) {
+  const cv = $('#cv-' + which), g = S.grids, d = S.data && S.data[which];
+  const G = g ? g[which] : null;
+  const ML = 44, MR = 10, MT = 18, MB = 26;
+  const { ctx, w, h } = sizeCanvas(cv, (W) => { if (!G) return 160; const pw = W - ML - MR; return Math.round(pw * G.Z / G.X) + MT + MB; });
+  ctx.fillStyle = COL.sheet; ctx.fillRect(0, 0, w, h);
+  if (!d) return;
+  const pw = w - ML - MR, ph = h - MT - MB;
+  const img = gridImage(which, d, G.nx, G.nz);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(img, ML, MT, pw, ph);
+  const sx = (hh) => ML + (hh + G.X) / (2 * G.X) * pw, sz = (z) => MT + (G.Z - z) / (2 * G.Z) * ph, mm = pw / (2 * G.X);
+  // контуры сечений
+  const p = S.p, cuts = which === 'front' ? [[p.R, 0], [-p.R, Math.PI]] : [[-p.R, Math.PI / 2], [p.R, 3 * Math.PI / 2]];
+  ctx.strokeStyle = COL.ink; ctx.lineWidth = 1.2; ctx.setLineDash([]);
+  for (const [hc, ph0] of cuts) {
+    const ar = p.a * Core.sampleProf(S.coil.aRel, ph0);
+    ctx.beginPath(); ctx.arc(sx(hc), sz(0), ar * mm, 0, TAU); ctx.stroke();
+    ctx.fillStyle = COL.ink2; ctx.font = '12px ' + COL.mono; ctx.textAlign = 'center';
+    ctx.fillText('φ = ' + Math.round(ph0 * 180 / Math.PI) + '°', sx(hc), MT - 5);
+  }
+  // осевые линии
+  ctx.strokeStyle = COL.muted; ctx.lineWidth = 0.8; dashDot(ctx);
+  ctx.beginPath(); ctx.moveTo(ML, sz(0)); ctx.lineTo(ML + pw, sz(0)); ctx.moveTo(sx(0), MT); ctx.lineTo(sx(0), MT + ph);
+  for (const [hc] of cuts) { ctx.moveTo(sx(hc), MT); ctx.lineTo(sx(hc), MT + ph); }
+  ctx.stroke(); ctx.setLineDash([]);
+  drawAxisFrame(ctx, ML, MT, pw, ph);
+  // шкалы
+  ctx.fillStyle = COL.muted; ctx.font = '11px ' + COL.mono; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  const zs = niceStep(2 * G.Z, 4);
+  for (let z = -Math.floor(G.Z / zs) * zs; z <= G.Z + 1e-9; z += zs) { ctx.fillText(fmt(z, 0), ML - 6, sz(z)); }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  const xs = niceStep(2 * G.X, 8);
+  for (let x = -Math.floor(G.X / xs) * xs; x <= G.X + 1e-9; x += xs) {
+    const lab = which === 'front' ? x : -x;
+    ctx.fillText(fmt(lab, 0), sx(x), MT + ph + 6);
+  }
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic'; ctx.fillText(which === 'front' ? 'x, мм →' : '← y, мм', ML, MT - 5);
+  ctx.save(); ctx.translate(11, MT + ph / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('z, мм', 0, 0); ctx.restore();
+  cv._map = { ML, MT, pw, ph, G, which, sx, sz };
+}
+
+// Вид сверху: полярная сетка на квадрате
+function drawTop() {
+  const cv = $('#cv-top'), g = S.grids, d = S.data && S.data.polar;
+  const { ctx, w, h } = sizeCanvas(cv, (W) => W);
+  ctx.fillStyle = COL.sheet; ctx.fillRect(0, 0, w, h);
+  if (!d) return;
+  const p = S.p, pol = g.polar, M = 26, ext = pol.rmax + 0.06 * p.R, sc = (Math.min(w, h) - 2 * M) / (2 * ext);
+  const cx = w / 2, cy = h / 2;
+  const dpr = cv.width / w, W2 = cv.width, H2 = cv.height;
+  const pimg = gridImage('polar', d, pol.nPhi, pol.nR);
+  let base = IMG.topBase;
+  if (!base) base = IMG.topBase = document.createElement('canvas');
+  const bkey = pimg._key + '|' + W2 + 'x' + H2;
+  if (base._d !== d || base._key !== bkey) {
+  base._d = d; base._key = bkey; base.width = W2; base.height = H2;
+  const bctx = base.getContext('2d');
+  bctx.fillStyle = COL.sheet; bctx.fillRect(0, 0, W2, H2);
+  const src = pimg.getContext('2d').getImageData(0, 0, pol.nPhi, pol.nR).data;
+  const out = bctx.getImageData(0, 0, W2, H2), od = out.data, bg = hex2rgb(COL.sheet);
+  for (let py = 0; py < H2; py++) {
+    const y = (cy - py / dpr) / sc;
+    for (let px = 0; px < W2; px++) {
+      const x = (px / dpr - cx) / sc, r = Math.hypot(x, y);
+      if (r < pol.rmin || r > pol.rmax) continue;
+      let ph = Math.atan2(y, x); if (ph < 0) ph += TAU;
+      const fu = ph / TAU * pol.nPhi, fv = (pol.rmax - r) / (pol.rmax - pol.rmin) * (pol.nR - 1);
+      const i0 = Math.floor(fu) % pol.nPhi, i1 = (i0 + 1) % pol.nPhi, j0 = Math.min(pol.nR - 2, Math.floor(fv)), au = fu - Math.floor(fu), av = fv - j0;
+      const o = 4 * (py * W2 + px);
+      let acc = [0, 0, 0, 0];
+      const add = (ii, jj, wt) => { const q = 4 * (jj * pol.nPhi + ii); const al = src[q + 3] / 255; acc[0] += src[q] * al * wt; acc[1] += src[q + 1] * al * wt; acc[2] += src[q + 2] * al * wt; acc[3] += al * wt; };
+      add(i0, j0, (1 - au) * (1 - av)); add(i1, j0, au * (1 - av)); add(i0, j0 + 1, (1 - au) * av); add(i1, j0 + 1, au * av);
+      const al = acc[3];
+      for (let k = 0; k < 3; k++) od[o + k] = Math.round(al > 0 ? (acc[k] + bg[k] * (1 - al)) : bg[k]);
+      od[o + 3] = 255;
+    }
+  }
+  bctx.putImageData(out, 0, 0);
+  }
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(base, 0, 0); ctx.restore();
+  const X = (x) => cx + x * sc, Y = (y) => cy - y * sc;
+  // края трубки
+  ctx.strokeStyle = COL.ink; ctx.lineWidth = 1;
+  for (const sgn of [1, -1]) {
+    ctx.beginPath();
+    for (let i = 0; i <= 720; i++) { const ph = TAU * i / 720, r = p.R + sgn * p.a * Core.sampleProf(S.coil.aRel, ph); const xx = X(r * Math.cos(ph)), yy = Y(r * Math.sin(ph)); i ? ctx.lineTo(xx, yy) : ctx.moveTo(xx, yy); }
+    ctx.stroke();
+  }
+  // линии разрезов А–А и Б–Б
+  ctx.strokeStyle = COL.muted; ctx.lineWidth = 0.9; dashDot(ctx);
+  ctx.beginPath(); ctx.moveTo(X(-ext), Y(0)); ctx.lineTo(X(ext), Y(0)); ctx.moveTo(X(0), Y(-ext)); ctx.lineTo(X(0), Y(ext)); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = COL.ink; ctx.font = '600 13px ' + COL.display; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('А', X(-ext) + 8, Y(0) - 12); ctx.fillText('А', X(ext) - 8, Y(0) - 12);
+  ctx.fillText('Б', X(0) + 12, Y(-ext) - 4); ctx.fillText('Б', X(0) + 12, Y(ext) + 6);
+  // сечение φ*
+  const ph = S.phiStar, r1 = p.R - 2.4 * p.a, r2 = p.R + 2.4 * p.a;
+  ctx.strokeStyle = COL.ink; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(X(r1 * Math.cos(ph)), Y(r1 * Math.sin(ph))); ctx.lineTo(X(r2 * Math.cos(ph)), Y(r2 * Math.sin(ph))); ctx.stroke();
+  ctx.font = '12px ' + COL.mono; ctx.fillStyle = COL.ink;
+  const rl = p.R + 3.4 * p.a; ctx.fillText('φ* ' + fmt(ph * 180 / Math.PI, 1) + '°', X(rl * Math.cos(ph)), Y(rl * Math.sin(ph)));
+  // оси и масштаб
+  ctx.fillStyle = COL.muted; ctx.font = '11px ' + COL.mono; ctx.textAlign = 'left';
+  ctx.fillText('x →', X(ext) - 26, Y(0) + 12); ctx.fillText('y ↑', X(0) - 26, Y(ext) + 8);
+  ctx.fillText('φ = 0°', X(p.R + 1.4 * p.a), Y(0) + 12);
+  const bar = niceStep(ext, 3);
+  ctx.strokeStyle = COL.ink2; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(M, h - M + 8); ctx.lineTo(M + bar * sc, h - M + 8); ctx.stroke();
+  ctx.fillStyle = COL.ink2; ctx.fillText(fmt(bar, 0) + ' мм', M, h - M - 4);
+  cv._map = { cx, cy, sc };
+}
+
+// Сечение трубки при φ*
+function drawSection() {
+  const cv = $('#cv-sect'), g = S.grids, d = S.data && S.data.sect;
+  const { ctx, w, h } = sizeCanvas(cv, (W) => Math.min(W, 520));
+  ctx.fillStyle = COL.sheet; ctx.fillRect(0, 0, w, h);
+  $('#phiStar-o').textContent = fmt(S.phiStar * 180 / Math.PI, 1) + '°';
+  if (!d) return;
+  const p = S.p, ns = g.sect.ns, ext = g.sect.ext, M = 30, size = Math.min(w, h) - 2 * M, x0 = (w - size) / 2, y0 = M - 6;
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(gridImage('sect', d, ns, ns), x0, y0, size, size);
+  const sc = size / (2 * ext), U = (u) => x0 + (u + ext) * sc, Zp = (z) => y0 + (ext - z) * sc;
+  const ar = p.a * Core.sampleProf(S.coil.aRel, S.gridPhi);
+  ctx.strokeStyle = COL.ink; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(U(0), Zp(0), ar * sc, 0, TAU); ctx.stroke();
+  // стрелки поперечного поля
+  const n = 15, step = 2 * ar / n; let mx = 0;
+  const pick = (u, z) => { const iu = clamp(Math.floor((u + ext) / (2 * ext) * ns), 0, ns - 1), iz = clamp(Math.floor((ext - z) / (2 * ext) * ns), 0, ns - 1); return iz * ns + iu; };
+  const arr = [];
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    const u = -ar + (i + 0.5) * step, z = -ar + (j + 0.5) * step;
+    if (Math.hypot(u, z) > ar - Math.max(S.wall, 0.6 * step)) continue;
+    const k = pick(u, z), bu = d.br[k], bzz = d.bz[k], m = Math.hypot(bu, bzz);
+    mx = Math.max(mx, m); arr.push([u, z, bu, bzz]);
+  }
+  ctx.strokeStyle = COL.ink; ctx.fillStyle = COL.ink; ctx.lineWidth = 1.1;
+  for (const [u, z, bu, bzz] of arr) {
+    const m = Math.hypot(bu, bzz); if (!mx || m < 1e-12) continue;
+    const L = 0.85 * step * sc * Math.sqrt(m / mx), ux = bu / m, uz = -bzz / m;
+    const xa = U(u) - ux * L / 2, ya = Zp(z) - uz * L / 2, xb = xa + ux * L, yb = ya + uz * L;
+    ctx.globalAlpha = 0.75;
+    ctx.beginPath(); ctx.moveTo(xa, ya); ctx.lineTo(xb, yb); ctx.stroke();
+    const hs = Math.min(4, L * 0.4);
+    ctx.beginPath(); ctx.moveTo(xb, yb); ctx.lineTo(xb - ux * hs - uz * hs * 0.6, yb - uz * hs + ux * hs * 0.6); ctx.lineTo(xb - ux * hs + uz * hs * 0.6, yb - uz * hs - ux * hs * 0.6); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  drawAxisFrame(ctx, x0, y0, size, size);
+  ctx.fillStyle = COL.muted; ctx.font = '11px ' + COL.mono; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  const st = niceStep(2 * ext, 4);
+  for (let u = -Math.floor(ext / st) * st; u <= ext + 1e-9; u += st) ctx.fillText(fmt(u, 0), U(u), y0 + size + 4);
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let z = -Math.floor(ext / st) * st; z <= ext + 1e-9; z += st) ctx.fillText(fmt(z, 0), x0 - 5, Zp(z));
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillText('← к оси кольца', x0, y0 + size + 16);
+  ctx.textAlign = 'right'; ctx.fillText('наружу →', x0 + size, y0 + size + 16);
+  // числа по сечению
+  let lo = Infinity, hi = -Infinity, tmax = 0;
+  for (let i = 0; i < d.n; i++) if (d.dw[i] > S.wall) { lo = Math.min(lo, d.b[i]); hi = Math.max(hi, d.b[i]); tmax = Math.max(tmax, d.tilt[i]); }
+  $('#sec-meta').textContent = 'a = ' + fmt(ar, 2) + ' мм · b ' + fmt(lo, 3) + '…' + fmt(hi, 3) + ' · наклон до ' + fmt(tmax, 2) + '°';
+  cv._map = { x0, y0, size, ext, ns };
+}
+
+// ---------- развёртка: профили ----------
+const PROF = { ML: 52, MR: 14 };
+function profSeries() {
+  const p = S.p, c = S.coil, n = 720, th = new Float64Array(n), de = new Float64Array(n);
+  for (let i = 0; i < n; i++) { th[i] = 100 * (c.aRel[i * 5] - 1); de[i] = 100 * (c.nRel[i * 5] - 1); }
+  const fi = S.axis && S.data ? Array.from(S.axis, v => 100 * (v - 1)) : null;
+  return { th, de, fi };
+}
+function drawProfiles(hoverPhi) {
+  const cv = $('#cv-prof'); if (!S.coil) return;
+  const { ctx, w, h } = sizeCanvas(cv, () => 240);
+  ctx.fillStyle = COL.sheet; ctx.fillRect(0, 0, w, h);
+  const { ML, MR } = PROF, MT = 10, MB = 26, pw = w - ML - MR, ph = h - MT - MB;
+  const ser = profSeries();
+  let lo = 0, hi = 0;
+  for (const s of [ser.th, ser.de, ser.fi]) if (s) for (const v of s) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  const step = niceStep(hi - lo || 1, 5);
+  lo = Math.floor(lo / step) * step; hi = Math.ceil(hi / step) * step; if (hi - lo < step) hi = lo + step;
+  const X = (deg) => ML + deg / 360 * pw, Y = (v) => MT + (hi - v) / (hi - lo) * ph;
+  ctx.font = '11px ' + COL.mono; ctx.fillStyle = COL.muted; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let v = lo; v <= hi + 1e-9; v += step) {
+    ctx.strokeStyle = Math.abs(v) < 1e-9 ? COL.axis : COL.line; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(ML, Math.round(Y(v)) + 0.5); ctx.lineTo(ML + pw, Math.round(Y(v)) + 0.5); ctx.stroke();
+    ctx.fillText(fmtS(v, step < 1 ? 1 : 0) + '%', ML - 6, Y(v));
+  }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let dg = 0; dg <= 360; dg += 45) ctx.fillText(dg + '°', X(dg), MT + ph + 7);
+  const line = (s, col, dash) => { if (!s) return; ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.setLineDash(dash || []); ctx.beginPath(); for (let i = 0; i <= s.length; i++) { const v = s[i % s.length]; const xx = X(i / s.length * 360), yy = Y(v); i ? ctx.lineTo(xx, yy) : ctx.moveTo(xx, yy); } ctx.stroke(); };
+  line(ser.th, COL['s-thick'], [7, 4]); line(ser.de, COL['s-dens'], [2, 3]); line(ser.fi, COL['s-field']); ctx.setLineDash([]);   // при дальтонизме — по штриху
+  // сечение φ*
+  const xs = X(S.phiStar * 180 / Math.PI);
+  ctx.strokeStyle = COL.ink; ctx.lineWidth = 1.2; ctx.setLineDash([4, 3]);
+  ctx.beginPath(); ctx.moveTo(xs, MT); ctx.lineTo(xs, MT + ph); ctx.stroke(); ctx.setLineDash([]);
+  if (hoverPhi != null) {
+    const xh = X(hoverPhi);
+    ctx.strokeStyle = COL.ink2; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(xh, MT); ctx.lineTo(xh, MT + ph); ctx.stroke();
+    const i = clamp(Math.round(hoverPhi / 360 * 720), 0, 719);
+    for (const [s, col] of [[ser.th, COL['s-thick']], [ser.de, COL['s-dens']], [ser.fi, COL['s-field']]]) {
+      if (!s) continue; ctx.fillStyle = col; ctx.strokeStyle = COL.sheet; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(xh, Y(s[i]), 4, 0, TAU); ctx.fill(); ctx.stroke();
+    }
+  }
+  cv._map = { X, ML, pw, MT, ph };
+}
+// ---------- развёртка: полоса средней плоскости ----------
+function drawStripFrame() {
+  const cv = $('#cv-strip'); if (!S.coil) return;
+  const { ctx, w, h } = sizeCanvas(cv, () => 150);
+  ctx.fillStyle = COL.sheet; ctx.fillRect(0, 0, w, h);
+  const { ML, MR } = PROF, MT = 4, MB = 6, pw = w - ML - MR, ph = h - MT - MB;
+  const p = S.p, g = S.grids;
+  if (S.data && g) {
+    ctx.imageSmoothingEnabled = true;
+    ctx.drawImage(gridImage('polar', S.data.polar, g.polar.nPhi, g.polar.nR), ML, MT, pw, ph);
+  }
+  const ext = 2.2 * p.a, Y = (u) => MT + (ext - u) / (2 * ext) * ph, X = (deg) => ML + deg / 360 * pw;
+  ctx.strokeStyle = COL.ink; ctx.lineWidth = 1;
+  for (const sgn of [1, -1]) { ctx.beginPath(); for (let i = 0; i <= 720; i++) { const v = sgn * p.a * S.coil.aRel[(i * 5) % 3600]; i ? ctx.lineTo(X(i / 2), Y(v)) : ctx.moveTo(X(0), Y(v)); } ctx.stroke(); }
+  ctx.strokeStyle = COL.muted; ctx.lineWidth = 0.8; dashDot(ctx); ctx.beginPath(); ctx.moveTo(ML, Y(0)); ctx.lineTo(ML + pw, Y(0)); ctx.stroke(); ctx.setLineDash([]);
+  const xs = X(S.phiStar * 180 / Math.PI);
+  ctx.strokeStyle = COL.ink; ctx.lineWidth = 1.2; ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.moveTo(xs, MT); ctx.lineTo(xs, MT + ph); ctx.stroke(); ctx.setLineDash([]);
+  drawAxisFrame(ctx, ML, MT, pw, ph);
+  ctx.fillStyle = COL.muted; ctx.font = '11px ' + COL.mono; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (const u of [-p.a, 0, p.a]) ctx.fillText((u > 0 ? '+' : '') + fmt(u, 0), ML - 6, Y(u));
+  ctx.save(); ctx.translate(10, MT + ph / 2); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; ctx.fillText('r − R, мм', 0, 0); ctx.restore();
+}
+
+// ---------- гармоники ----------
+function harmonics(arr, M) {
+  const n = arr.length; let mean = 0; for (const v of arr) mean += v; mean /= n;
+  const out = new Float64Array(M + 1);
+  for (let m = 1; m <= M; m++) { let re = 0, im = 0; for (let i = 0; i < n; i++) { const a = TAU * m * i / n; re += (arr[i] / mean) * Math.cos(a); im -= (arr[i] / mean) * Math.sin(a); } out[m] = 100 * 2 * Math.hypot(re, im) / n; }
+  return out;
+}
+function drawSpectrum(hoverM) {
+  const cv = $('#cv-spec'); if (!S.coil) return;
+  const { ctx, w, h } = sizeCanvas(cv, () => 250);
+  ctx.fillStyle = COL.sheet; ctx.fillRect(0, 0, w, h);
+  const M = 24, ML = 40, MR = 8, MT = 10, MB = 26, pw = w - ML - MR, ph = h - MT - MB;
+  const c = S.coil, sub = (A) => { const r = new Float64Array(720); for (let i = 0; i < 720; i++) r[i] = A[i * 5]; return r; };
+  if (!S.spec || S.spec.key !== S.specKey) {
+    S.spec = { th: harmonics(sub(c.aRel), M), de: harmonics(sub(c.nRel), M), fi: S.axis ? harmonics(S.axis, M) : null, key: S.specKey };
+  }
+  const sp = S.spec;
+  let hi = 0; for (const s of [sp.th, sp.de, sp.fi]) if (s) for (let m = 1; m <= M; m++) hi = Math.max(hi, s[m]);
+  const step = niceStep(hi || 1, 4); hi = Math.ceil((hi || 1) / step) * step;
+  const gw = pw / M, Y = (v) => MT + (1 - v / hi) * ph;
+  ctx.font = '11px ' + COL.mono; ctx.fillStyle = COL.muted; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let v = 0; v <= hi + 1e-9; v += step) {
+    ctx.strokeStyle = v === 0 ? COL.axis : COL.line; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(ML, Math.round(Y(v)) + 0.5); ctx.lineTo(ML + pw, Math.round(Y(v)) + 0.5); ctx.stroke();
+    ctx.fillText(fmt(v, step < 1 ? 1 : 0), ML - 6, Y(v));
+  }
+  if (hoverM) { ctx.fillStyle = COL.line; ctx.globalAlpha = 0.6; ctx.fillRect(ML + (hoverM - 1) * gw, MT, gw, ph); ctx.globalAlpha = 1; }
+  const bw = Math.max(1.5, (gw - 6) / 3);
+  const series = [[sp.th, COL['s-thick']], [sp.de, COL['s-dens']], [sp.fi, COL['s-field']]];
+  for (let m = 1; m <= M; m++) {
+    series.forEach(([s, col], k) => {
+      if (!s) return; const v = s[m], x = ML + (m - 1) * gw + 3 + k * bw, y = Y(v);
+      ctx.fillStyle = col; const hh = Math.max(0, Y(0) - y);
+      if (hh < 0.5) return;
+      const r = Math.min(2, bw / 2, hh);
+      ctx.beginPath(); ctx.moveTo(x + 0.5, Y(0)); ctx.lineTo(x + 0.5, y + r); ctx.quadraticCurveTo(x + 0.5, y, x + 0.5 + r, y); ctx.lineTo(x + bw - 0.5 - r, y); ctx.quadraticCurveTo(x + bw - 0.5, y, x + bw - 0.5, y + r); ctx.lineTo(x + bw - 0.5, Y(0)); ctx.closePath(); ctx.fill();
+    });
+  }
+  ctx.fillStyle = COL.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for (let m = 1; m <= M; m++) if (m === 1 || m % 4 === 0) ctx.fillText(m, ML + (m - 0.5) * gw, MT + ph + 7);
+  cv._map = { ML, gw, M };
+}
+
+function renderAll() {
+  readColorsIfNeeded();
+  drawLegend();
+  drawPlane('front'); drawPlane('side'); drawTop(); drawSection();
+  drawProfiles(); drawStripFrame();
+  S.specKey = coreKey(S.p) + (S.data ? 'd' : '');
+  drawSpectrum();
+}
+let colorsKey = '';
+function readColorsIfNeeded() {
+  const k = tok('--sheet') + tok('--ink') + tok('--div-mid');
+  if (k !== colorsKey) { colorsKey = k; readColors(); COL.mono = tok('--f-mono'); COL.display = tok('--f-display'); }
+}
+
+// ================= изометрия (three.js) =================
+const V = { ok: false };
+function init3d() {
+  if (!window.THREE) { $('#iso-note').textContent = 'Трёхмерный вид не загрузился: нет доступа к библиотеке three.js. Остальные виды работают.'; return; }
+  const cv = $('#cv-iso');
+  try { V.renderer = new THREE.WebGLRenderer({ canvas: cv, antialias: true }); }
+  catch (e) { $('#iso-note').textContent = 'Браузер не дал WebGL, трёхмерный вид недоступен.'; return; }
+  V.scene = new THREE.Scene();
+  V.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -10000, 10000);
+  V.camera.up.set(0, 0, 1);
+  V.scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+  const dl = new THREE.DirectionalLight(0xffffff, 0.55); dl.position.set(0.6, -0.8, 1.4); V.scene.add(dl);
+  V.root = new THREE.Group(); V.scene.add(V.root);
+  V.ok = true;
+  const wrap = $('#iso-wrap');
+  let drag = null;
+  wrap.addEventListener('contextmenu', (e) => e.preventDefault());
+  wrap.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, pan: e.shiftKey || e.button === 2 }; wrap.setPointerCapture(e.pointerId); });
+  wrap.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag.x = e.clientX; drag.y = e.clientY;
+    if (drag.pan) {
+      const s = V.half * 2 / wrap.clientHeight;
+      const right = new THREE.Vector3().setFromMatrixColumn(V.camera.matrixWorld, 0), up = new THREE.Vector3().setFromMatrixColumn(V.camera.matrixWorld, 1);
+      S.pan[0] -= (right.x * dx - up.x * dy) * s; S.pan[1] -= (right.y * dx - up.y * dy) * s; S.pan[2] -= (right.z * dx - up.z * dy) * s;
+    } else { S.az -= dx * 0.008; S.el = clamp(S.el + dy * 0.008, -1.55, 1.55); }
+    render3d();
+  });
+  const end = () => { drag = null; };
+  wrap.addEventListener('pointerup', end); wrap.addEventListener('pointercancel', end);
+  wrap.addEventListener('wheel', (e) => { e.preventDefault(); S.zoom = clamp(S.zoom * Math.exp(-e.deltaY * 0.0012), 0.5, 40); render3d(); }, { passive: false });
+  new ResizeObserver(() => render3d()).observe(wrap);
+  const view = (az, el, zoom, pan) => { S.az = az; S.el = el; S.zoom = zoom; S.pan = pan || [0, 0, 0]; render3d(); };
+  $('#v-iso').onclick = () => view(-Math.PI / 4, Math.atan(1 / Math.SQRT2), 1);
+  $('#v-top').onclick = () => view(-Math.PI / 2, 1.5499, 1);
+  $('#v-front').onclick = () => view(-Math.PI / 2, 0, 1);
+  $('#v-sect').onclick = () => {
+    const p = S.p, ph = S.phiStar;
+    view(ph - Math.PI / 2 - 0.5, 0.45, (p.R + 2.6 * p.a) / (3.2 * p.a), [p.R * Math.cos(ph), p.R * Math.sin(ph), 0]);
+  };
+  for (const id of ['s-wire', 's-cuts', 's-tube']) $('#' + id).onchange = () => { applyVis(); render3d(); };
+  $('#s-quarter').onchange = () => build3d();
+}
+// Картинка разреза для 3D: поле снаружи бледнее, чтобы плоскости не заслоняли катушку
+function img3(name) {
+  const g = S.grids, D = S.data;
+  if (name === 'polar') return gridImage('polar3', D.polar, g.polar.nPhi, g.polar.nR, 0.45);
+  if (name === 'sect') return gridImage('sect3', D.sect, g.sect.ns, g.sect.ns, 0.45);
+  return gridImage(name + '3', D[name], g[name].nx, g[name].nz, 0.45);
+}
+function disposeGroup(g) { while (g.children.length) { const o = g.children.pop(); if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } } }
+function texFrom(name) {
+  const t = new THREE.CanvasTexture(img3(name)); t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; t.generateMipmaps = false; return t;
+}
+function build3d() {
+  if (!V.ok || !S.data) return;
+  disposeGroup(V.root);
+  const p = S.p, c = S.coil, g = S.grids;
+  // вырез четверти, обращённой к изометрическому взгляду: φ от 270° до 360°
+  const span = $('#s-quarter').checked ? 0.75 * TAU : TAU;
+  // трубка
+  const nP = Math.round(360 * span / TAU), nT = 32, pos = new Float32Array(3 * (nP + 1) * (nT + 1)), idx = [];
+  for (let i = 0; i <= nP; i++) {
+    const ph = span * i / nP, a = p.a * Core.sampleProf(c.aRel, ph), cp = Math.cos(ph), sp = Math.sin(ph);
+    for (let j = 0; j <= nT; j++) {
+      const th = TAU * j / nT, r = p.R + a * Math.cos(th), o = 3 * (i * (nT + 1) + j);
+      pos[o] = r * cp; pos[o + 1] = r * sp; pos[o + 2] = a * Math.sin(th);
+    }
+  }
+  for (let i = 0; i < nP; i++) for (let j = 0; j < nT; j++) { const A = i * (nT + 1) + j, B = A + nT + 1; idx.push(A, B, A + 1, B, B + 1, A + 1); }
+  const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.BufferAttribute(pos, 3)); tg.setIndex(idx); tg.computeVertexNormals();
+  V.tube = new THREE.Mesh(tg, new THREE.MeshLambertMaterial({ color: new THREE.Color(COL.ink2), transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide }));
+  V.tube.renderOrder = 3;
+  V.root.add(V.tube);
+  // витки: цвет по местной плотности
+  const segs = 20, N = p.N, wp = new Float32Array(N * segs * 6), wc = new Float32Array(N * segs * 6);
+  let nmin = Infinity, nmax = -Infinity; for (const v of c.nRel) { nmin = Math.min(nmin, v); nmax = Math.max(nmax, v); }
+  const lo = COL.lineRgb, hi = COL.densRgb;
+  for (let k = 0; k < N; k++) {
+    const ph = c.phiK[k], cp = Math.cos(ph), sp = Math.sin(ph), A = c.A[k] + p.wire / 2;
+    if (ph > span) { wp.fill(0, 6 * k * segs, 6 * (k + 1) * segs); continue; }
+    const t = nmax > nmin ? (Core.sampleProf(c.nRel, ph) - nmin) / (nmax - nmin) : 1, tt = 0.25 + 0.75 * t;
+    const col = [0, 1, 2].map(q => (lo[q] + (hi[q] - lo[q]) * tt) / 255);
+    for (let s = 0; s < segs; s++) {
+      for (let e = 0; e < 2; e++) {
+        const th = TAU * (s + e) / segs, r = p.R + A * Math.cos(th), o = 3 * (2 * (k * segs + s) + e);
+        wp[o] = r * cp; wp[o + 1] = r * sp; wp[o + 2] = A * Math.sin(th);
+        wc[o] = col[0]; wc[o + 1] = col[1]; wc[o + 2] = col[2];
+      }
+    }
+  }
+  const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.BufferAttribute(wp, 3)); wg.setAttribute('color', new THREE.BufferAttribute(wc, 3));
+  V.wire = new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.32, depthWrite: false }));
+  V.wire.renderOrder = 4;
+  V.root.add(V.wire);
+  // разрезы: средняя плоскость (кольцо), XZ, YZ
+  V.cuts = new THREE.Group(); V.root.add(V.cuts);
+  const pol = g.polar, nS = 256, rp = new Float32Array(3 * (nS + 1) * 2), ruv = new Float32Array(2 * (nS + 1) * 2), ri = [];
+  for (let i = 0; i <= nS; i++) {
+    const ph = TAU * i / nS;
+    for (let j = 0; j < 2; j++) { const r = j ? pol.rmax : pol.rmin, o = 2 * i + j; rp[3 * o] = r * Math.cos(ph); rp[3 * o + 1] = r * Math.sin(ph); rp[3 * o + 2] = 0; ruv[2 * o] = i / nS; ruv[2 * o + 1] = j; }
+  }
+  for (let i = 0; i < nS; i++) { const A = 2 * i; ri.push(A, A + 2, A + 1, A + 1, A + 2, A + 3); }
+  const rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(rp, 3)); rg.setAttribute('uv', new THREE.BufferAttribute(ruv, 2)); rg.setIndex(ri);
+  const ptex = texFrom('polar'); ptex.wrapS = THREE.RepeatWrapping;
+  const cutMat = (tex) => new THREE.MeshBasicMaterial({ map: tex, transparent: true, side: THREE.DoubleSide, depthWrite: false });
+  const ring = new THREE.Mesh(rg, cutMat(ptex)); ring.renderOrder = 1; V.cuts.add(ring);
+  // плоскости XZ и YZ — только квадраты вокруг сечений трубки, без пустой середины кольца
+  const fr = g.front, ext = g.ext;
+  for (const which of ['front', 'side']) {
+    const tex = texFrom(which);
+    for (const hc of [-p.R, p.R]) {
+      const geo = new THREE.PlaneGeometry(2 * ext, 2 * ext), uv = geo.attributes.uv;
+      const u0 = (hc - ext + fr.X) / (2 * fr.X), u1 = (hc + ext + fr.X) / (2 * fr.X);
+      for (let i = 0; i < uv.count; i++) uv.setX(i, u0 + uv.getX(i) * (u1 - u0));
+      geo.rotateX(Math.PI / 2);
+      if (which === 'front') geo.translate(hc, 0, 0); else { geo.rotateZ(-Math.PI / 2); geo.translate(0, -hc, 0); }
+      const mesh = new THREE.Mesh(geo, cutMat(tex)); mesh.renderOrder = 2; V.cuts.add(mesh);
+    }
+  }
+  update3dSection();
+  applyVis();
+  render3d();
+}
+function update3dSection() {
+  if (!V.ok || !V.root) return;
+  if (V.sect) { V.root.remove(V.sect); V.sect.geometry.dispose(); V.sect.material.map.dispose(); V.sect.material.dispose(); }
+  const p = S.p, ext = S.grids.sect.ext, ph = S.gridPhi;
+  const geo = new THREE.PlaneGeometry(2 * ext, 2 * ext); geo.rotateX(Math.PI / 2); geo.rotateZ(ph); geo.translate(p.R * Math.cos(ph), p.R * Math.sin(ph), 0);
+  V.sect = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: texFrom('sect'), transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+  V.sect.renderOrder = 2;
+  V.root.add(V.sect);
+}
+function applyVis() {
+  if (!V.ok || !V.tube) return;
+  V.wire.visible = $('#s-wire').checked; V.tube.visible = $('#s-tube').checked; V.cuts.visible = $('#s-cuts').checked;
+}
+function render3d() {
+  if (!V.ok || !S.p) return;
+  const wrap = $('#iso-wrap'), W = wrap.clientWidth, H = wrap.clientHeight;
+  if (!W || !H) return;
+  V.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  V.renderer.setSize(W, H, false);
+  V.renderer.setClearColor(new THREE.Color(COL.sheet), 1);
+  const p = S.p, half = (p.R + 2.6 * p.a) * 1.05 / S.zoom, asp = W / H;
+  V.half = half;
+  V.camera.left = -half * asp; V.camera.right = half * asp; V.camera.top = half; V.camera.bottom = -half;
+  V.camera.updateProjectionMatrix();
+  const t = new THREE.Vector3(S.pan[0], S.pan[1], S.pan[2]), d = 3000;
+  V.camera.position.set(t.x + d * Math.cos(S.el) * Math.cos(S.az), t.y + d * Math.cos(S.el) * Math.sin(S.az), t.z + d * Math.sin(S.el));
+  V.camera.lookAt(t);
+  V.renderer.render(V.scene, V.camera);
+}
+
+// ================= подсказки и выбор сечения =================
+function tipAt(tipEl, cv, x, y, html) {
+  if (!html) { tipEl.hidden = true; return; }
+  tipEl.innerHTML = html; tipEl.hidden = false;
+  const W = cv.clientWidth, tw = tipEl.offsetWidth;
+  tipEl.style.left = clamp(x + 14, 0, Math.max(0, W - tw)) + 'px';
+  tipEl.style.top = Math.max(0, y - 40) + 'px';
+}
+function valueHtml(d, i) {
+  const B0 = 0.2 * S.p.N * S.p.I / S.p.R;
+  if (d.dw[i] >= 0) return 'b − 1: <b>' + fmtS(100 * (d.b[i] - 1), 2) + '%</b><br>|B|: ' + fmt(d.mag[i] * B0, 4) + ' мТл<br>наклон: ' + fmt(d.tilt[i], 2) + '°';
+  return 'снаружи: <b>' + fmtSmall(d.mag[i]) + ' B₀</b><br>' + fmt(d.mag[i] * B0 * 1000, 2) + ' мкТл';
+}
+function setPhiStar(deg, immediate) {
+  deg = ((deg % 360) + 360) % 360;
+  S.phiStar = deg * Math.PI / 180;
+  $('#phiStar').value = deg;
+  $('#phiStar-o').textContent = fmt(deg, 1) + '°';
+  drawProfiles(); drawStripFrame(); if (S.data) drawTop();
+  scheduleSection(immediate ? 0 : 140);
+}
+function bindHover() {
+  for (const which of ['front', 'side']) {
+    const cv = $('#cv-' + which), tip = $('#tip-' + which);
+    cv.addEventListener('mousemove', (e) => {
+      const m = cv._map, d = S.data && S.data[which]; if (!m || !d) return;
+      const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+      const ix = Math.floor((x - m.ML) / m.pw * m.G.nx), iz = Math.floor((y - m.MT) / m.ph * m.G.nz);
+      if (ix < 0 || iz < 0 || ix >= m.G.nx || iz >= m.G.nz) { tip.hidden = true; return; }
+      tipAt(tip, cv, x, y, valueHtml(d, iz * m.G.nx + ix));
+    });
+    cv.addEventListener('mouseleave', () => { tip.hidden = true; });
+    cv.addEventListener('click', (e) => {
+      const m = cv._map; if (!m) return;
+      const r = cv.getBoundingClientRect(), x = e.clientX - r.left;
+      const hh = (x - m.ML) / m.pw * 2 * m.G.X - m.G.X;
+      const deg = which === 'front' ? (hh > 0 ? 0 : 180) : (hh < 0 ? 90 : 270);
+      setPhiStar(deg, true);
+    });
+  }
+  const top = $('#cv-top'), ttip = $('#tip-top');
+  const topPick = (e) => {
+    const m = top._map; if (!m) return null;
+    const r = top.getBoundingClientRect(), x = (e.clientX - r.left - m.cx) / m.sc, y = (m.cy - (e.clientY - r.top)) / m.sc;
+    let ph = Math.atan2(y, x); if (ph < 0) ph += TAU;
+    return { ph, r: Math.hypot(x, y), px: e.clientX - r.left, py: e.clientY - r.top };
+  };
+  top.addEventListener('mousemove', (e) => {
+    const q = topPick(e), d = S.data && S.data.polar; if (!q || !d) return;
+    const pol = S.grids.polar;
+    if (q.r < pol.rmin || q.r > pol.rmax) { ttip.hidden = true; return; }
+    const i = Math.round(q.ph / TAU * pol.nPhi) % pol.nPhi, j = clamp(Math.round((pol.rmax - q.r) / (pol.rmax - pol.rmin) * (pol.nR - 1)), 0, pol.nR - 1);
+    tipAt(ttip, top, q.px, q.py, 'φ = ' + fmt(q.ph * 180 / Math.PI, 1) + '°<br>' + valueHtml(d, j * pol.nPhi + i));
+  });
+  top.addEventListener('mouseleave', () => { ttip.hidden = true; });
+  top.addEventListener('click', (e) => { const q = topPick(e); if (q && S.grids && q.r > S.grids.polar.rmin * 0.8) setPhiStar(q.ph * 180 / Math.PI, true); });
+
+  const prof = $('#cv-prof'), ptip = $('#tip-prof');
+  let dragging = false;
+  const profPhi = (e) => { const m = prof._map, r = prof.getBoundingClientRect(); return clamp((e.clientX - r.left - m.ML) / m.pw * 360, 0, 359.5); };
+  prof.addEventListener('pointerdown', (e) => { if (!prof._map) return; dragging = true; prof.setPointerCapture(e.pointerId); setPhiStar(profPhi(e)); });
+  prof.addEventListener('pointerup', () => { dragging = false; });
+  prof.addEventListener('pointermove', (e) => {
+    if (!prof._map) return;
+    const deg = profPhi(e);
+    if (dragging) setPhiStar(deg);
+    drawProfiles(deg);
+    const ser = profSeries(), i = clamp(Math.round(deg / 360 * 720), 0, 719);
+    const r = prof.getBoundingClientRect();
+    tipAt(ptip, prof, e.clientX - r.left, e.clientY - r.top,
+      'φ = ' + fmt(deg, 1) + '°<br><span class="sw" style="background:' + COL['s-thick'] + '"></span>толщина ' + fmtS(ser.th[i], 1) + '%' +
+      '<br><span class="sw" style="background:' + COL['s-dens'] + '"></span>плотность ' + fmtS(ser.de[i], 1) + '%' +
+      (ser.fi ? '<br><span class="sw" style="background:' + COL['s-field'] + '"></span>поле на оси <b>' + fmtS(ser.fi[i], 2) + '%</b>' : ''));
+  });
+  prof.addEventListener('pointerleave', () => { ptip.hidden = true; drawProfiles(); });
+  const strip = $('#cv-strip');
+  strip.addEventListener('click', (e) => { const r = strip.getBoundingClientRect(); setPhiStar(clamp((e.clientX - r.left - PROF.ML) / (r.width - PROF.ML - PROF.MR) * 360, 0, 359.5), true); });
+
+  const sect = $('#cv-sect'), stip = $('#tip-sect');
+  sect.addEventListener('mousemove', (e) => {
+    const m = sect._map, d = S.data && S.data.sect; if (!m || !d) return;
+    const r = sect.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    const iu = Math.floor((x - m.x0) / m.size * m.ns), iz = Math.floor((y - m.y0) / m.size * m.ns);
+    if (iu < 0 || iz < 0 || iu >= m.ns || iz >= m.ns) { stip.hidden = true; return; }
+    tipAt(stip, sect, x, y, valueHtml(d, iz * m.ns + iu));
+  });
+  sect.addEventListener('mouseleave', () => { stip.hidden = true; });
+
+  const spec = $('#cv-spec'), sptip = $('#tip-spec');
+  spec.addEventListener('mousemove', (e) => {
+    const m = spec._map; if (!m || !S.spec) return;
+    const r = spec.getBoundingClientRect(), x = e.clientX - r.left, mm = Math.floor((x - m.ML) / m.gw) + 1;
+    if (mm < 1 || mm > m.M) { sptip.hidden = true; drawSpectrum(); return; }
+    drawSpectrum(mm);
+    const sp = S.spec;
+    tipAt(sptip, spec, x, e.clientY - r.top, 'm = ' + mm + ' (волна ' + fmt(TAU * S.p.R / mm, 0) + ' мм)' +
+      '<br><span class="sw" style="background:' + COL['s-thick'] + '"></span>толщина ' + fmt(sp.th[mm], 2) + '%' +
+      '<br><span class="sw" style="background:' + COL['s-dens'] + '"></span>плотность ' + fmt(sp.de[mm], 2) + '%' +
+      (sp.fi ? '<br><span class="sw" style="background:' + COL['s-field'] + '"></span>поле на оси <b>' + fmt(sp.fi[mm], 2) + '%</b>' : ''));
+  });
+  spec.addEventListener('mouseleave', () => { sptip.hidden = true; drawSpectrum(); });
+}
+
+// ================= пульт =================
+function bindControls() {
+  const out = {
+    thickAmp: (v) => '+' + v + '%', thickCount: (v) => v, thickIrr: (v) => v + '%',
+    densAmp: (v) => '±' + fmt(v / 2, v % 2 ? 1 : 0) + '%', densWaves: (v) => v, densIrr: (v) => v + '%',
+  };
+  for (const id of Object.keys(out)) {
+    const el = $('#' + id), o = $('#' + id + '-o');
+    const upd = () => { o.textContent = out[id](+el.value); };
+    upd();
+    el.addEventListener('input', () => { upd(); previewProfiles(); scheduleRecalc(); });
+  }
+  for (const id of ['R', 'a', 'N', 'wire', 'I']) $('#' + id).addEventListener('change', () => scheduleRecalc(50));
+  $('#helix').addEventListener('change', () => scheduleRecalc(50));
+  $('#reseed').addEventListener('click', () => { S.seed++; $('#seed-o').textContent = '№ ' + S.seed; previewProfiles(); scheduleRecalc(30); });
+  const modes = { 'm-dev': 'dev', 'm-mag': 'mag', 'm-tilt': 'tilt' };
+  for (const id of Object.keys(modes)) $('#' + id).addEventListener('click', () => {
+    S.mode = modes[id];
+    for (const k of Object.keys(modes)) $('#' + k).setAttribute('aria-pressed', String(k === id));
+    S.rangeFixed = 0; $('#rng').value = 0;
+    $('#rng').disabled = S.mode === 'mag';
+    if (S.data) { renderAll(); build3d(); }
+  });
+  $('#rng').addEventListener('input', () => { S.rangeFixed = +$('#rng').value; if (S.data) { renderAll(); build3d(); } });
+  $('#phiStar').addEventListener('input', () => setPhiStar(+$('#phiStar').value));
+}
+// Профили видны сразу, ещё до расчёта поля
+function previewProfiles() {
+  const p = readParams();
+  S.coil = Core.buildCoil(p); S.p = p;
+  const keep = S.axis; S.axis = null;
+  updateFit(); drawProfiles(); drawStripFrame();
+  S.axis = keep;
+}
+
+// ================= запуск =================
+function start() {
+  readColorsIfNeeded();
+  bindControls(); bindHover(); init3d();
+  const onTheme = () => { colorsKey = ''; readColorsIfNeeded(); if (S.data) { renderAll(); build3d(); } else { drawProfiles(); drawStripFrame(); } };
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', onTheme); } catch (e) {}
+  new MutationObserver(onTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  let rz = 0;
+  window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (S.data) renderAll(); else { drawProfiles(); drawStripFrame(); } }, 120); });
+  recalc();
+}
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(start, start); else start();
+</script>
+
+</body></html>

@@ -9,7 +9,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CLI="/c/Program Files/Arduino IDE/resources/app/lib/backend/resources/arduino-cli.exe"
 # LoopCore=0, EventsCore=0: setup() и обработчик событий Wi-Fi — на ядре 0,
 # ядро 1 остаётся только для счёта (по умолчанию Arduino сажает их на ядро 1).
-FQBN="${FQBN:-esp32:esp32:XIAO_ESP32S3:LoopCore=0,EventsCore=0}"
+FQBN="${FQBN:-esp32:esp32:XIAO_ESP32S3:LoopCore=0,EventsCore=0,PSRAM=opi}"   # PSRAM 8 МБ: буферы Wi-Fi и большие наши (psram.h)
 SKETCH="$1"; PORT="${2:-}"
 
 if [ -n "${SKIP_BUILD:-}" ]; then

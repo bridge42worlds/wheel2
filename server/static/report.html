@@ -52,7 +52,9 @@ function layText(L, coil) {
 // Главное статики за опыт — по каждому датчику: шум (СКО по трём осям, мg), насколько он отличается от шума того
 // же датчика в своих контрольных опытах (control_for; нет — во всех контрольных) и самое большое отклонение от
 // эталона без известной причины (max z, static_watch); рядом — вывод датчика словом.
-const noiseOf = m => m && m.sd_x != null ? Math.sqrt(((m.sd_x || 0) ** 2 + (m.sd_y || 0) ** 2 + (m.sd_z || 0) ** 2) / 3) : null;   // мкg
+// шум датчика за опыт, мкg на ось: по вертикали и горизонтали (горизонталь — две оси); в старых записях — по осям датчика
+const noiseOf = m => m && m.sd_v != null ? Math.sqrt(((m.sd_v || 0) ** 2 + 2 * (m.sd_h || 0) ** 2) / 3)
+  : m && m.sd_x != null ? Math.sqrt(((m.sd_x || 0) ** 2 + (m.sd_y || 0) ** 2 + (m.sd_z || 0) ** 2) / 3) : null;
 function ctlNoise(x, r, mac) {
   const cs = (x.runs || []).filter(c => c.control && !c.spoiled && c !== r && (!r.control_for || c.name === r.control_for));
   const v = cs.map(c => noiseOf((c.static || {})[mac])).filter(q => q != null);
@@ -137,7 +139,7 @@ function render() {
     const marks = [r.control ? "контроль" : "", r.confirm ? "проверка аномалии" : "", it.redo ? `передел ${it.redo}` : "", it.repeat ? `повторение ${it.repeat}` : "", it.again ? `↻ повтор ${it.why === "оператор" ? "по просьбе" : "после отклонения"}` : ""].filter(Boolean);
     const temps = Object.entries(g).filter(([k, m]) => k !== "все" && m && m.temp != null).map(([, m]) => m.temp);
     return `<tr class="${r.control ? "ctl" : ""} ${r.spoiled ? "spoiled" : ""}"><td>${i + 1}</td>
-      <td>${esc(r.name)}${marks.length ? ` <span class='small mut'>(${marks.join(" · ")})</span>` : ""}<div class="lay">${new Date(r.t0 * 1000).toLocaleTimeString("ru-RU")} · ${fmt((r.t1 - r.t0) / 60, 1)} мин${r.rig && r.rig.gap_cm != null ? ` · между колёсами ${fmt(r.rig.gap_cm, 1)} см` : ""} · ${layText(st.layers || r.layers, st.coil || r.coil)}</div></td>
+      <td>${esc(r.name)}${marks.length ? ` <span class='small mut'>(${marks.join(" · ")})</span>` : ""}<div class="lay">${new Date(r.t0 * 1000).toLocaleTimeString("ru-RU")} · ${fmt((r.t1 - r.t0) / 60, 1)} мин${r.rig && r.rig.gap_cm != null ? ` · между колёсами ${fmt(Math.round(r.rig.gap_cm * 10), 0)} мм` : ""} · ${layText(st.layers || r.layers, st.coil || r.coil)}</div></td>
       <td><span class="${v.cls}">${v.w}</span>${v.d ? `<div class="small">${esc(v.d)}</div>` : ""}</td><td class="small">${statMain(x, r)}</td><td>${a.html}</td>
       <td class="num">${all.pr_s != null ? fmt(Math.round(all.pr_s * (r.t1 - r.t0))) : "—"}</td><td class="num">${fmt(all.pr_s, 1)}</td>
       <td class="num">${temps.length ? fmt(Math.min(...temps), 0) + (Math.max(...temps) - Math.min(...temps) >= 1 ? "–" + fmt(Math.max(...temps), 0) : "") : "—"}</td>
@@ -306,14 +308,14 @@ $("bCsv").onclick = () => {
   const A = (x.program || {}).axes || {}, axk = A.order || [];
   const smacs = [...new Set((x.runs || []).flatMap(r => Object.keys(r.static || {}).filter(m => (r.static || {})[m])))];
   const lines = [["№", "опыт", "контроль", "итог", "аномалия", "начало", "мин", "простых", "всего пр/с", ...ags.flatMap(a => [a + " пр/с", a + " °C"]), "статика",
-    ...smacs.flatMap(m => [`${sname(x, m)}: шум, мкg`, `${sname(x, m)}: к контролю, %`, `${sname(x, m)}: max z`]), "поле", "испорчен", "между колёсами, см", ...axk.map(k => (A.title || {})[k] || k), "слои"].map(esc2).join(";")];
+    ...smacs.flatMap(m => [`${sname(x, m)}: шум, мкg`, `${sname(x, m)}: к контролю, %`, `${sname(x, m)}: max z`]), "поле", "испорчен", "между колёсами, мм", ...axk.map(k => (A.title || {})[k] || k), "слои"].map(esc2).join(";")];
   (x.runs || []).forEach((r, i) => {
     const st = steps[r.step] || {}, g = r.gen || {};
     const SR = Object.fromEntries(statRows(x, r).map(q => [q.mac, q])), num = v => v == null ? "" : String(Math.round(v * 100) / 100).replace(".", ",");
     lines.push([i + 1, r.name, r.control ? 1 : 0, runVerdict(x, r, i).w, anomOf(x, r, i).text, new Date(r.t0 * 1000).toISOString(), ((r.t1 - r.t0) / 60).toFixed(2), (g["все"] || {}).pr_s != null ? Math.round(g["все"].pr_s * (r.t1 - r.t0)) : "", ((g["все"] || {}).pr_s ?? "").toString().replace(".", ","),
       ...ags.flatMap(a => [((g[a] || {}).pr_s ?? "").toString().replace(".", ","), ((g[a] || {}).temp ?? "").toString().replace(".", ",")]),
       r.watch ? r.watch.verdict : "", ...smacs.flatMap(m => { const q = SR[m] || {}; return [num(q.nz), num(q.d), num(q.z)]; }),
-      fieldText(r.field).replace(/<br>/g, "; "), r.spoiled ? r.spoiled_why : "", r.rig && r.rig.gap_cm != null ? String(r.rig.gap_cm).replace(".", ",") : "",
+      fieldText(r.field).replace(/<br>/g, "; "), r.spoiled ? r.spoiled_why : "", r.rig && r.rig.gap_cm != null ? String(Math.round(r.rig.gap_cm * 10)) : "",
       ...axk.map(k => { const v = (setOf(x, r) || {})[k]; return v == null ? "" : ((A.names || {})[k] || {})[v] || v; }),
       layText(st.layers || r.layers, st.coil || r.coil).replace(/<[^>]+>/g, "")].map(esc2).join(";"));
   });

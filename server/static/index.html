@@ -479,7 +479,7 @@ const MCHARTS = [
 ];
 const SCHARTS = [
   { id: "s_zmax", title: "Наибольшее отклонение от эталона, z (окна по 10 с)", metrics: ["s_zmax"], scope: "all" },
-  { id: "s_sdz_all", title: "Разброс за секунду по z, мкg — толчок виден у всех сразу", metrics: ["s_sd_z"], scope: "all" },
+  { id: "s_sdz_all", title: "Разброс за секунду по вертикали, мкg — толчок виден у всех сразу", metrics: ["s_sd_v"], scope: "all" },
 ];
 const METRICS = [...new Set(CHARTS.concat(GCHARTS, WCHARTS, MCHARTS, SCHARTS).flatMap(c => c.metrics)
   .concat(SRC_KEYS.map(k => "g_units_" + k)))];

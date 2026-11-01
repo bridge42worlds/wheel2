@@ -1,0 +1,217 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 1110" width="960" height="1110" role="img">
+<title>Колесо 1, агент №20: магнитометр MLX90393 — подключение по I²C</title>
+<desc>Агент №20 — XIAO ESP32-S3 на ободе колеса 1. Плюс шины 5,1 В через диод 1N5819 (полоска к агенту) идёт на вывод 5V агента, минус шины — на вывод GND агента. От агента к модулю MLX90393 четыре провода: GND агента (тот же вывод, куда пришёл минус шины) — на GND модуля; 3V3 — на VCC; D4 (GPIO5) — на SDA; D5 (GPIO6) — на SCL. На модуле, по схеме из паспорта Melexis: VCC идёт на выводы микросхемы VDD (15) и VDD_IO (8), у каждого конденсатор 100 нФ на GND (C1 у VDD, C2 у VDD_IO); GND — на VSS (13); SDA — на вывод 5, SCL — на вывод 3, у каждого подтяжка 10 кОм к VCC (R1, R2); CS (вывод 2) — к VCC, это включает I²C; A0 (12) и A1 (11) — на GND, адрес 0x0C; выводы N/C (4, 9, 10, 14, 16) паспорт советует соединить с GND. CS (2), MISO (6), INT (1) и INT/TRG (7) выведены на гребёнку и к агенту не подключаются; CS на модуле соединён с VCC (если нет — перемычка CS→VCC). Добавить по желанию: керамику 100 нФ и 10 мкФ между VCC и GND у выводов модуля. Если шина работает только на 100 кГц или растут ошибки — резисторы 4,7 кОм от SDA и от SCL к 3V3 у агента. Ниже — адрес и что ждёт прошивка, сборка и проверка по шагам, где ставить датчик.</desc>
+<style>
+text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d2228}
+.h{font-size:15px;font-weight:600}.t{font-size:13px}.s{font-size:12px;fill:#4a535e}.b{font-weight:600;fill:#1d2228}
+.box{fill:#fff;stroke:#1d2228;stroke-width:1.3}
+.p{stroke:#D55E00;stroke-width:2.6;fill:none}.m{stroke:#1d2228;stroke-width:2;fill:none}
+.pl{stroke:#1d2228;stroke-width:2.6;fill:none}.d{fill:none;stroke:#1d2228;stroke-width:1.6}
+.sig{stroke:#0072B2;stroke-width:1.8;fill:none;stroke-dasharray:6 4}
+.v3{stroke:#CC79A7;stroke-width:2;fill:none}
+.in{stroke:#4a535e;stroke-width:1.4;fill:none}
+.r{fill:#fff;stroke:#4a535e;stroke-width:1.4}
+.add{fill:none;stroke:#4a535e;stroke-width:1.2;stroke-dasharray:2 3}
+.mod{fill:none;stroke:#4a535e;stroke-width:1.2;stroke-dasharray:9 4}
+</style>
+<rect width="960" height="1110" fill="#ffffff"/>
+<text class="h" x="16" y="28">Колесо 1, агент №20: магнитометр MLX90393 — подключение по I²C</text>
+<text class="s" x="16" y="48">Четыре провода от агента: 3V3 → VCC, GND → GND, D4 → SDA, D5 → SCL. Адрес 0x0C (A0 = A1 = GND), 400 кГц, 20 замеров в секунду.</text>
+<text class="s" x="16" y="64">Агент питается от шины колеса через 1N5819, как все агенты обода. MISO, INT, TRG не подключать; CS — к VCC модуля.</text>
+
+<!-- шина колеса -->
+<text class="s" x="16" y="102">шина − (колесо 1)</text>
+<path class="m" d="M16 110 H250 V260"/>
+<text class="s" x="16" y="142">шина + 5,1 В</text>
+<path class="p" d="M16 150 H190 V190"/>
+<polygon class="d" points="180,190 200,190 190,208"/>
+<line class="pl" x1="179" y1="209" x2="201" y2="209" style="stroke-width:3.6"/>
+<line class="p" x1="190" y1="210" x2="190" y2="260"/>
+<text class="s" x="174" y="200" text-anchor="end">1N5819,</text>
+<text class="s" x="174" y="216" text-anchor="end">полоска к 5V</text>
+
+<!-- агент №20 -->
+<rect class="box" x="130" y="260" width="200" height="200" rx="6"/>
+<text class="s" x="190" y="276" text-anchor="middle">5V</text>
+<text class="s" x="250" y="276" text-anchor="middle">GND</text>
+<text class="s" x="324" y="294" text-anchor="end">3V3</text>
+<text class="s" x="324" y="354" text-anchor="end">D4 · GPIO5</text>
+<text class="s" x="324" y="394" text-anchor="end">D5 · GPIO6</text>
+<text class="h" x="196" y="328" text-anchor="middle">№20</text>
+<text class="s" x="196" y="346" text-anchor="middle">XIAO ESP32-S3</text>
+<text class="s" x="230" y="428" text-anchor="middle">агент обода, колесо 1</text>
+<text class="s" x="230" y="446" text-anchor="middle">D4 / D5 — только датчик</text>
+
+<!-- провода к модулю -->
+<line class="m" x1="250" y1="220" x2="560" y2="220"/>
+<circle cx="250" cy="220" r="3.5" fill="#1d2228"/>
+<text class="s" x="290" y="214">GND</text>
+<line class="v3" x1="330" y1="290" x2="560" y2="290"/>
+<text class="s" x="337" y="284">3,3 В</text>
+<line class="sig" x1="330" y1="350" x2="560" y2="350"/>
+<text class="s" x="337" y="344">SDA</text>
+<line class="sig" x1="330" y1="390" x2="560" y2="390"/>
+<text class="s" x="337" y="384">SCL</text>
+
+<!-- добавить при ошибках: подтяжки 4,7 кОм -->
+<rect class="add" x="384" y="278" width="62" height="122" rx="4"/>
+<line class="in" x1="400" y1="290" x2="400" y2="306"/><rect class="r" x="394" y="306" width="12" height="28"/><line class="in" x1="400" y1="334" x2="400" y2="350"/>
+<line class="in" x1="430" y1="290" x2="430" y2="358"/><rect class="r" x="424" y="358" width="12" height="24"/><line class="in" x1="430" y1="382" x2="430" y2="390"/>
+<circle cx="400" cy="290" r="3.5" fill="#CC79A7"/><circle cx="430" cy="290" r="3.5" fill="#CC79A7"/>
+<circle cx="400" cy="350" r="3.5" fill="#0072B2"/><circle cx="430" cy="390" r="3.5" fill="#0072B2"/>
+<text class="s" x="415" y="418" text-anchor="middle">при ошибках добавить</text>
+<text class="s" x="415" y="434" text-anchor="middle">4,7 кОм ×2 к 3V3</text>
+
+<!-- добавить у выводов модуля: керамика -->
+<text class="s" x="552" y="178" text-anchor="end">добавить у выводов:</text>
+<text class="s" x="552" y="194" text-anchor="end">100 нФ + 10 мкФ, керамика</text>
+<rect class="add" x="470" y="206" width="80" height="96" rx="4"/>
+<line class="m" x1="490" y1="220" x2="490" y2="251"/><line class="pl" x1="478" y1="252" x2="502" y2="252"/><line class="pl" x1="478" y1="260" x2="502" y2="260"/><line class="v3" x1="490" y1="261" x2="490" y2="290"/>
+<line class="m" x1="525" y1="220" x2="525" y2="251"/><line class="pl" x1="513" y1="252" x2="537" y2="252"/><line class="pl" x1="513" y1="260" x2="537" y2="260"/><line class="v3" x1="525" y1="261" x2="525" y2="290"/>
+<circle cx="490" cy="220" r="3.5" fill="#1d2228"/><circle cx="525" cy="220" r="3.5" fill="#1d2228"/>
+<circle cx="490" cy="290" r="3.5" fill="#CC79A7"/><circle cx="525" cy="290" r="3.5" fill="#CC79A7"/>
+
+<!-- неиспользуемые выводы; CS — к VCC модуля -->
+<g class="in"><line x1="546" y1="450" x2="560" y2="450"/><line x1="546" y1="485" x2="560" y2="485"/><line x1="546" y1="520" x2="560" y2="520"/><line x1="546" y1="555" x2="560" y2="555"/></g>
+<path class="d" d="M537 481 l8 8 m0 -8 l-8 8 M537 516 l8 8 m0 -8 l-8 8 M537 551 l8 8 m0 -8 l-8 8"/>
+<text class="s b" x="540" y="456" text-anchor="end">CS — к VCC модуля (шаг 6)</text>
+<text class="s" x="528" y="486" text-anchor="end">MISO, INT, TRG —</text>
+<text class="s" x="528" y="502" text-anchor="end">к агенту не идут:</text>
+<text class="s b" x="528" y="518" text-anchor="end">не подключать</text>
+
+<!-- модуль -->
+<rect class="box" x="560" y="150" width="385" height="526" rx="6"/>
+<text class="h" x="572" y="174">Модуль MLX90393 · 0x0C</text>
+<text class="s" x="566" y="215">GND</text>
+<text class="s" x="566" y="285">VCC</text>
+<text class="s" x="566" y="345">SDA</text>
+<text class="s" x="566" y="385">SCL</text>
+<text class="s" x="566" y="445">CS</text>
+<text class="s" x="566" y="480">MISO</text>
+<text class="s" x="566" y="515">INT</text>
+<text class="s" x="566" y="550">TRG</text>
+<rect class="mod" x="604" y="186" width="334" height="478" rx="6"/>
+<text class="s" x="612" y="205">на модуле — уже есть</text>
+<text class="s" x="826" y="213">GND</text><text class="s" x="728" y="283">VCC</text>
+
+<!-- шины питания на модуле -->
+<path class="m" d="M560 220 H928 V420 H920"/>
+<path class="v3" d="M560 290 H880 V320"/>
+<line class="v3" x1="800" y1="290" x2="800" y2="320"/>
+<circle cx="800" cy="290" r="3.5" fill="#CC79A7"/>
+<circle cx="880" cy="290" r="3.5" fill="#CC79A7"/>
+<!-- C1, C2 -->
+<line class="m" x1="800" y1="220" x2="800" y2="251"/><line class="pl" x1="788" y1="252" x2="812" y2="252"/><line class="pl" x1="788" y1="260" x2="812" y2="260"/><line class="v3" x1="800" y1="261" x2="800" y2="290"/>
+<line class="m" x1="880" y1="220" x2="880" y2="251"/><line class="pl" x1="868" y1="252" x2="892" y2="252"/><line class="pl" x1="868" y1="260" x2="892" y2="260"/><line class="v3" x1="880" y1="261" x2="880" y2="290"/>
+<circle cx="800" cy="220" r="3.5" fill="#1d2228"/><circle cx="880" cy="220" r="3.5" fill="#1d2228"/>
+<text class="s" x="784" y="252" text-anchor="end">C1</text><text class="s" x="784" y="268" text-anchor="end">100 нФ</text>
+<text class="s" x="864" y="252" text-anchor="end">C2</text><text class="s" x="864" y="268" text-anchor="end">100 нФ</text>
+
+<!-- R1, R2 -->
+<line class="in" x1="660" y1="290" x2="660" y2="306"/><rect class="r" x="654" y="306" width="12" height="28"/><line class="in" x1="660" y1="334" x2="660" y2="350"/>
+<line class="in" x1="700" y1="290" x2="700" y2="358"/><rect class="r" x="694" y="358" width="12" height="24"/><line class="in" x1="700" y1="382" x2="700" y2="390"/>
+<circle cx="660" cy="290" r="3.5" fill="#CC79A7"/><circle cx="700" cy="290" r="3.5" fill="#CC79A7"/>
+<circle cx="660" cy="350" r="3.5" fill="#0072B2"/><circle cx="700" cy="390" r="3.5" fill="#0072B2"/>
+<text class="s" x="650" y="318" text-anchor="end">R1</text><text class="s" x="650" y="332" text-anchor="end">10 кОм</text>
+<text class="s" x="710" y="368">R2</text><text class="s" x="710" y="382">10 кОм</text>
+
+<!-- сигналы на модуле -->
+<line class="sig" x1="560" y1="350" x2="780" y2="350"/>
+<line class="sig" x1="560" y1="390" x2="780" y2="390"/>
+<line class="in" x1="560" y1="450" x2="780" y2="450"/>
+<line class="v3" x1="730" y1="450" x2="730" y2="432"/><line class="v3" x1="723" y1="432" x2="737" y2="432"/>
+<circle cx="730" cy="450" r="3.5" fill="#CC79A7"/>
+<text class="s" x="717" y="440" text-anchor="end">к VCC (обычно)</text>
+<line class="in" x1="560" y1="485" x2="780" y2="485"/>
+<line class="in" x1="560" y1="520" x2="780" y2="520"/>
+<line class="in" x1="560" y1="555" x2="780" y2="555"/>
+
+<!-- микросхема -->
+<rect class="box" x="780" y="320" width="140" height="280" rx="4"/>
+<text class="s" x="800" y="336" text-anchor="middle">15 VDD</text>
+<text class="s" x="880" y="336" text-anchor="middle">8 VDD_IO</text>
+<text class="s" x="786" y="354">5 SDA</text>
+<text class="s" x="786" y="394">3 SCL</text>
+<text class="s" x="914" y="424" text-anchor="end">VSS 13</text>
+<text class="s" x="786" y="454">2 CS</text>
+<text class="s" x="786" y="489">6 MISO</text>
+<text class="s" x="786" y="524">1 INT</text>
+<text class="s" x="786" y="559">7 INT/TRG</text>
+<text class="h" x="868" y="470" text-anchor="middle">MLX90393</text>
+<text class="s" x="868" y="504" text-anchor="middle">QFN-16</text>
+<text class="s" x="820" y="592" text-anchor="middle">12 A0</text>
+<text class="s" x="880" y="592" text-anchor="middle">11 A1</text>
+<path class="m" d="M820 600 V616 M880 600 V616"/>
+<path class="d" d="M810 616 H830 M814 621 H826 M818 626 H822 M870 616 H890 M874 621 H886 M878 626 H882"/>
+<text class="s" x="612" y="584">N/C: 4, 9, 10, 14, 16 → GND</text>
+<text class="s" x="612" y="600">(совет паспорта)</text>
+<text class="s" x="806" y="620" text-anchor="end">A0, A1 → GND:</text>
+<text class="s b" x="806" y="636" text-anchor="end">адрес 0x0C</text>
+<text class="s" x="612" y="656">номиналы на вашей плате могут быть другими</text>
+
+<!-- адрес и прошивка -->
+<rect class="box" x="16" y="478" width="374" height="206" rx="6"/>
+<text class="t b" x="28" y="500">Адрес и что ждёт прошивка</text>
+<text class="s" x="28" y="520">A1 · A0 → адрес (7 бит), паспорт, вариант чипа -011:</text>
+<text class="s b" x="28" y="538">GND · GND → 0x0C — ваш модуль</text>
+<text class="s" x="28" y="556">GND · VCC → 0x0D;  VCC · GND → 0x0E;  VCC · VCC → 0x0F</text>
+<text class="s" x="28" y="576">Ищет 0x0C–0x13, 0x18–0x1B (варианты -011/-012/-014),</text>
+<text class="s" x="28" y="592">берёт первый ответивший.</text>
+<text class="s" x="28" y="610">Wire.begin(5, 6, 400000): GPIO5 = D4 = SDA,</text>
+<text class="s" x="28" y="626">GPIO6 = D5 = SCL; не нашёлся — ещё раз на 100 кГц.</text>
+<text class="s" x="28" y="644">20 замеров в секунду: запуск, через 30 мс чтение;</text>
+<text class="s" x="28" y="660">усиление (0–7) подбирает сам. INT и TRG не нужны —</text>
+<text class="s" x="28" y="676">прошивка спрашивает датчик по шине.</text>
+
+<!-- сборка и проверка -->
+<text class="t b" x="16" y="712">Сборка и проверка — по шагам</text>
+<text class="s" x="16" y="734">1. Аккумуляторы шины вынуть, USB отключить. Четыре провода — как</text>
+<text class="s" x="30" y="750">можно короче (до 20–30 см), скрутить вместе.</text>
+<text class="s" x="16" y="770">2. До пайки, на модуле (красный щуп на VCC): VCC–SDA и VCC–SCL</text>
+<text class="s" x="30" y="786">2–10 кОм — подтяжки есть; обрыв — 4,7 кОм к 3V3 у агента.</text>
+<text class="s" x="16" y="806">3. 3V3 → VCC, GND → GND, D4 → SDA, D5 → SCL. Не 5V: предел микросхемы</text>
+<text class="s" x="30" y="822">4 В. Паять флюсом, не пастой; после пайки отмыть спиртом.</text>
+<text class="s" x="16" y="842">4. Прозвонка без питания: каждый провод звенит со своим выводом;</text>
+<text class="s" x="30" y="858">SDA–GND, SCL–GND, SDA–SCL не звенят; VCC–GND — лишь короткий</text>
+<text class="s" x="30" y="874">писк (заряд конденсаторов), долгий звон — замыкание.</text>
+<text class="s" x="16" y="894">5. A0, A1, если выведены на гребёнку, — к GND, не к VCC.</text>
+<text class="s" x="16" y="914">6. Включить. На модуле VCC–GND 3,2–3,4 В; CS–GND столько же (если 0 В —</text>
+<text class="s" x="30" y="930">соединить CS с VCC модуля); SDA и SCL в покое — около 3,3 В.</text>
+<text class="s" x="16" y="950">7. Журнал по USB при старте: «RIM i2c: 0x0c», «RIM MLX90393 at 0x0c»,</text>
+<text class="s" x="30" y="966">«RIM bus 400 kHz» — адрес 0x0C, значит A0 = A1 = 0.</text>
+<text class="s" x="16" y="986">8. Телеметрия: sens 2, i2c [12], mag addr 12 (= 0x0C), err 0 и не растёт.</text>
+<text class="s" x="30" y="1002">«Поле вживую»: фон 40–80 мкТл, при поле катушки — около 1,2 мТл.</text>
+<text class="s" x="16" y="1022">9. «RIM bus 100 kHz» или растёт err — добавить 4,7 кОм, укоротить провода.</text>
+
+<!-- где ставить -->
+<text class="t b" x="490" y="712">Где и как ставить датчик</text>
+<text class="s" x="490" y="734">• Меряет поле катушки вдоль трубки. Плату — плоско вдоль трубки:</text>
+<text class="s" x="502" y="750">поле в плоскости платы, оси x, y (шум 1,2 мкТл; у z — 1,7).</text>
+<text class="s" x="490" y="770">• Закрепить неподвижно (термоклей, стяжка): от положения зависят</text>
+<text class="s" x="502" y="786">фон и направление «+», которые запоминает сервер.</text>
+<text class="s" x="490" y="806">• Подальше от DC-DC и от проводов катушки: в 1 см от провода</text>
+<text class="s" x="502" y="822">с током 0,9 А — около 18 мкТл. Провода катушки — парой.</text>
+<text class="s" x="490" y="842">• Рядом ничего стального: винты, шайбы, стойки — латунь, пластик.</text>
+<text class="s" x="502" y="858">Конденсаторы тоже чуть магнитны (никель в керамике, сталь</text>
+<text class="s" x="502" y="874">в ножках): SMD у выводов VCC/GND, не над микросхемой.</text>
+<text class="s" x="490" y="894">• Провода у модуля не гнуть и не тянуть: прихватить к трубке</text>
+<text class="s" x="502" y="910">в 1–2 см от платы — пайка не треснет от вибрации обода.</text>
+<text class="s" x="490" y="930">• У XIAO (USB сверху): D4, D5 — пятый и шестой слева;</text>
+<text class="s" x="502" y="946">5V, GND, 3V3 — первый, второй, третий справа.</text>
+<text class="s" x="490" y="966">• Есть стабилизатор (выводы VIN и 3Vo, как у Adafruit) —</text>
+<text class="s" x="502" y="982">3V3 агента на VIN, 3Vo не подключать.</text>
+<text class="s" x="490" y="1002">• На вашей плате может быть подписано: VCC — VIN, 3V3, 3.3V;</text>
+<text class="s" x="502" y="1018">SCL — SCK, SCLK; SDA — SDI, MOSI; MISO — SDO, MIS; TRG — TRIG,</text>
+<text class="s" x="502" y="1034">TR; CS — SENB. Два GND и два 3.3V (G у Adafruit) — те же выводы.</text>
+
+<!-- обозначения -->
+<line class="p" x1="16" y1="1060" x2="52" y2="1060"/><text class="s" x="60" y="1064">плюс</text>
+<line class="m" x1="110" y1="1060" x2="146" y2="1060"/><text class="s" x="154" y="1064">минус, GND</text>
+<line class="sig" x1="236" y1="1060" x2="272" y2="1060"/><text class="s" x="280" y="1064">сигналы I²C (SDA, SCL)</text>
+<line class="v3" x1="420" y1="1060" x2="456" y2="1060"/><text class="s" x="464" y="1064">3,3 В (VCC), подписано у провода</text>
+<circle cx="664" cy="1060" r="3.5" fill="#1d2228"/><text class="s" x="674" y="1064">точка — соединены; без точки — пересекаются</text>
+<line class="in" x1="16" y1="1088" x2="52" y2="1088"/><text class="s" x="60" y="1092">дорожки модуля, выводы деталей</text>
+<path class="d" d="M268 1084 l8 8 m0 -8 l-8 8"/><text class="s" x="284" y="1092">не подключать</text>
+<rect class="add" x="390" y="1082" width="36" height="12" rx="2"/><text class="s" x="434" y="1092">добавить (по желанию / при ошибках)</text>
+<rect class="mod" x="672" y="1082" width="36" height="12" rx="2"/><text class="s" x="716" y="1092">на модуле — уже есть</text>
+</svg>

@@ -46,7 +46,7 @@ bool same_work(const GenConfig& a, const GenConfig& b) {
          a.kmax == b.kmax && a.pre == b.pre && a.cpu == b.cpu && a.dc == b.dc &&
          a.gv == b.gv && a.rk == b.rk && a.pw == b.pw &&
          a.role == b.role && a.sm == b.sm && a.sf == b.sf && a.cf == b.cf && a.nbg == b.nbg &&
-         a.sh == b.sh && a.bgr == b.bgr &&
+         a.sh == b.sh && a.bgr == b.bgr && a.ba == b.ba &&
          memcmp(a.bg, b.bg, sizeof a.bg) == 0 && a.has_bmac == b.has_bmac &&
          memcmp(a.bmac, b.bmac, sizeof a.bmac) == 0;
 }
@@ -68,6 +68,8 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
   long role = cur.role, sm = cur.sm, sf = cur.sf, cf = cur.cf, sh = cur.sh, bgr = cur.bgr;
   long tl = cur.tl, tq = cur.tq, rmm = cur.rmm, afs = cur.afs, avg = cur.avg, pl = cur.pl, dc = cur.dc;
   long gv = cur.gv, rk = cur.rk, pw = cur.pw, raw = cur.raw, hb = cur.hb, dur = cur.dur, ro = cur.ro;
+  uint64_t ba = cur.ba;
+  bool bad_ba = false;
   int nbg = cur.nbg;
   uint8_t bg[MAX_GROUP];
   memcpy(bg, cur.bg, sizeof bg);
@@ -136,6 +138,16 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
     else if (!strcmp(tok, "grp")) { memset(grp, 0, sizeof grp); bad_grp |= !parse_ids(val, grp, ng); }
     else if (!strcmp(tok, "bm"))  { has_bmac = true; bad_bm |= !parse_macs(val, bmac, nbm); }
     else if (!strcmp(tok, "bg"))  { memset(bg, 0, sizeof bg); bad_bg |= !parse_ids(val, bg, nbg); }
+    else if (!strcmp(tok, "ba")) {     // чьи простые поглощать: номера авторов; пусто — всех
+      uint8_t ids[MAX_GROUP];
+      int n = 0;
+      bad_ba |= !parse_ids(val, ids, n);
+      ba = 0;
+      for (int i = 0; i < n; ++i) {
+        if (ids[i] < 64) ba |= 1ULL << ids[i];
+        else bad_ba = true;
+      }
+    }
   }
   if (cid <= 0)                            snprintf(err, errlen, "cid missing");
   else if (src <= 0 || (src & ~SRC_MASK))  snprintf(err, errlen, "bad src=%ld", src);
@@ -173,6 +185,7 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
   else if (pw < 0 || pw > 5000)            snprintf(err, errlen, "bad pw=%ld", pw);
   else if (raw < 0 || raw > 2)             snprintf(err, errlen, "bad raw=%ld", raw);
   else if (bad_bg)                         snprintf(err, errlen, "bad bg");
+  else if (bad_ba)                         snprintf(err, errlen, "bad ba");
   else if (bad_bm || (has_bmac && nbm != nbg)) snprintf(err, errlen, "bad bm");
   else {
     out.cid  = (uint32_t)cid;
@@ -202,6 +215,7 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
     out.cf = (uint8_t)cf;
     out.sh = sh ? 1 : 0;
     out.bgr = (uint8_t)bgr;
+    out.ba = ba;
     out.tl = (uint8_t)tl;
     out.tq = (uint16_t)tq;
     out.rmm = (uint16_t)rmm;

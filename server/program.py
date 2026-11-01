@@ -29,6 +29,8 @@
 """
 import json, math, os, random, threading, time
 
+TEST_S = 10         # проверка режима перед исполнением: столько секунд с телеметрией — счёт идёт, режим работает
+
 # Ковариаты: пишутся в итоги шага, но аномалией не считаются — режимы заведомо греют по-разному,
 # и «температура отличается от контроля» сказала бы только это. Сравнивать показатели нужно с
 # поправкой на них (пока — глазами: они лежат рядом в записи шага).
@@ -266,6 +268,8 @@ def _mot(m, i):
         out["rpm"] = max(0.0, min(112.0, float(m["rpm"])))
     if m.get("pwm") is not None:
         out["pwm"] = int(max(0, min(1000, float(m["pwm"]))))
+    if m.get("zg") is not None and m["mode"] == "zerog":      # ступень около невесомости, % оборотов
+        out["zg"] = max(-20.0, min(20.0, float(m["zg"])))
     return out
 
 
@@ -331,14 +335,14 @@ def validate(prog):
         minutes = float(s.get("minutes", 1))
         if not 0.05 <= minutes <= 24 * 60:
             raise ValueError(f"шаг {i + 1}: длительность от 0,05 до 1440 минут")
-        step = {"name": str(s.get("name") or f"шаг {i + 1}")[:60], "cfg": dict(s.get("cfg") or {}),
+        step = {"name": str(s.get("name") or f"шаг {i + 1}")[:100], "cfg": dict(s.get("cfg") or {}),
                 "own": s.get("own"), "minutes": minutes, "control": bool(s.get("control")),
-                "quiet": bool(s.get("quiet")),
+                "quiet": bool(s.get("quiet", True)),          # молчание на исполнении — обычный режим опыта
                 # шаг на агенте: длительность уходит в настройку (dur), агент сам останавливается и сдаёт итоги
                 # (done = cid); сервер ждёт «сдали все». Радио выкл на шаге (ro в cfg группы) — только так
                 "agent": bool(s.get("agent")),
                 # парный контроль: сравнивать этот опытный шаг только с контролем такого имени
-                "control_for": str(s["control_for"])[:60] if s.get("control_for") else None,
+                "control_for": str(s["control_for"])[:100] if s.get("control_for") else None,
                 # планшетка: несколько групп в одном шаге (колесо 1 генерирует, колесо 2 поглощает или тоже
                 # генерирует своей группой) — каждая группа со своей настройкой и своим номером; агенты
                 # программы вне групп на этом шаге стоят
@@ -757,8 +761,21 @@ class Runner:
                 self.h["log"](f"[prog] №{x['id']}: итог не записан: {e!r}")
             self.h["log"](f"[prog] №{x['id']} {x['state']}: шагов {len(x['runs'])}, аномалий {len(x['anomalies'])}")
 
+    def _phase(self, name, dur=None):
+        """Фаза идущего опыта — для планшетки: start старт (настройка агентам, поле, вращение) · prep подготовка
+        (разгон, поле встаёт, агенты прогреваются) · test проверка (10 с с телеметрией: режим работает) · run
+        исполнение (меряется) · upload итоги (телеметрия возвращается, итоги собираются) · rest отдых · pause пауза."""
+        x = self.active
+        if not x or x.get("now") is None:
+            return
+        t = round(time.time(), 3)
+        x["now"].update(phase=name, ph_t=t, ph_dur=round(dur, 1) if dur is not None else None)
+        x["now"].setdefault("phases", {})[name] = t
+        self.store(x)
+
     def _one(self, macs, st, item, base):
         t_apply = time.time()
+        self._phase("start")
         fixed = self.h["static_macs"]()
         settle = st["settle_s"] if st.get("settle_s") is not None else self.h_settle()
         # План шага: одна настройка всем (как раньше) или несколько групп, каждая со своей настройкой и
@@ -794,7 +811,7 @@ class Runner:
         if idle:                                               # не заняты на этом шаге — стоят и остывают
             self.h["apply"](idle, {**base["cfg"], "run": 0, "cpu": 80, "led": 0}, base["own"], False)
         head = {"step": item["step"], "name": st["name"], "control": st["control"], "control_for": st.get("control_for"),
-                "confirm": bool(item.get("confirm")), "repeat": item.get("repeat"), "redo": item.get("redo", 0),
+                "confirm": bool(item.get("confirm")), "repeat": item.get("repeat"), "redo": item.get("redo", 0), "quiet": st["quiet"],
                 "again": item.get("again", 0), "again_why": item.get("why"),
                 "cid": applied[0]["cid"] if applied else None, "cids": [a["cid"] for a in applied],
                 "groups": [{"targets": a["targets"], "cid": a["cid"], "label": a["label"]} for a in applied] if st.get("groups") else None,
@@ -807,12 +824,27 @@ class Runner:
         if bad:                                                # кто-то считал не то: шаг испорчен — не ждать его целиком
             now = round(time.time(), 3)
             return {**head, "t0": now, "t1": now, "not_confirmed": bad, "agents": {}, "gen": {}, "static": {}, "watch": None}
-        if st["quiet"]:                                        # молчат генераторы; статические меряют и шлют
-            for a in applied:
+        self._phase("prep", settle)                            # подготовка: колёса разгоняются, поле встаёт, агенты греются
+        self.stop.wait(settle)
+        # проверка режима: TEST_S секунд с телеметрией — генераторы считают? (шаг на агенте и «все стоят» — без неё)
+        gens = [m for a in applied if a["cfg"].get("run") for m in a["targets"] if m not in fixed]
+        test, ta = None, None
+        if gens and not dur and not self.stop.is_set():
+            self._phase("test", TEST_S)
+            s0, ta = self.h["snapshot"](macs), time.time()
+            self.stop.wait(TEST_S)
+            gm = gen_metrics(self.h["snapshot"](macs), time.time() - ta, s0)
+            nm = self.h.get("name") or (lambda m: m)              # поглотители не считают — в «не считают» их не писать
+            absn = {nm(m) for a in applied for m in a["targets"] if ((a["own"] or {}).get(m) or {}).get("role") == 1}
+            idle = sorted(k for k, v in gm.items() if k != "все" and k not in absn and not (v.get("pr_s") or v.get("cand_s") or v.get("cycles_s")))
+            test = {"s": round(time.time() - ta, 1), "pr_s": round((gm.get("все") or {}).get("pr_s") or 0, 2), "idle": idle,
+                    "ok": bool((gm.get("все") or {}).get("pr_s") or (gm.get("все") or {}).get("cand_s"))}
+        if st["quiet"]:                                        # продуктовый режим: на исполнение молчат генераторы;
+            for a in applied:                                  # статические меряют и шлют всё время
                 own_q = {m: {**(a["own"] or {}).get(m, {}), "tl": (a["own"] or {}).get(m, {}).get("tl", 0) if m in fixed else 2}
                          for m in a["targets"]}
-                self.h["apply"](a["targets"], {**a["cfg"], "tl": 2}, own_q, False)
-        self.stop.wait(settle)
+                (self.h.get("apply_once") or (lambda t, c, o: self.h["apply"](t, c, o, False)))(a["targets"], {**a["cfg"], "tl": 2}, own_q)
+        self._phase("run", (dur["dur"] - settle) if dur else st["minutes"] * 60)
         t0 = time.time()
         snap0 = self.h["snapshot"](macs)                       # счётчики на начало измерения: итог шага — разность
         if self.active and self.active.get("now"):
@@ -829,6 +861,7 @@ class Runner:
         else:
             self.stop.wait(st["minutes"] * 60)
         t1 = time.time()
+        self._phase("upload")                                  # итоги: телеметрия возвращается, счётчики и статика собираются
         cut = self.stop.is_set() and (t1 - t0 < (dur["dur"] - settle if dur else st["minutes"] * 60) - 1)
         silent = []
         gap = self.h["tel_gap"]() if self.h.get("tel_gap") else 6   # сколько секунд без пакета — «замолчал» (редкая телеметрия — дольше)
@@ -849,12 +882,16 @@ class Runner:
             t0, t1, snap0 = t_apply, t_apply + dur["dur"], None   # остановки; счётчики с нуля — снимок на t0 не нужен
         snap = self.h["snapshot"](macs)
         stat = self.h["metrics"](t0, t1)
+        # обороты и поле по датчикам шины: на молчании их пакетов нет — берутся проверка (до молчания) и итоги (после)
+        w0, w1 = (ta, time.time()) if st["quiet"] and not dur and ta else (t0, t1)
         return {**head, "t0": round(t0, 3), "t1": round(t1, 3), "not_confirmed": bad, "not_seen": not_seen, "not_done": not_done,
-                "cut": cut, "silent": silent,
+                "cut": cut, "silent": silent, "test": test,
                 "agents": snap, "gen": gen_metrics(snap, t1 - t0, snap0),
                 "static": stat, "watch": self.h["verdict"](t0, t1),
                 "snames": {m: self.h["name"](m) for m in (stat or {})} if self.h.get("name") else {},
-                "field": self.h["field"](t0, t1) if self.h.get("field") else {}}
+                "field": self.h["field"](w0, w1) if self.h.get("field") else {},
+                **({"sense_win": [round(w0, 3), round(w1, 3)]} if (w0, w1) != (t0, t1) else {}),
+                **(self.h["extras"](w0, w1) if self.h.get("extras") else {})}   # аккумуляторы, обороты, поле катушек по датчику
 
     def _pause(self, x, macs, rep, why=None):
         """Пауза перед повтором rep: катушки выкл, колёса стоят, агенты на отдыхе (80 МГц) — можно менять аккумуляторы.
@@ -870,7 +907,7 @@ class Runner:
         t0 = time.time()
         x["now"] = {**(x.get("now") or {}), "pause": True, "rest": False, "t_meas": None, "t_pause": round(t0, 3),
                     "pause_why": why or f"перед повтором {rep} из {x['program']['repeat']}: заменить аккумуляторы и продолжить"}
-        self.store(x)
+        self._phase("pause")
         self.h["log"](f"[prog] №{x['id']}: пауза — {x['now']['pause_why']} — ждём «продолжить»")
         while not self.stop.is_set() and not self.resume.is_set():
             self.stop.wait(1)
@@ -889,7 +926,7 @@ class Runner:
         if not gens:
             return None
         x["now"] = {**(x.get("now") or {}), "rest": True, "t_rest": round(time.time(), 3)}
-        self.store(x)
+        self._phase("rest", prog["rest"] if isinstance(prog["rest"], (int, float)) and prog["rest"] else None)   # rest — секунды
         self.h["rest"](gens)
         t0 = time.time()
         hist, stable = {}, False

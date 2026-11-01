@@ -1,0 +1,187 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1242" width="1000" height="1242" role="img">
+<title>Колесо 1, агент №6: датчик обода ICM-42688-P — подключение по I²C</title>
+<desc>Агент №6 колеса 1 — плата XIAO ESP32-S3 на ободе. Питание агента: плюс шины колеса 5,1 В через диод 1N5819 (полоской к агенту) на вывод 5V, минус шины — на вывод GND. От агента к фиолетовому модулю ICM-42688-P четыре провода: 3V3 агента на VCC модуля (только 3,3 В, не 5 В), GND агента на GND модуля, D4 (GPIO5) на SDA, D5 (GPIO6) на SCL; шина I2C 400 кГц. На выводах модуля три перемычки: SDO/AD0 на GND — адрес 0x68; CS на VCC — режим I2C, по паспорту вывод CS — на VDDIO; INT2/FSYNC на GND — так велит паспорт, если FSYNC не используется. INT1 не подключается. По желанию между VCC и GND у самых выводов модуля добавить керамику 0,1 мкФ и 10 мкФ. Внутри модуля, уже есть: от VCC — стабилизатор 3,3 В, если он стоит на плате, его общий вывод на GND; от 3,3 В питаются вывод 8 VDD и вывод 5 VDDIO чипа; конденсаторы C1 0,1 мкФ и C2 2,2 мкФ у VDD и C3 10 нФ у VDDIO — между 3,3 В и GND; резисторы подтяжки R1 от SDA и R2 от SCL к 3,3 В модуля, 4,7–10 кОм. Выводы модуля идут на выводы чипа: SDO/AD0 на 1, GND на 6, CS на 12, SDA на 14, SCL на 13, INT1 на 4, INT2/FSYNC на 9. Прошивка ищет датчик на 0x68 и 0x69 и ждёт WHO_AM_I 0x47; отклик на 0x7E — общий адрес I3C, это нормально.</desc>
+<style>
+text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d2228}
+.h{font-size:15px;font-weight:600}.t{font-size:13px}.s{font-size:12px;fill:#4a535e}.b{font-weight:600}
+.box{fill:#fff;stroke:#1d2228;stroke-width:1.3}.nb{fill:#fff;stroke:#4a535e;stroke-width:1}
+.p{stroke:#D55E00;stroke-width:2.6;fill:none}.m{stroke:#1d2228;stroke-width:2;fill:none}
+.pl{stroke:#1d2228;stroke-width:2.6;fill:none}.d{fill:none;stroke:#1d2228;stroke-width:1.6}
+.sig{stroke:#0072B2;stroke-width:1.8;fill:none;stroke-dasharray:6 4}
+.scl{stroke:#0072B2;stroke-width:1.8;fill:none;stroke-dasharray:2 3}
+.v3{stroke:#CC79A7;stroke-width:2;fill:none}
+.in{stroke:#4a535e;stroke-width:1.4;fill:none}
+.reg{fill:none;stroke:#4a535e;stroke-width:1.2;stroke-dasharray:5 4}
+</style>
+<rect width="1000" height="1242" fill="#ffffff"/>
+<text class="h" x="16" y="28">Колесо 1, агент №6: датчик обода ICM-42688-P — подключение по I²C</text>
+<text class="s" x="16" y="48">Фиолетовый модуль: четыре провода к агенту — 3V3, GND, D4 (SDA), D5 (SCL) — и три перемычки на выводах модуля:</text>
+<text class="s" x="16" y="64">SDO/AD0 → GND (адрес 0x68), CS → VCC (режим I²C), INT2/FSYNC → GND (по паспорту); INT1 свободен. Та же схема — для роли S.</text>
+
+<!-- шина колеса: питание агента -->
+<line class="m" x1="16" y1="96" x2="390" y2="96"/><text class="s" x="16" y="90">− шины колеса</text>
+<line class="p" x1="16" y1="120" x2="330" y2="120"/><text class="s" x="16" y="114">+ шины колеса 5,1 В</text>
+<text class="s" x="404" y="100">питание №6 — от шины колеса, как у всех агентов на ободе</text>
+<line class="p" x1="330" y1="120" x2="330" y2="140"/>
+<polygon class="d" points="320,140 340,140 330,158"/>
+<line class="pl" x1="319" y1="159" x2="341" y2="159" style="stroke-width:3.6"/>
+<path class="p" d="M330 160 V190 H300"/>
+<text class="s" x="314" y="150" text-anchor="end">1N5819, полоска к №6</text>
+<path class="m" d="M390 96 V230"/><circle cx="390" cy="230" r="3.5" fill="#1d2228"/>
+
+<!-- агент №6 -->
+<rect class="box" x="110" y="166" width="190" height="400" rx="6"/>
+<text class="s" x="294" y="194" text-anchor="end">5V</text>
+<text class="s" x="294" y="234" text-anchor="end">GND</text>
+<text class="s" x="294" y="294" text-anchor="end">3V3</text>
+<text class="s" x="294" y="404" text-anchor="end">D4 <tspan style="font-size:10px">· GPIO5</tspan></text>
+<text class="s" x="294" y="460" text-anchor="end">D5 <tspan style="font-size:10px">· GPIO6</tspan></text>
+<text class="t b" x="120" y="330">XIAO ESP32-S3</text>
+<text class="s" x="120" y="348">агент №6 · колесо 1</text>
+<text class="s" x="120" y="364">на ободе</text>
+<text class="s" x="120" y="496">на плате, USB сверху:</text>
+<text class="s" x="120" y="512">D4, D5 — 5-й, 6-й слева;</text>
+<text class="s" x="120" y="528">5V, GND, 3V3 — 1-й,</text>
+<text class="s" x="120" y="544">2-й, 3-й справа</text>
+
+<!-- четыре провода -->
+<line class="m" x1="300" y1="230" x2="530" y2="230"/><text class="s" x="314" y="224">минус</text>
+<line class="v3" x1="300" y1="290" x2="530" y2="290"/><text class="s" x="314" y="284">3,3 В</text>
+<line class="sig" x1="300" y1="400" x2="530" y2="400"/><text class="s" x="314" y="394">SDA</text>
+<line class="scl" x1="300" y1="456" x2="530" y2="456"/><text class="s" x="314" y="450">SCL</text>
+<text class="s" x="314" y="478">провода до 15 см,</text>
+<text class="s" x="314" y="494">скрутить, привязать</text>
+
+<!-- добавить по желанию -->
+<line class="m" x1="470" y1="230" x2="470" y2="254"/>
+<line class="pl" x1="461" y1="254" x2="479" y2="254"/><line class="pl" x1="461" y1="264" x2="479" y2="264"/>
+<line class="v3" x1="470" y1="264" x2="470" y2="290"/>
+<circle cx="470" cy="230" r="3.5" fill="#1d2228"/><circle cx="470" cy="290" r="3.5" fill="#CC79A7"/>
+<text class="s b" x="456" y="254" text-anchor="end">добавить по желанию:</text>
+<text class="s" x="456" y="270" text-anchor="end">0,1 мкФ + 10 мкФ</text>
+
+<!-- перемычки на выводах модуля -->
+<path class="m" d="M530 190 H510 V230"/><circle cx="510" cy="230" r="3.5" fill="#1d2228"/>
+<text class="s b" x="502" y="214" text-anchor="end">AD0 → GND</text>
+<path class="v3" d="M530 340 H510 V290"/><circle cx="510" cy="290" r="3.5" fill="#CC79A7"/>
+<text class="s b" x="502" y="320" text-anchor="end">CS → VCC</text>
+<line class="m" x1="530" y1="504" x2="520" y2="504"/><path class="m" d="M509 499 l10 10 M519 499 l-10 10"/>
+<text class="s" x="504" y="508" text-anchor="end">не подключать</text>
+<path class="m" d="M530 532 H514 V540 M506 540 H522 M509 544 H519 M512 548 H516"/>
+<text class="s b" x="500" y="536" text-anchor="end">INT2/FSYNC → GND</text>
+
+<!-- модуль -->
+<text class="t b" x="530" y="150">фиолетовый модуль ICM-42688-P · адрес 0x68</text>
+<rect class="box" x="530" y="160" width="460" height="406" rx="6"/>
+<rect class="reg" x="618" y="168" width="366" height="390" rx="4"/>
+<text class="s" x="626" y="552">на модуле — обычно уже есть, не паять</text>
+<text class="s" x="536" y="184">SDO / AD0</text>
+<text class="s" x="536" y="224">GND</text>
+<text class="s" x="536" y="284">VCC</text>
+<text class="s" x="536" y="334">CS</text>
+<text class="s" x="536" y="394">SDA</text>
+<text class="s" x="536" y="450">SCL</text>
+<text class="s" x="536" y="498">INT1</text>
+<text class="s" x="536" y="526">INT2 / FSYNC</text>
+
+<line class="in" x1="530" y1="190" x2="896" y2="190"/>
+<line class="in" x1="530" y1="230" x2="896" y2="230"/>
+<line class="in" x1="530" y1="290" x2="632" y2="290"/><line class="in" x1="688" y1="290" x2="896" y2="290"/>
+<path class="in" d="M880 290 V310 H896"/><circle cx="880" cy="290" r="3" fill="#4a535e"/>
+<line class="in" x1="530" y1="340" x2="896" y2="340"/>
+<line class="in" x1="530" y1="400" x2="896" y2="400"/>
+<line class="in" x1="530" y1="456" x2="896" y2="456"/>
+<line class="in" x1="530" y1="504" x2="896" y2="504"/>
+<line class="in" x1="530" y1="532" x2="896" y2="532"/>
+
+<rect x="632" y="278" width="56" height="24" fill="#fff" stroke="#4a535e" stroke-width="1.4" stroke-dasharray="4 3"/>
+<text class="s" x="660" y="294" text-anchor="middle">LDO</text>
+<line class="in" x1="660" y1="278" x2="660" y2="230"/><circle cx="660" cy="230" r="3" fill="#4a535e"/>
+<text class="s" x="660" y="318" text-anchor="middle">если есть</text>
+<text class="s" x="660" y="333" text-anchor="middle">(662K)</text>
+
+<g class="in"><line x1="712" y1="230" x2="712" y2="255"/><line x1="712" y1="265" x2="712" y2="290"/><line x1="778" y1="230" x2="778" y2="255"/><line x1="778" y1="265" x2="778" y2="290"/><line x1="844" y1="230" x2="844" y2="255"/><line x1="844" y1="265" x2="844" y2="290"/></g>
+<g class="pl" style="stroke-width:2.2"><line x1="703" y1="255" x2="721" y2="255"/><line x1="703" y1="265" x2="721" y2="265"/><line x1="769" y1="255" x2="787" y2="255"/><line x1="769" y1="265" x2="787" y2="265"/><line x1="835" y1="255" x2="853" y2="255"/><line x1="835" y1="265" x2="853" y2="265"/></g>
+<g fill="#4a535e"><circle cx="712" cy="230" r="3"/><circle cx="712" cy="290" r="3"/><circle cx="778" cy="230" r="3"/><circle cx="778" cy="290" r="3"/><circle cx="844" cy="230" r="3"/><circle cx="844" cy="290" r="3"/><circle cx="730" cy="400" r="3"/><circle cx="810" cy="456" r="3"/></g>
+<text class="s" x="725" y="258">C1</text><text class="s" x="725" y="274">0,1 мкФ</text>
+<text class="s" x="791" y="258">C2</text><text class="s" x="791" y="274">2,2 мкФ</text>
+<text class="s" x="857" y="258">C3</text><text class="s" x="857" y="274">10 нФ</text>
+
+<line class="in" x1="730" y1="400" x2="730" y2="390"/><rect x="726" y="366" width="8" height="24" fill="#fff" stroke="#1d2228" stroke-width="1.3"/>
+<line class="in" x1="730" y1="366" x2="730" y2="356"/><line class="v3" x1="722" y1="356" x2="738" y2="356"/>
+<text class="s" x="742" y="360">3,3 В</text><text class="s" x="740" y="384">R1</text>
+<line class="in" x1="810" y1="456" x2="810" y2="446"/><rect x="806" y="422" width="8" height="24" fill="#fff" stroke="#1d2228" stroke-width="1.3"/>
+<line class="in" x1="810" y1="422" x2="810" y2="414"/><line class="v3" x1="802" y1="414" x2="818" y2="414"/>
+<text class="s" x="822" y="418">3,3 В</text><text class="s" x="820" y="440">R2</text>
+<text class="s" x="626" y="480">R1, R2 — подтяжки I²C к 3,3 В, 4,7–10 кОм</text>
+<text class="s" x="626" y="496">C1, C2 у VDD (8), C3 у VDDIO (5) — по паспорту</text>
+
+<rect x="896" y="174" width="82" height="376" rx="3" fill="#fff" stroke="#1d2228" stroke-width="1.3"/>
+<text class="s" x="902" y="194">1 AD0</text><text class="s" x="902" y="234">6 GND</text>
+<text class="s" x="902" y="294">8 VDD</text><text class="s" x="902" y="314">5 VDDIO</text>
+<text class="s" x="902" y="344">12 CS</text><text class="s" x="902" y="404">14 SDA</text>
+<text class="s" x="902" y="460">13 SCL</text><text class="s" x="902" y="508">4 INT1</text>
+<text class="s" x="902" y="536">9 INT2</text>
+<text class="t b" x="967" y="362" text-anchor="middle" transform="rotate(-90 967 362)">ICM-42688-P</text>
+
+<!-- пояснения под схемой -->
+<text class="s" x="16" y="590">VCC модуля — только от 3V3 агента, не от 5V. Без стабилизатора на</text>
+<text class="s" x="16" y="606">модуле 5 В сожгут чип (предел VDD и VDDIO — 4 В), а со стабилизатором —</text>
+<text class="s" x="16" y="622">5 В попадут на CS: он перемычкой на VCC, а по паспорту CS — на VDDIO (3,3 В).</text>
+<text class="s" x="16" y="638">Подтяжки SDA, SCL уже на модуле: R1, R2 к 3,3 В модуля — два резистора</text>
+<text class="s" x="16" y="654">у выводов SDA и SCL (надпись 472 или 103, бывает без надписи); нет их —</text>
+<text class="s" x="16" y="670">4,7 кОм от SDA и SCL к VCC. При слабых подтяжках прошивка сама</text>
+<text class="s" x="16" y="686">переходит на 100 кГц.</text>
+<text class="s" x="530" y="590">Надписи на вашей плате могут быть другими:</text>
+<text class="s" x="530" y="606">SDO/AD0 — SAO, SA0, ADO; SCL — SCK; SDA — SDI;</text>
+<text class="s" x="530" y="622">CS — NCS; INT2 — FSY, FSYNC; VCC — VIN, 3V3. И порядок</text>
+<text class="s" x="530" y="638">выводов другой — паять по надписям, не по месту.</text>
+<text class="s" x="530" y="654">Нет на плате вывода INT2/FSYNC — эту перемычку пропустить.</text>
+
+<rect class="nb" x="16" y="702" width="476" height="254" rx="6"/>
+<text class="t b" x="28" y="724">Адрес и что ждёт прошивка</text>
+<text class="s" x="28" y="744">I²C 400 кГц: D4 = GPIO5 = SDA, D5 = GPIO6 = SCL,</text>
+<text class="s" x="28" y="762">в прошивке Wire.begin(5, 6, 400000)</text>
+<text class="s" x="28" y="780">адрес 0x68 (1101000): SDO/AD0 на GND; на 3,3 В было бы 0x69</text>
+<text class="s" x="28" y="798">WHO_AM_I (регистр 0x75) = 0x47 — другой код прошивка не берёт</text>
+<text class="s" x="28" y="816">0x7E в списке шины — общий адрес I3C, ICM отвечает и на него: норма</text>
+<text class="s" x="28" y="834">обод: ±16 g, ±2000 °/с, 200 Гц, полоса 40 Гц, малый шум</text>
+<text class="s" x="28" y="852">роль S (статика): та же схема — только ускорение, 1000 Гц, FIFO</text>
+<text class="s" x="28" y="870">если шину читает №6 (запасной вариант) — INA219 шины (0x40)</text>
+<text class="s" x="28" y="888">на те же D4/D5, параллельно</text>
+<text class="s" x="28" y="906">INT1 прошивка не использует; INT2/FSYNC — на GND по паспорту</text>
+<text class="s" x="28" y="924">(табл. 9). На уже работающем №6 перепаивать не обязательно:</text>
+<text class="s" x="28" y="942">после включения вывод 9 — выход INT2 с открытым стоком</text>
+
+<rect class="nb" x="508" y="702" width="482" height="254" rx="6"/>
+<text class="t b" x="520" y="724">Механика: обод, до ~8 g</text>
+<text class="s" x="520" y="744">модуль — плашмя и жёстко (винт или клей), не висит на проводах</text>
+<text class="s" x="520" y="762">4 провода до 15 см скрутить; концы у пайки — в термоусадку</text>
+<text class="s" x="520" y="780">провода привязать к ободу в 1–2 см от пайки: вибрация не ломает её</text>
+<text class="s" x="520" y="798">перемычки AD0–GND, CS–VCC, INT2–GND — коротко, у выводов модуля</text>
+<text class="s" x="520" y="816">как повёрнута плата — не важно: ось колеса прошивка находит сама</text>
+<text class="s" x="520" y="834">добавочные конденсаторы — керамика, ногами прямо на VCC и GND</text>
+<text class="s" x="520" y="852">предел по паспорту — 20 000 g (без питания, 0,2 мс): 8 g не страшны</text>
+
+<text class="t b" x="16" y="986">Пайка и проверка</text>
+<text class="t" x="16" y="1008">1. Шину выключить, №6 отключить от USB. Паять флюсом, не пастой; после пайки отмыть спиртом.</text>
+<text class="t" x="16" y="1028">2. Перемычки на модуле: SDO/AD0 → GND, CS → VCC, INT2/FSYNC → GND — коротким проводом или каплей припоя, если выводы рядом.</text>
+<text class="t" x="16" y="1048">3. Провода к №6: VCC ← 3V3, GND ← GND, SDA ← D4, SCL ← D5. INT1 — не подключать.</text>
+<text class="t" x="16" y="1068">4. Прозвонка без питания: AD0–GND, CS–VCC и INT2–GND звенят; SDA–SCL, SDA–GND, SCL–GND не звенят;</text>
+<text class="t" x="34" y="1088">VCC–GND не звенит (короткий писк — заряжаются конденсаторы, это нормально).</text>
+<text class="t" x="16" y="1108">5. С питанием, мультиметр на выводах модуля: VCC–GND 3,2–3,3 В; CS 3,3 В; AD0 и INT2 0 В; SDA и SCL в покое около 3,3 В.</text>
+<text class="t" x="16" y="1128">6. Журнал при старте: «RIM i2c: 0x68 0x7e» (с INA219 — 0x40 0x68 0x7e) и «RIM ICM-42688 at 0x68 who=0x47 cfg=0f 07 07 44».</text>
+<text class="t" x="16" y="1148">7. Телеметрия №6 — те же числа десятичными: "i2c":[104,126], "imu":{"addr":104,"who":71,"cfg":[15,7,7,68],"err":0}; в покое |a| ≈ 1,00 g.</text>
+<text class="t" x="16" y="1168">8. «nothing answers» — нет питания или GND, SDA/SCL перепутаны, CS не на 3,3 В. Адрес скачет 0x68/0x69, «RIM no sensors» — AD0 висит.</text>
+<text class="t" x="16" y="1188">9. Роль S: в журнале «SACC ICM-42688 at 0x68 who=0x47». Растёт "err" — пайка или провода: перепаять, провода укоротить.</text>
+
+<line class="p" x1="16" y1="1220" x2="52" y2="1220"/><text class="s" x="60" y="1224">плюс</text>
+<line class="m" x1="104" y1="1220" x2="140" y2="1220"/><text class="s" x="148" y="1224">минус</text>
+<line class="sig" x1="200" y1="1220" x2="236" y2="1220"/><text class="s" x="244" y="1224">SDA</text>
+<line class="scl" x1="286" y1="1220" x2="322" y2="1220"/><text class="s" x="330" y="1224">SCL</text>
+<line class="v3" x1="372" y1="1220" x2="408" y2="1220"/><text class="s" x="416" y="1224">3,3 В</text>
+<line class="in" x1="470" y1="1220" x2="506" y2="1220"/><text class="s" x="514" y="1224">дорожка на модуле</text>
+<rect class="reg" x="634" y="1212" width="36" height="16"/><text class="s" x="678" y="1224">на модуле</text>
+<circle cx="760" cy="1220" r="3.5" fill="#1d2228"/><text class="s" x="770" y="1224">точка — соединены</text>
+<path class="m" d="M898 1212 V1220 M890 1220 H906 M893 1224 H903 M896 1228 H900"/><text class="s" x="914" y="1224">GND модуля</text>
+</svg>

@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 612" width="1000" height="612" role="img">
+<title>Температура кристалла: ступени регулятора при пределе 73 °C</title>
+<desc>Шкала температуры кристалла от 54 до 84 °C, слева полоса зон: ниже 72 °C — полная работа, 72–76 °C — регулятор урезает работу, 76–81 °C — сон радио, выше 81 °C — авария. Уровни при пределе 73 °C. 81 °C — предел плюс 8 °C три секунды подряд: авария, счёт стоит, радио спит; остыл до предела минус 3 — снова с четверти работы. 76 °C — предел плюс 3 °C при доле работы уже 5 % двадцать секунд подряд: радио спит между маяками роутера, просыпается при пределе минус 3. 73 °C — предел, задаётся от 40 до 75 °C («греться до …»). 72 °C — цель регулятора, предел минус 1 °C: доля работы раз в секунду меняется на 4 % на градус отклонения, от 5 до 100 %. 70 °C — предел минус 3: выход из сна радио и из аварии. 67 °C — плато самого тяжёлого режима в трубке с радиаторами (каскад 20 мс, 240 МГц, самый горячий агент), до предела 6 °C, регулятор не вмешивается. 57 °C — «пол» в трубке: 80 МГц, счёт стоит; плато режима — пол плюс нагрев: эгоистичный и каскад плюс 10 °C, остальные плюс 8; нагрев с постоянной около 85 с, остывание около 30 с. Внизу: первые 12 с после перезапуска датчику не верят, он показывает на 5–9 °C больше; датчик читается раз в секунду с шагом 1 °C; на столе без радиаторов «пол» 55–59 °C, под счётом платы сидели у предела, регулятор урезал работу горячих до 24–60 %.</desc>
+<defs>
+<pattern id="hz" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="#ffffff"/><line x1="0" y1="0" x2="0" y2="8" stroke="#CC79A7" stroke-width="3"/></pattern>
+</defs>
+<style>
+text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d2228}
+.h{font-size:15px;font-weight:600}.t{font-size:13px}.s{font-size:12px;fill:#4a535e}.k{font-size:12px}.b{font-weight:600}
+.tick{stroke:#1d2228;stroke-width:1.2}
+.halo{paint-order:stroke;stroke:#ffffff;stroke-width:4px;stroke-linejoin:round}
+</style>
+<rect width="1000" height="612" fill="#ffffff"/>
+<text class="h" x="16" y="28">Температура кристалла: ступени регулятора</text>
+<text class="s" x="16" y="48">Прошивка (thermal.cpp) раз в секунду; пример — при пределе 73 °C, остальные уровни считаются от предела.</text>
+
+<!-- шкала -->
+<line class="tick" x1="62" y1="60" x2="62" y2="540"/>
+<line class="tick" x1="56" y1="524" x2="62" y2="524"/><text class="k" x="52" y="528" text-anchor="end">55</text>
+<line class="tick" x1="56" y1="444" x2="62" y2="444"/><text class="k" x="52" y="448" text-anchor="end">60</text>
+<line class="tick" x1="56" y1="364" x2="62" y2="364"/><text class="k" x="52" y="368" text-anchor="end">65</text>
+<line class="tick" x1="56" y1="284" x2="62" y2="284"/><text class="k" x="52" y="288" text-anchor="end">70</text>
+<line class="tick" x1="56" y1="204" x2="62" y2="204"/><text class="k" x="52" y="208" text-anchor="end">75</text>
+<line class="tick" x1="56" y1="124" x2="62" y2="124"/><text class="k" x="52" y="128" text-anchor="end">80</text>
+<text class="k b" x="52" y="72" text-anchor="end">°C</text>
+
+<!-- зоны -->
+<rect x="64" y="252" width="40" height="288" fill="#009E73" fill-opacity="0.22" stroke="#009E73" stroke-width="1.4"/>
+<rect x="64" y="188" width="40" height="64" fill="#E69F00" fill-opacity="0.35" stroke="#E69F00" stroke-width="1.4"/>
+<rect x="64" y="108" width="40" height="80" fill="url(#hz)" stroke="#CC79A7" stroke-width="1.4"/>
+<rect x="64" y="60" width="40" height="48" fill="#D55E00" fill-opacity="0.35" stroke="#D55E00" stroke-width="1.4"/>
+<text class="k b" x="88" y="396" text-anchor="middle" transform="rotate(-90 88 396)">полная работа</text>
+<text class="k b" x="88" y="220" text-anchor="middle" transform="rotate(-90 88 220)">урезает</text>
+<text class="k b halo" x="88" y="148" text-anchor="middle" transform="rotate(-90 88 148)">сон радио</text>
+<text class="k b" x="88" y="84" text-anchor="middle" transform="rotate(-90 88 84)">авария</text>
+
+<!-- уровни -->
+<line x1="108" y1="108" x2="520" y2="108" stroke="#D55E00" stroke-width="2.4"/>
+<text class="k b" x="530" y="112">81 · предел + 8 °C три секунды подряд — авария</text>
+<text class="s" x="530" y="128">счёт стоит, радио спит; остыл до предел − 3 — снова с ¼ работы</text>
+<line x1="108" y1="188" x2="520" y2="188" stroke="#CC79A7" stroke-width="2.2" stroke-dasharray="8 4"/>
+<text class="k b" x="530" y="192">76 · предел + 3 °C, доля уже 5 %, 20 с подряд — сон радио</text>
+<text class="s" x="530" y="208">радио спит между маяками роутера; просыпается при предел − 3</text>
+<line x1="108" y1="236" x2="520" y2="236" stroke="#1d2228" stroke-width="3"/>
+<text class="k b" x="530" y="240">73 · предел (задаётся 40–75 °C: «греться до …»)</text>
+<line x1="108" y1="252" x2="520" y2="252" stroke="#0072B2" stroke-width="2.2" stroke-dasharray="4 3"/>
+<text class="k b" x="530" y="258">72 · цель регулятора: предел − 1 °C</text>
+<text class="s" x="530" y="274">доля работы раз в секунду ±4 % на градус, от 5 до 100 %</text>
+<line x1="108" y1="284" x2="520" y2="284" stroke="#4a535e" stroke-width="1.6" stroke-dasharray="2 3"/>
+<text class="k" x="530" y="290">70 · предел − 3 °C: выход из сна радио и из аварии</text>
+<line x1="108" y1="332" x2="520" y2="332" stroke="#009E73" stroke-width="2.4"/>
+<text class="k b" x="530" y="336">67 · плато самого тяжёлого режима в трубке</text>
+<text class="s" x="530" y="352">каскад 20 мс, 240 МГц, самый горячий агент: до предела 6 °C</text>
+<line x1="108" y1="492" x2="520" y2="492" stroke="#009E73" stroke-width="2.2" stroke-dasharray="8 4"/>
+<text class="k b" x="530" y="496">57 · «пол» в трубке с радиаторами: 80 МГц, счёт стоит</text>
+<text class="s" x="530" y="512">плато режима = пол + нагрев: эгоистичный и каскад +10 °C, остальные +8</text>
+<text class="s" x="530" y="528">нагрев — постоянная ≈ 85 с, остывание ≈ 30 с (модель сводки эксперимента)</text>
+<path d="M300 488 V340" stroke="#009E73" stroke-width="1.6" fill="none" stroke-dasharray="3 3"/>
+<text class="s halo" x="308" y="420">+10 °C — нагрев каскада</text>
+
+<text class="s" x="16" y="572">Датчик кристалла — раз в секунду, шаг 1 °C; первые 12 с после перезапуска ему не верим: он показывает на 5–9 °C больше.</text>
+<text class="s" x="16" y="590">На столе без радиаторов «пол» — 55–59 °C; под счётом платы сидели у предела, регулятор урезал работу горячих до 24–60 %.</text>
+</svg>

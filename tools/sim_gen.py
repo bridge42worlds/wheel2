@@ -37,7 +37,7 @@ class Agent:
         self.cfg = {"cid": 0, "run": 0, "src": 1, "bits": 256, "nb": 8, "all": 0, "td": 1000, "mode": 0, "nr": 1, "tmax": 70,
                     "k": 24, "pre": 1, "cpu": 240, "txp": 20, "ping": 100, "led": 1, "tp": 1000, "role": 0, "sm": 1, "sf": 0,
                     "cf": 0, "sh": 0, "bgr": 0, "tl": 0, "tq": 0, "rmm": 450, "afs": 2, "avg": 2, "pl": 0, "dc": 0,
-                    "hb": 1, "dur": 0, "ro": 0}
+                    "hb": 1, "dur": 0, "ro": 0, "gv": 0, "rk": 1, "pw": 0, "raw": 0}
         self.grp, self.bg = [], []
         self.done = 0            # шаг на агенте: какой cid закончен сам
         self.rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -51,6 +51,7 @@ class Agent:
     def reset(self):
         self.c = {k: 0.0 for k in ("cand", "pr", "ann", "heard", "prx", "stx", "sbg", "slat", "sn", "cycles", "cycles_m", "primes_m",
                                   "asks", "gath", "tg", "ts", "tt", "th", "tc", "cp", "cs", "ct", "tx", "rx")}
+        self.e = [[0.0] * 7 for _ in range(7)]      # по источникам (SRC_INDEX): единиц, бит, мкс, …
         self.t_apply = time.time()
 
     def head(self, typ):
@@ -152,6 +153,22 @@ def step(dt):
     for a in agents:
         if a.cfg["run"]:
             a.c["heard"] = sum(b.c["stx"] + b.c["sbg"] for b in B if b is not a) * 0.98
+    for a in agents:                                   # шум по источникам из src: бит/с как у платы без датчиков
+        if not a.cfg["run"]:
+            continue
+        heard_s = sum(b.cfg["bgr"] + (b.c["stx"] / max(1.0, time.time() - b.t_apply)) for b in B if b is not a)
+        src = a.cfg["src"]
+        mix = bin(src & 0x1F).count("1") > 1                 # смесь через хеш: каждому числу — 256 бит от каждого источника
+        cr = 2300 * (1.78 if a.cfg["dc"] else 1.0) if src == 1 else {2: 12, 4: 18, 8: 15, 16: 50}.get(src, 2)
+        for i, (bit, units, bits) in enumerate(((1, 44800, 5.9e5), (2, 15 if a.cfg["ping"] else 10, 480), (4, 21000, 5250),
+                                                (8, 16000, 4000), (16, heard_s, heard_s * 240), (32, 0, 0), (64, 0, 0))):
+            if mix and bit & 0x1F:
+                units, bits = units * 256 * cr / max(1.0, bits), 256 * cr
+            if src & bit:
+                row = a.e[i]
+                row[0] += units * dt
+                row[1] += bits * dt
+                row[2] += bits * dt * 0.4
     for a in agents:                                   # температура: к нагрузке, остывает в простое
         load = 0 if not a.cfg["run"] else (1.6 if a.cfg["dc"] else 1.0) if a.cfg["role"] == 0 else 0.3
         target = 54 + 9 * load
@@ -171,8 +188,7 @@ def tel(a):
               "cand": cand, "tdr": tdr, "mri": cand - tdr, "pr": pr, "fp": 0, "dis": 0, "err": 0, "stall": 0, "jobs": 0,
               "bt": [cand - tdr] + [pr] * 7, "br": [cand - tdr - pr] + [0] * 7, "bus": [1050] * 8,
               "tdus": int(cand * 43), "mrus": int((cand - tdr) * 1050 + pr * 7 * 1050), "tpn": pr, "tps": int(pr * 38000),
-              "tpmin": 900, "tpmax": 260000, "e": [[cand * 8, cand * 256, int(cand * 166), cand * 4, cand * 8, cand * 4, cand * 8],
-                                                   [0] * 7, [0] * 7, [0] * 7, [0] * 7],
+              "tpmin": 900, "tpmax": 260000, "e": [[int(x) for x in row] for row in a.e],
               "sha": 0, "csi": [0] * 7, "ann": int(c["ann"]), "adrop": 0, "heard": int(c["heard"]), "bclost": 0, "rxdrop": 0,
               "etx": [int(c["tx"]), 0, 0, 0], "pl": cfg["pl"], "pln": 0, "pll": 0, "dc": cfg["dc"], "dcq": [0, 0],
               "ota": [0, 0, "app0"], **{k: cfg[k] for k in cfg}})

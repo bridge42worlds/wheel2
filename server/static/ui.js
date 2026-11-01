@@ -1,4 +1,4 @@
-// Общее для двух экранов — пульт (/pult) и наблюдение (/watch), docs/ui_concept.md.
+// Общее для двух экранов — пульт (/pult) и наблюдение (/watch).
 "use strict";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -95,7 +95,7 @@ function staticStatus(s) {
   return { cls: "mut", icon: "○", word: s.status || "—" };
 }
 // Виды находок статики — значок и слово (ключи — static_watch.KIND_NAMES)
-const KIND = { knock: "↻ толчок", spikes: "↻ выбросы", moved: "⇅ сдвиг", quant: "⚙ квантование", gap: "⚙ пропуск отсчётов", sat: "⚙ зашкал",
+const KIND = { knock: "↻ толчок", spikes: "↻ выбросы", moved: "⇅ сдвиг", place: "⤾ новое положение", quant: "⚙ квантование", gap: "⚙ пропуск отсчётов", sat: "⚙ зашкал",
   mode: "⚙ режим датчика", line: "│ линия", gone: "│ линия пропала", band: "≋ полоса", gauss: "∿ форма шума" };
 const CLS_WORD = { dist: "помеха — повторить", inst: "прибор — повторить", dev: "отклонение — проверить" };
 // Значки состояний агента и ролей — одни на все страницы: план и факт одним языком

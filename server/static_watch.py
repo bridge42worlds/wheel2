@@ -6,7 +6,13 @@
 на сервер идут оси x, y, z (при avg = 2 — 500 Гц)
 пакетами "acc". Всё остальное считается здесь.
 
-Окно — 10 с. По каждому окну и оси:
+Оси анализа — не оси датчика, а по тяжести: **вертикаль** (вдоль среднего ускорения) и **горизонталь**
+(обе горизонтальные оси вместе: мощность пополам, форма шума по обеим). Поэтому положение датчика
+неважно: как его ни положи, эталон годится. Положение задаётся по первому окну; тяжесть повернулась
+больше чем на PLACE_DEG — датчик положили иначе: новые оси, окно с перекладкой — помеха. Квантование и
+зашкал — по осям самого датчика (это свойства прибора).
+
+Окно — 10 с. По каждому окну и каналу (вертикаль, горизонталь):
   спектр       — Уэлч: отрезки 1024 отсчёта (при 500 Гц — 2 с, шаг частоты
                  0,49 Гц), окно Ханна, перекрытие наполовину; плотность, g²/Гц;
   полосы       — мощность в октавах 1–2, 2–4, … Гц, дБ;
@@ -14,7 +20,8 @@
                  (у гауссова шума оба около нуля);
   квантование  — доля значений, кратных 2, 4, … 256: у живого шума 1/2, 1/4, …;
                  «гребёнка» (урок LIS3DH) — все значения кратны одному шагу;
-  среднее      — наклон или сдвиг датчика; зашкал; пропуски отсчётов.
+  среднее      — по вертикали и двум горизонтальным осям: сдвиг или наклон внутри одного положения;
+                 зашкал; пропуски отсчётов.
 По каждой секунде — среднее, разброс, крайние: графики и толчки.
 
 Эталон — те же показатели за несколько минут, пока основные группы стоят:
@@ -28,7 +35,8 @@
   квантование  — доля кратных ушла больше чем на Z_QUANT — это прибор;
   толчок       — разброс секунды в KNOCK_X раз выше обычного или выброс в
                  KNOCK_PEAK разбросов;
-  сдвиг        — среднее ушло больше чем на MOVED_UG: датчик сдвинули, наклонили;
+  сдвиг        — среднее ушло от прошлого больше чем на MOVED_UG: датчик сдвинули, наклонили (дальше —
+                 от нового среднего); положение — тяжесть повернулась больше PLACE_DEG;
   пропуски, зашкал.
 Линия рядом с известным источником (сеть 50 Гц, пинг CSI агентов, маяки
 роутера, своя телеметрия, обороты колеса) помечается им и тревогой не считается.
@@ -64,17 +72,23 @@ Z_QUANT = 6.0
 KNOCK_X = 4.0              # разброс секунды выше обычного во столько раз — толчок
 KNOCK_PEAK = 8.0           # или выброс в столько обычных разбросов (у гаусса — никогда)
 MOVED_UG = 5000.0          # среднее ушло на 5 мg — сдвинули или наклонили (дрейф от тепла меньше)
+PLACE_DEG = 2.0            # тяжесть повернулась больше — датчик положили иначе: новые оси (эталон тот же)
 PERSIST = 2                # окон подряд — уже не случайность
 MIN_BASE_WIN = 6           # эталон — не меньше минуты
 QBITS = 8                  # квантование: шаги 2 … 256
 
 # вид отклонения -> класс: помеха (повторить), прибор (повторить), отклонение (проверить)
-CLS = {"knock": "dist", "spikes": "dist", "moved": "dist", "quant": "inst", "gap": "inst", "sat": "inst", "mode": "inst",
+CLS = {"knock": "dist", "spikes": "dist", "moved": "dist", "place": "dist", "quant": "inst", "gap": "inst", "sat": "inst", "mode": "inst",
        "line": "dev", "gone": "dev", "band": "dev", "gauss": "dev"}
-KIND_NAMES = {"knock": "толчок", "spikes": "выбросы", "moved": "сдвиг", "quant": "квантование", "gap": "пропуск отсчётов",
+KIND_NAMES = {"knock": "толчок", "spikes": "выбросы", "moved": "сдвиг", "place": "новое положение", "quant": "квантование", "gap": "пропуск отсчётов",
               "sat": "зашкал", "mode": "режим датчика", "line": "линия", "gone": "линия пропала",
               "band": "полоса", "gauss": "форма шума"}
-AXES = "xyz"
+AXES = ("вертикаль", "горизонталь")       # каналы анализа: вдоль тяжести и поперёк (обе горизонтальные оси вместе)
+AXK = ("v", "h")                          # они же в ключах показателей и рядов
+AXW = ("по вертикали", "по горизонтали")  # в тексте
+NCH = len(AXES)
+RAW = "xyz"                               # оси самого датчика: квантование, зашкал, зависание
+FRAME = "vh"                              # эталоны в этих осях; прежние (по осям датчика) не годятся — переписать
 DB = 10.0 / math.log(10.0)  # 4,343: разброс логарифма средней по n отрезкам — DB/√n
 
 
@@ -146,6 +160,8 @@ class Sensor:
         self.last_rx = None
         self.rx_n = 0
         self.temp = None
+        self.R = None              # оси по тяжести: строки — вертикаль, горизонталь 1 и 2 в осях датчика
+        self.refs = deque(maxlen=3)  # средние (вертикаль, г1, г2) прошлых окон, мкg — от их медианы «сдвиг»
 
     @property
     def W(self):
@@ -264,29 +280,36 @@ class Watch:
         w = {"i0": i0, "t0": s.t_of(i0), "t1": s.t_of(i0 + W), "n": int(ok.sum()), "gap": int(W - ok.sum()),
              "hz": hz, "mode": s.mode, "knocks": [], "finds": []}
         g = raw / s.lsb
+        if ok.any():
+            self._place(s, g[ok].mean(0), w)
+        gr = g @ s.R.T if s.R is not None else g        # вертикаль, горизонталь 1, горизонталь 2
         S = int(round(s.hz))
         hp, secs = [], []
         for k in range(W // S):                         # секунды
             sl = slice(k * S, (k + 1) * S)
             if not ok[sl].all():
                 continue
-            x = g[sl]
+            x = gr[sl]
             m = x.mean(0)
             d = x - m
-            sd = d.std(0)
-            sec = {"t": s.t_of(i0 + k * S + S // 2), "mean": m * 1e6, "sd": sd * 1e6,
-                   "min": x.min(0) * 1e6, "max": x.max(0) * 1e6, "peak": np.abs(d).max(0) * 1e6}
+            sd = np.sqrt([(d[:, 0] ** 2).mean(), ((d[:, 1] ** 2).mean() + (d[:, 2] ** 2).mean()) / 2])
+            pk = np.abs(d).max(0)
+            sec = {"t": s.t_of(i0 + k * S + S // 2), "mean": np.array([m[0], math.hypot(m[1], m[2])]) * 1e6,
+                   "mean3": m * 1e6, "sd": sd * 1e6, "peak": np.array([pk[0], max(pk[1], pk[2])]) * 1e6}
             secs.append(sec)
             hp.append(d)
         nper = min(NPERSEG, W)
         if hp:
             d = np.concatenate(hp)
-            m2 = (d ** 2).mean(0)
+            mo = lambda p: np.array([(d[:, 0] ** p).mean(), ((d[:, 1] ** p).mean() + (d[:, 2] ** p).mean()) / 2])
+            m2 = mo(2)
             w["sd"] = np.sqrt(m2) * 1e6
-            w["skew"] = (d ** 3).mean(0) / np.maximum(m2, 1e-30) ** 1.5
-            w["kurt"] = (d ** 4).mean(0) / np.maximum(m2, 1e-30) ** 2 - 3
+            w["skew"] = mo(3) / np.maximum(m2, 1e-30) ** 1.5      # горизонталь — обе оси вместе
+            w["kurt"] = mo(4) / np.maximum(m2, 1e-30) ** 2 - 3
             w["mean"] = np.mean([q["mean"] for q in secs], axis=0)
+            w["mean3"] = np.mean([q["mean3"] for q in secs], axis=0)
             rv = raw[ok]
+            w["sd_raw"] = (rv / s.lsb).std(0) * 1e6                     # по осям датчика — для квантования
             w["q"] = np.array([[float(((rv[:, ax] & ((1 << k) - 1)) == 0).mean()) for k in range(1, QBITS + 1)]
                                for ax in range(3)])
             w["sat"] = int(((rv >= 32767) | (rv <= -32767)).any(1).sum())
@@ -296,11 +319,12 @@ class Watch:
         for st in range(0, W - nper + 1, nper // 2):    # Уэлч
             if not ok[st:st + nper].all():
                 continue
-            seg = g[st:st + nper]
+            seg = gr[st:st + nper]
             X = np.fft.rfft((seg - seg.mean(0)) * win[:, None], axis=0)
             P += (np.abs(X) ** 2).T
             ns += 1
         if ns:
+            P = np.vstack([P[0], (P[1] + P[2]) / 2])    # горизонталь — средняя по двум осям: не зависит от поворота
             psd = P / ns / (hz * (win ** 2).sum())
             psd[:, 1:-1] *= 2                            # односторонняя
             w["psd"], w["ns"], w["df"] = psd.astype(np.float32), ns, hz / nper
@@ -329,7 +353,7 @@ class Watch:
             w["knocks"] = []
         for q in secs:
             s.seconds.append(q)
-            for i, ax in enumerate(AXES):
+            for i, ax in enumerate(AXK):
                 self.put(s.mac, f"s_sd_{ax}", round(q["t"], 3), round(float(q["sd"][i]), 1))
                 self.put(s.mac, f"s_mean_{ax}", round(q["t"], 3), round(float(q["mean"][i]), 1))
         w["finds"] = self._compare(s, w)
@@ -337,15 +361,43 @@ class Watch:
         s.windows.append(w)
         tm = round(w["t1"], 3)
         if w.get("band_db") is not None:
-            for i, ax in enumerate(AXES):
+            for i, ax in enumerate(AXK):
                 for b in range(w["band_db"].shape[1]):
                     self.put(s.mac, f"s_p{b}_{ax}", tm, round(float(w["band_db"][i, b]), 2))
         if not w["knocks"]:                              # в окне с толчком отклонение — от толчка; у него свой график
             dev = [f["z"] for f in w["finds"] if CLS[f["kind"]] == "dev" and not f.get("known")]
             self.put(s.mac, "s_zmax", tm, round(max([abs(z) for z in dev], default=0.0), 2))
         if "kurt" in w:
-            for i, ax in enumerate(AXES):
+            for i, ax in enumerate(AXK):
                 self.put(s.mac, f"s_kurt_{ax}", tm, round(float(w["kurt"][i]), 4))
+
+    def _place(self, s, m, w):
+        """Оси по тяжести: вертикаль — вдоль среднего ускорения окна, горизонталь 1 — ось x датчика (y, если x
+        почти вертикальна) в горизонтальной плоскости, горизонталь 2 — третья. Задаются по первому окну; тяжесть
+        повернулась больше PLACE_DEG — датчик положили иначе: новые оси, «сдвиг» — от нового среднего."""
+        nm = float(np.linalg.norm(m))
+        if nm < 0.2:                                    # тяжести не видно — оси прежние
+            return
+        u = m / nm
+        if s.R is not None:
+            ang = math.degrees(math.acos(max(-1.0, min(1.0, float(np.dot(u, s.R[0]))))))
+            if ang <= PLACE_DEG:
+                return
+            w["placed"] = ang
+        a = np.array([1.0, 0.0, 0.0]) if abs(u[0]) < 0.9 else np.array([0.0, 1.0, 0.0])
+        e1 = a - np.dot(a, u) * u
+        e1 /= np.linalg.norm(e1)
+        s.R = np.vstack([u, e1, np.cross(u, e1)])
+        s.refs.clear()
+
+    def _pose(self, s):
+        """Как лежит датчик: какая его ось смотрит вверх и насколько она отклонена от вертикали."""
+        if s.R is None:
+            return None
+        up = s.R[0]                                     # в покое датчик меряет +1 g вверх: R[0] смотрит вверх
+        k = int(np.argmax(np.abs(up)))
+        return {"up": ("+" if up[k] > 0 else "−") + RAW[k],
+                "deg": round(math.degrees(math.acos(min(1.0, abs(float(up[k]))))), 1)}
 
     def _sec_ref(self, s):
         b = self._base(s)
@@ -359,16 +411,19 @@ class Watch:
     def _base(self, s):
         """Эталон, если он для того же режима датчика."""
         b = s.base
-        if b is None or s.mode is None or tuple(b["mode"]) != tuple(s.mode):
+        if b is None or s.mode is None or tuple(b["mode"]) != tuple(s.mode) or b.get("frame") != FRAME:
             return None
         return b
 
     # ---------------- сравнение с эталоном ----------------
     def _compare(self, s, w):
         out = []
+        if w.get("placed"):
+            out.append({"kind": "place", "z": w["placed"], "text": f"датчик положили иначе: тяжесть повернулась на "
+                                                                  f"{fnum(w['placed'], 0)}° — новое положение, эталон тот же"})
         for k in w["knocks"]:
             out.append({"kind": "knock", "ax": k["ax"], "t": k["t"], "z": k["x"],
-                        "text": f"толчок по {AXES[k['ax']]}: разброс ×{fnum(k['x'])}"})
+                        "text": f"толчок {AXW[k['ax']]}: разброс ×{fnum(k['x'])}"})
         if w.get("spikes"):
             sp = w["spikes"]
             out.append({"kind": "spikes", "z": sp["x"], "text": f"выбросы в {sp['n']} из {sp['of']} секунд — "
@@ -378,18 +433,29 @@ class Watch:
         if w.get("sat"):
             out.append({"kind": "sat", "z": w["sat"], "text": f"зашкал: {w['sat']} отсчётов на пределе"})
         b = self._base(s)
-        if "q" in w:                                    # квантование, зависание
+        # сдвиг внутри положения — от медианы трёх прошлых окон: скачок посреди окна делится на два окна и по
+        # отдельности мог бы не дотянуть до порога. После сдвига — отсчёт от нового среднего (медленный дрейф — не сдвиг)
+        if "mean3" in w and not w["knocks"] and not w.get("placed"):
+            if s.refs:
+                dm = w["mean3"] - np.median(np.array(s.refs), axis=0)
+                k = int(np.argmax(np.abs(dm)))
+                if abs(dm[k]) > MOVED_UG:
+                    out.append({"kind": "moved", "ax": min(k, 1), "z": float(dm[k]) / 1000,
+                                "text": f"среднее {AXW[min(k, 1)]} ушло на {fnum(dm[k] / 1000, 1)} мg — сдвинули или наклонили?"})
+                    s.refs.clear()
+            s.refs.append(w["mean3"])
+        if "q" in w:                                    # квантование, зависание — по осям самого датчика
             for ax in range(3):
-                sd_lsb = w["sd"][ax] / 1e6 * s.lsb
+                sd_lsb = w["sd_raw"][ax] / 1e6 * s.lsb
                 if sd_lsb < 0.5:
                     out.append({"kind": "quant", "ax": ax, "z": 99.0, "step": 0,
-                                "text": f"значения по {AXES[ax]} не меняются — датчик завис?"})
+                                "text": f"значения по оси {RAW[ax]} датчика не меняются — датчик завис?"})
                     continue
                 r = quant_check(w["q"][ax], sd_lsb, w["nq"], b["q"][ax] if b else None)
                 if r and abs(r[0]) > Z_QUANT:
                     z, k, step = r
-                    txt = (f"значения по {AXES[ax]} кратны {step} — грубый шаг, режим датчика?" if step > 1 else
-                           f"квантование по {AXES[ax]}: кратных {2 ** k} — {fnum(100 * w['q'][ax][k - 1])} %")
+                    txt = (f"значения по оси {RAW[ax]} датчика кратны {step} — грубый шаг, режим датчика?" if step > 1 else
+                           f"квантование по оси {RAW[ax]} датчика: кратных {2 ** k} — {fnum(100 * w['q'][ax][k - 1])} %")
                     out.append({"kind": "quant", "ax": ax, "z": z, "step": step, "text": txt})
             if any(f["kind"] == "quant" for f in out):  # грубый шаг сам скачет разбросом — это не толчки, а прибор
                 out = [f for f in out if f["kind"] not in ("knock", "spikes")]
@@ -399,7 +465,7 @@ class Watch:
             return out
         known = self._known_lines(s, w["hz"])
         n_b = b["n"]
-        for ax in range(3):
+        for ax in range(NCH):
             psd = w["psd"][ax].astype(np.float64)
             L = 10 * np.log10(np.maximum(psd, 1e-30))
             lines = self._lines(b, ax, L, self._sde(b, ax, w["ns"]) * math.sqrt(1 + 1 / n_b), w["df"], known)
@@ -409,10 +475,6 @@ class Watch:
                 g = self._gauss(b, ax, w["skew"][ax], w["kurt"][ax], w["nq"], 1)
                 if g:
                     out.append(g)
-                dm = float(w["mean"][ax] - b["dc"][ax])
-                if abs(dm) > MOVED_UG:
-                    out.append({"kind": "moved", "ax": ax, "z": dm / 1000,
-                                "text": f"среднее по {AXES[ax]} ушло на {fnum(dm / 1000, 1)} мg — сдвинули или наклонили?"})
         return out
 
     @staticmethod
@@ -438,9 +500,9 @@ class Watch:
                 lab = next((n for fk, n in known if abs(fk - f) <= 1.5 * df), None)
                 ddb = float(L[k] - m[k])
                 out.append({"kind": kind, "ax": ax, "f": f, "bin": k, "z": float(z[k]), "db": ddb, "known": lab,
-                            "text": (f"линия {fnum(f, 2)} Гц по {AXES[ax]}: {'+' if ddb > 0 else ''}{fnum(ddb)} дБ"
+                            "text": (f"линия {fnum(f, 2)} Гц {AXW[ax]}: {'+' if ddb > 0 else ''}{fnum(ddb)} дБ"
                                      if kind == "line" else
-                                     f"пропала линия эталона {fnum(f, 2)} Гц по {AXES[ax]}: {fnum(ddb)} дБ")
+                                     f"пропала линия эталона {fnum(f, 2)} Гц {AXW[ax]}: {fnum(ddb)} дБ")
                             + tag + (f" — {lab}" if lab else "")})
         return out
 
@@ -475,7 +537,7 @@ class Watch:
             zb = ddb / (sd * math.sqrt(1 / nwin + 1 / b["n"]))
             if abs(zb) > Z_BAND:
                 out.append({"kind": "band", "ax": ax, "band": bi, "z": zb, "db": ddb,
-                            "text": f"полоса {band_name(bi)} по {AXES[ax]}: {'+' if ddb > 0 else ''}{fnum(ddb)} дБ" + tag})
+                            "text": f"полоса {band_name(bi)} {AXW[ax]}: {'+' if ddb > 0 else ''}{fnum(ddb)} дБ" + tag})
         return out
 
     @staticmethod
@@ -486,7 +548,7 @@ class Watch:
         if max(abs(zs), abs(zk)) <= Z_GAUSS:
             return None
         return {"kind": "gauss", "ax": ax, "z": float(zk if abs(zk) >= abs(zs) else zs),
-                "text": f"форма шума по {AXES[ax]}: эксцесс {fnum(kurt, 2)}, асимметрия {fnum(skew, 2)} "
+                "text": f"форма шума {AXW[ax]}: эксцесс {fnum(kurt, 2)}, асимметрия {fnum(skew, 2)} "
                         f"(в эталоне {fnum(b['kurt'][ax][0], 2)}, {fnum(b['skew'][ax][0], 2)})" + tag}
 
     def _integral(self, s, ws):
@@ -502,7 +564,7 @@ class Watch:
         tag = f" (за отрезок, окон {n})"
         out = []
         df, hz = ws[-1]["df"], ws[-1]["hz"]
-        for ax in range(3):
+        for ax in range(NCH):
             L = np.mean([10 * np.log10(np.maximum(w["psd"][ax].astype(np.float64), 1e-30)) for w in ws], axis=0)
             lines = self._lines(b, ax, L, self._sde(b, ax, ns) * math.sqrt(1 / n + 1 / b["n"]), df, known, tag)
             out += lines
@@ -584,7 +646,8 @@ class Watch:
             if not 1 <= minutes <= 120:
                 raise ValueError("эталон — от 1 до 120 минут")
             t0 = time.time()
-            self.rec = {"t0": t0, "t1": t0 + minutes * 60, "minutes": minutes, "macs": macs, "busy": []}
+            # окна идут по сетке WIN_S, первое после старта неполное — плюс одно окно: за «1 мин» не меньше MIN_BASE_WIN целых
+            self.rec = {"t0": t0, "t1": t0 + minutes * 60 + WIN_S, "minutes": minutes, "macs": macs, "busy": []}
             self.log(f"[static] эталон: {minutes} мин, {len(macs)} датчиков")
             return self.rec
 
@@ -655,20 +718,22 @@ class Watch:
         sec_sd = np.median(np.array(sec), axis=0) if sec else np.stack([w["sd"] for w in clean]).mean(0)
         n = len(clean)
         lm, ls = L.mean(0), L.std(0, ddof=1)
-        b = {"mac": s.mac, "t0": r["t0"], "t1": r["t1"], "n": n, "of": len(ws), "mode": list(s.mode), "hz": s.hz,
+        b = {"mac": s.mac, "frame": FRAME, "t0": r["t0"], "t1": r["t1"], "n": n, "of": len(ws), "mode": list(s.mode), "hz": s.hz,
              "fs": s.fs, "df": clean[0]["df"], "ns": int(np.median([w["ns"] for w in clean])),
              "db_mean": np.round(lm, 3).tolist(), "db_sd": np.round(ls, 3).tolist(),
              "psd_mean": [[float(f"{x:.5g}") for x in np.stack([w["psd"][ax] for w in clean]).astype(np.float64).mean(0)]
-                          for ax in range(3)],
+                          for ax in range(NCH)],
              # разброс, сглаженный по соседним бинам: по немногим окнам у отдельного бина он бывает мал случайно
-             "db_sdm": [np.round(runmed(ls[ax], 8), 3).tolist() for ax in range(3)],
+             "db_sdm": [np.round(runmed(ls[ax], 8), 3).tolist() for ax in range(NCH)],
              # линии эталона — бины выше соседей на 6 дБ: только они могут «пропасть»
-             "peak": [(lm[ax] - runmed(lm[ax], 16) >= 6).astype(int).tolist() for ax in range(3)],
+             "peak": [(lm[ax] - runmed(lm[ax], 16) >= 6).astype(int).tolist() for ax in range(NCH)],
              "band_mean": np.round(B.mean(0), 3).tolist(), "band_sd": np.round(B.std(0, ddof=1), 3).tolist(),
-             "skew": [[float(sk[:, ax].mean()), float(sk[:, ax].std(ddof=1))] for ax in range(3)],
-             "kurt": [[float(ku[:, ax].mean()), float(ku[:, ax].std(ddof=1))] for ax in range(3)],
+             "skew": [[float(sk[:, ax].mean()), float(sk[:, ax].std(ddof=1))] for ax in range(NCH)],
+             "kurt": [[float(ku[:, ax].mean()), float(ku[:, ax].std(ddof=1))] for ax in range(NCH)],
              "q": np.round(np.stack([w["q"] for w in clean]).mean(0), 6).tolist(),
              "dc": np.stack([w["mean"] for w in clean]).mean(0).tolist(),
+             "sd_raw": np.stack([w["sd_raw"] for w in clean]).mean(0).tolist(),
+             "pose": self._pose(s),
              "sec_sd": np.asarray(sec_sd).tolist(), "busy": r["busy"]}
         b["quality"] = self._quality(b, L, B, clean)
         return b, ""
@@ -678,12 +743,12 @@ class Watch:
         q = []
         f = np.arange(len(b["db_mean"][0])) * b["df"]
         sel = (f >= 10) & (f <= min(100, b["hz"] / 2 * 0.8))
-        dens = [math.sqrt(10 ** (np.median(np.array(b["db_mean"][ax])[sel]) / 10)) * 1e6 for ax in range(3)]
+        dens = [math.sqrt(10 ** (np.median(np.array(b["db_mean"][ax])[sel]) / 10)) * 1e6 for ax in range(NCH)]
         adxl = is_adxl(b["mode"][2])
         q.append({"ok": True, "text": "шум " + " · ".join(f"{a} {fnum(d, 0)}" for a, d in zip(AXES, dens)) +
                   (" мкg/√Гц (10–100 Гц; у ADXL355 по паспорту 25)" if adxl else " мкg/√Гц (10–100 Гц; у ICM-42688 по паспорту 70)")})
-        ku = [b["kurt"][ax][0] for ax in range(3)]
-        sk = [b["skew"][ax][0] for ax in range(3)]
+        ku = [b["kurt"][ax][0] for ax in range(NCH)]
+        sk = [b["skew"][ax][0] for ax in range(NCH)]
         g_ok = max(abs(x) for x in ku) < 0.2 and max(abs(x) for x in sk) < 0.1
         q.append({"ok": g_ok, "text": ("шум гауссов" if g_ok else "шум не совсем гауссов") +
                   f": эксцесс {' · '.join(fnum(x, 2) for x in ku)}, асимметрия {' · '.join(fnum(x, 2) for x in sk)}"})
@@ -693,18 +758,18 @@ class Watch:
             sd_d = np.std(B, axis=0, ddof=1) * math.sqrt(1 / h + 1 / (len(clean) - h))
             nb = d.shape[1]
             hi = [bi for bi in range(nb) if OCTAVES[bi][0] >= 4]
-            bad = [(float(d[ax, bi]), ax, bi) for ax in range(3) for bi in hi
+            bad = [(float(d[ax, bi]), ax, bi) for ax in range(NCH) for bi in hi
                    if d[ax, bi] > max(1.0, 4 * sd_d[ax, bi])]
             worst = max(bad, default=None)
             q.append({"ok": not bad, "text": "фон ровный: первая и вторая половина записи совпадают" if not bad else
-                      f"фон менялся: полоса {band_name(worst[2])} по {AXES[worst[1]]} на {fnum(worst[0])} дБ "
+                      f"фон менялся: полоса {band_name(worst[2])} {AXW[worst[1]]} на {fnum(worst[0])} дБ "
                       f"между половинами"})
         bad = []
         for ax in range(3):
-            sd_lsb = float(np.mean([w["sd"][ax] for w in clean])) / 1e6 * b["mode"][2]
+            sd_lsb = float(b["sd_raw"][ax]) / 1e6 * b["mode"][2]
             r = quant_check(b["q"][ax], sd_lsb, int(np.median([w["nq"] for w in clean])) * len(clean))
             if r and abs(r[0]) > Z_QUANT:
-                bad.append(f"{AXES[ax]} (кратны {r[2]})" if r[2] > 1 else AXES[ax])
+                bad.append(f"ось {RAW[ax]} (кратны {r[2]})" if r[2] > 1 else f"ось {RAW[ax]}")
         q.append({"ok": not bad, "text": "квантование мелкое: доли чётных, кратных 4, … как у живого шума" if not bad
                   else "квантование грубое: " + ", ".join(bad) + " — проверьте режим датчика"})
         if b["of"] > b["n"]:
@@ -748,7 +813,7 @@ class Watch:
                 rs = []
                 dist = [f for f in finds if CLS[f["kind"]] == "dist"]
                 inst = [f for f in finds if CLS[f["kind"]] == "inst"]
-                for kind in ("knock", "spikes", "moved", "quant", "gap", "sat"):
+                for kind in ("place", "knock", "spikes", "moved", "quant", "gap", "sat"):
                     fs = [f for f in finds if f["kind"] == kind]
                     if fs:
                         rs.append(f"{KIND_NAMES[kind]} ×{len(fs)}: {fs[0]['text']}")
@@ -823,9 +888,10 @@ class Watch:
                 m = {"n": len(ws)}
                 nb = min(w["band_db"].shape[1] for w in ws if w.get("band_db") is not None) if any(
                     w.get("band_db") is not None for w in ws) else 0
-                for i, ax in enumerate(AXES):
+                for i, k in enumerate(("v", "h1", "h2")):     # среднее — вертикаль и обе горизонтальные оси, мкg
+                    m["mean_" + k] = float(np.mean([w["mean3"][i] for w in ws]))
+                for i, ax in enumerate(AXK):
                     m["sd_" + ax] = float(np.mean([w["sd"][i] for w in ws]))
-                    m["mean_" + ax] = float(np.mean([w["mean"][i] for w in ws]))
                     m["kurt_" + ax] = float(np.mean([w["kurt"][i] for w in ws]))
                     m["skew_" + ax] = float(np.mean([w["skew"][i] for w in ws]))
                     for b in range(nb):
@@ -851,6 +917,8 @@ class Watch:
             return "dist", "↻ помеха: " + "; ".join(c["text"] for c in active if c["cls"] == "dist")[:160]
         if any(c["cls"] == "inst" for c in active):
             return "inst", "↻ прибор: " + "; ".join(c["text"] for c in active if c["cls"] == "inst")[:160]
+        if s.base is not None and b is None and s.base.get("frame") != FRAME:
+            return "nobase", "◌ эталон записан по осям датчика — перепишите один раз: дальше положение датчика неважно"
         if s.base is not None and b is None:
             return "nobase", f"◌ эталон записан для другого режима (±{s.base['mode'][1]} g, " \
                              f"{fnum(1000 / s.base['mode'][0], 0)} Гц) — перепишите"
@@ -877,6 +945,7 @@ class Watch:
                     "mac": mac, "status": st, "text": text, "hz": s.hz, "fs": s.fs, "mode": s.mode,
                     "lost": s.lost, "restarts": s.restarts, "age": None if s.last_rx is None else round(now - s.last_rx, 1),
                     "temp": s.temp, "buffered_s": None if s.head is None else round(min(s.head, s.cap) / s.hz),
+                    "pose": self._pose(s), "axes": list(AXES),
                     "last": None if not w else {
                         "t1": w["t1"], "sd": _l(w.get("sd")), "mean": _l(w.get("mean")), "kurt": _l(w.get("kurt"), 3),
                         "skew": _l(w.get("skew"), 3), "gap": w["gap"], "sat": w.get("sat"), "ns": w.get("ns"),
@@ -884,7 +953,8 @@ class Watch:
                         "band_db": None if w.get("band_db") is None else np.round(w["band_db"], 2).tolist(),
                         "finds": [{k: v for k, v in f.items() if k != "bin"} for f in w["finds"]]},
                     "base": None if not b else {k: b.get(k) for k in ("t0", "t1", "n", "of", "mode", "hz", "quality",
-                                                                     "busy", "band_mean", "band_sd", "dc", "sec_sd")}
+                                                                     "busy", "band_mean", "band_sd", "dc", "sec_sd",
+                                                                     "frame", "pose")}
                                                | {"fits": self._base(s) is not None},
                     "conds": [_cond(c) for c in s.conds.values()],
                 })
@@ -924,20 +994,22 @@ class Watch:
                      for c in s.conds.values()]
             done = [{"kind": c["kind"], "text": c.get("text"), "t0": c["t0"], "end": c.get("end")}
                     for c in list(s.done)[-8:] if (c.get("end") or c["t0"]) >= now - max(sec, 300)]
-        cols = ("x", "y", "z", "|a|")
-        v = raw[ok] / lsb * 1000.0                      # мg
+        cols = ("в", "г1", "г2", "|a|")                 # по тяжести: вертикаль, две горизонтальные оси, модуль
+        R = s.R.T if s.R is not None else np.eye(3)
+        v = raw[ok] / lsb * 1000.0 @ R                  # мg
         L = axes_live(v, hz, 1000.0 / lsb, cols, wave_s, wave_pts)
         if not L:
             return {"ok": False, "error": "в окне нет отсчётов", **meta}
         res = {"ok": True, "kind": "acc", "unit": "мg", "spec_unit": "мкg/√Гц", **meta, **L, "sec": sec,
                "gap": int(len(ok) - ok.sum()),
                "secs": {"t": [round(q["t"] - now, 2) for q in secs], **{ax: [round(float(q["sd"][i]) / 1000.0, 4) for q in secs]
-                                                                        for i, ax in enumerate(AXES)},
+                                                                        for i, ax in enumerate(AXK)},
                         "peak": [round(float(np.max(q["peak"])) / 1000.0, 3) for q in secs]},
                "knocks": [{"t": round(k["t"] - now, 1), "ax": AXES[k["ax"]], "x": round(k["x"], 1)} for k in knocks],
+               "pose": self._pose(s),
                "spikes": spikes, "conds": conds, "done": done}
         if raw_s is not None:
-            res["since"] = axes_stats(raw_s[0][raw_s[1]] / lsb * 1000.0, cols)
+            res["since"] = axes_stats(raw_s[0][raw_s[1]] / lsb * 1000.0 @ R, cols)
             res["since_n"] = int(raw_s[1].sum())
         return res
 
@@ -947,7 +1019,8 @@ class Watch:
             s = self.sensors.get(mac)
             if not s or not s.windows:
                 return {"mac": mac, "f": [], "axes": []}
-            ws = [w for w in list(s.windows)[-nwin:] if w.get("psd") is not None and tuple(w["mode"]) == tuple(s.mode)]
+            ws = [w for w in list(s.windows)[-nwin:] if w.get("psd") is not None and tuple(w["mode"]) == tuple(s.mode)
+                  and w["psd"].shape[0] == NCH]
             if not ws:
                 return {"mac": mac, "f": [], "axes": []}
             P = np.mean(np.stack([w["psd"] for w in ws]).astype(np.float64), axis=0)
@@ -959,9 +1032,9 @@ class Watch:
             k1 = P.shape[1] - 1                         # без бина Найквиста: он не удваивается — честный провал на 3 дБ
             f = (np.arange(P.shape[1]) * df)[k0:k1]
             axes = []
-            for ax in range(3):
+            for ax in range(NCH):
                 cur = 10 * np.log10(np.maximum(P[ax], 1e-30))[k0:k1]
-                a = {"cur": np.round(cur, 2).tolist()}
+                a = {"name": AXES[ax], "key": AXK[ax], "cur": np.round(cur, 2).tolist()}
                 if b is not None:
                     m = np.array(b["db_mean"][ax])[k0:k1]
                     sd_n = self._sde(b, ax, b["ns"])[k0:k1] / math.sqrt(len(ws))   # среднее nwin окон — разброс меньше

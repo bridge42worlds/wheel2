@@ -109,7 +109,9 @@ enum { RBT_NONE = 0, RBT_RADIO = 1, RBT_WIFI = 2, RBT_ZOMBIE = 3, RBT_HEAP = 4 }
 // Самоочистка памяти (07.10.2026: у №5 и №3 свободная память за часы работы и «зомби» сползала с 61 до
 // 54 КБ, в худший момент 2,5 КБ — прошивка по Wi-Fi не могла даже начаться). Перезапуск — только когда
 // агент стоит (run 0, между шагами), память ниже порога и прошло больше минуты с запуска.
-static const uint32_t HEAP_RESTART_BELOW = 30000;
+// С PSRAM (28.10.2026) свободной внутренней ~100 КБ и больше; ниже 48 КБ — уже не прошиться по Wi-Fi: чистимся
+// после опыта, когда журнал простых отправлен. Без PSRAM — прежние 30 КБ (иначе агент с датчиками ходил бы по кругу).
+static const uint32_t HEAP_RESTART_BELOW = 30000, HEAP_RESTART_BELOW_PSRAM = 48000;
 static uint32_t          g_boot_why = RBT_NONE;      // почему перезапустились в этот раз (сторож)
 static int               g_boot_rst = 0;             // причина сброса чипа (esp_reset_reason)
 static IPAddress         g_srv_ip;
@@ -525,7 +527,7 @@ static void add_head(Out& o, const char* type, uint32_t seq, uint32_t now) {
 }
 
 static void build_tel(Out& o, const GenStats& g, const group::Stats& gs, uint32_t seq, uint32_t now,
-                      float temp, const agent::CoreLoad& load, bool full) {
+                      float temp, const agent::CoreLoad& load, int lvl) {   // lvl: 2 всё, 1 без гистограммы, 0 кратко
   const uint32_t mhz = ESP.getCpuFreqMHz();
   const GenConfig& c = g.cfg;
   const PrimeStats& p = g.p;
@@ -541,6 +543,10 @@ static void build_tel(Out& o, const GenStats& g, const group::Stats& gs, uint32_
   // не принимает новые настройки, наименьшая свободная память с запуска
   add(o, ",\"udpe\":%d,\"cmd\":[%lu,%lu],\"pend\":%lu,\"heapmin\":%lu", g_udp_err, (unsigned long)g_cmd_rx,
       (unsigned long)g_cmd_rej, (unsigned long)(g_pending ? now - g_pending_t : 0), (unsigned long)ESP.getMinFreeHeap());
+  // память: наибольший свободный кусок внутренней (загрузке прошивки нужен цельный кусок на задачу), свободной PSRAM, КБ
+  if (lvl >= 1)
+    add(o, ",\"hblk\":%lu,\"ps\":%lu", (unsigned long)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+        (unsigned long)(ESP.getFreePsram() / 1024));
   add(o, ",\"net\":%u", g_net);                    // 0 — основная сеть, 1 — запасная
   add(o, ",\"bcn\":[%lu,%lu,%lu]", (unsigned long)g_bcn_n, (unsigned long)(g_bcn_t ? (now - g_bcn_t) / 1000 : 0),
       (unsigned long)g_bcn_rst);                       // маяков сервера, с давности последнего, переподключений из-за тишины
@@ -586,13 +592,15 @@ static void build_tel(Out& o, const GenStats& g, const group::Stats& gs, uint32_
   add(o, ",\"cand\":%llu,\"tdr\":%llu,\"mri\":%llu,\"pr\":%llu,\"fp\":%llu,\"dis\":%llu,"
          "\"err\":%llu,\"stall\":%llu,\"jobs\":%llu",
       p.cand + gs.sv_cand, p.td_rej + gs.sv_tdr, p.mr_in, p.primes, p.fp, p.dis, p.err, g.stall, g.jobs);
-  add_arr(o, "bt", p.bt, c.nb, 1);
-  add_arr(o, "br", p.br, c.nb, 1);
-  add_arr(o, "bus", p.bcyc, c.nb, mhz);
+  if (lvl >= 1) {                                  // по базам — для разбора; в кратком пакете их нет
+    add_arr(o, "bt", p.bt, c.nb, 1);
+    add_arr(o, "br", p.br, c.nb, 1);
+    add_arr(o, "bus", p.bcyc, c.nb, mhz);
+  }
   add(o, ",\"tdus\":%llu,\"mrus\":%llu", (p.td_cyc + gs.sv_tdcyc) / mhz, p.mr_cyc / mhz);
   add(o, ",\"tpn\":%llu,\"tps\":%llu,\"tpmin\":%lu,\"tpmax\":%lu",
       g.tp_n, g.tp_sum_us, (unsigned long)g.tp_min_us, (unsigned long)g.tp_max_us);
-  if (full) {
+  if (lvl >= 2) {
     int last = HIST_N - 1;
     while (last > 0 && !g.tp_hist[last]) --last;
     add(o, ",\"tph\":[");
@@ -610,7 +618,7 @@ static void build_tel(Out& o, const GenStats& g, const group::Stats& gs, uint32_
   add(o, "],\"sha\":%llu,\"csi\":[%lu,%lu,%lu,%lu,%lu,%lu,%lu]", g.e.sha_blocks,
       (unsigned long)csi_received(), (unsigned long)csi_dropped(), (unsigned long)ping_replies(),
       (unsigned long)cd[0], (unsigned long)cd[1], (unsigned long)cd[2], (unsigned long)cd[3]);
-  if (full && g.last_hex[0]) add(o, ",\"lp\":\"%s\"", g.last_hex);
+  if (lvl >= 2 && g.last_hex[0]) add(o, ",\"lp\":\"%s\"", g.last_hex);
   add(o, "}");
 }
 
@@ -781,8 +789,10 @@ static void build_tel_static(Out& o, uint32_t seq, uint32_t now, float temp, con
       WiFi.RSSI(), temp_json(temp), (unsigned long)ESP.getFreeHeap(), load.busy0, load.busy1, (unsigned long)g_udp_fail,
       (unsigned long)g_wifi_disc, g_wifi_reason, (unsigned long)g_wifi_rst);
   add(o, ",\"rbt\":[%d,%lu,%lu],\"net\":%u", g_boot_rst, (unsigned long)g_boot_why, (unsigned long)g_rbt_n, g_net);
-  add(o, ",\"udpe\":%d,\"cmd\":[%lu,%lu],\"heapmin\":%lu,\"bcn\":[%lu,%lu,%lu]", g_udp_err, (unsigned long)g_cmd_rx,
-      (unsigned long)g_cmd_rej, (unsigned long)ESP.getMinFreeHeap(), (unsigned long)g_bcn_n,
+  add(o, ",\"udpe\":%d,\"cmd\":[%lu,%lu],\"heapmin\":%lu,\"hblk\":%lu,\"ps\":%lu,\"bcn\":[%lu,%lu,%lu]", g_udp_err,
+      (unsigned long)g_cmd_rx, (unsigned long)g_cmd_rej, (unsigned long)ESP.getMinFreeHeap(),
+      (unsigned long)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+      (unsigned long)(ESP.getFreePsram() / 1024), (unsigned long)g_bcn_n,
       (unsigned long)(g_bcn_t ? (now - g_bcn_t) / 1000 : 0), (unsigned long)g_bcn_rst);
   add(o, ",\"role\":%u,\"cid\":%lu,\"run\":%u,\"cpu\":%u,\"txp\":%u,\"txr\":%.2f,\"led\":%u,\"tp\":%u,\"tl\":%u,"
          "\"tq\":%u,\"tls\":%u,\"afs\":%u,\"avg\":%u",
@@ -1095,7 +1105,8 @@ static void comms_task(void*) {
       radio_watchdog(up1 || s_radio_off);                    // радио не передаёт вовсе — перезапуск (выключенное — не в счёт)
       if (!fixed) step_tick(now);                            // шаг на агенте: радио выкл / шаг кончился
       net_tick(now);                                         // основная сеть не пускает — запасная
-      if (!s_cur.run && now > 90000 && ESP.getFreeHeap() < HEAP_RESTART_BELOW && ota::state() != 1) {
+      if (!s_cur.run && now > 90000 && ota::state() != 1 && plog::pending() == 0 &&
+          ESP.getFreeHeap() < (psramFound() ? HEAP_RESTART_BELOW_PSRAM : HEAP_RESTART_BELOW)) {
         Serial.printf("HEAP low while idle: %lu free (min %lu)\n", (unsigned long)ESP.getFreeHeap(),
                       (unsigned long)ESP.getMinFreeHeap());
         reboot_for(RBT_HEAP, "heap: low while idle — restart to clean up");
@@ -1141,11 +1152,11 @@ static void comms_task(void*) {
         group::snapshot(gs);
         out.n = 0;
         out.over = false;
-        build_tel(out, g, gs, seq, now, temp, load, true);
-        if (out.over) {                                     // не влезло — без гистограммы и числа
-          out.n = 0;
-          out.over = false;
-          build_tel(out, g, gs, seq, now, temp, load, false);
+        for (int lvl = 2; lvl >= 0; --lvl) {                // не влезло в 1460 байт — без гистограммы и числа,
+          out.n = 0;                                        // потом и без счётчиков по базам: номер настройки
+          out.over = false;                                 // и счёт должны уйти всегда
+          build_tel(out, g, gs, seq, now, temp, load, lvl);
+          if (!out.over) break;
         }
         if (!out.over) {
           send_out(udp, out);
@@ -1165,6 +1176,12 @@ static void comms_task(void*) {
           out.over = false;
           add_head(out, "imr", seq, now);
           rim::add_imr(out);
+          add(out, "}");
+          if (!out.over) send_out(udp, out);
+          out.n = 0;
+          out.over = false;
+          add_head(out, "imc", seq, now);
+          rim::add_imc(out);
           add(out, "}");
           if (!out.over) send_out(udp, out);
         }
@@ -1283,7 +1300,7 @@ void setup() {
     if (g_boot_role == ROLE_S) sacc::begin(def.afs, def.avg);
     else {
       motor::begin();
-      bat::begin(true);              // INA219 на D4/D5 — аккумуляторы катушки (шину I2C запускает сам)
+      bat::begin(true);              // INA219 на D4/D5 — катушка, на D8/D9 — шина колеса (шины I2C запускает сам)
     }
     apply_config(def);
     xTaskCreatePinnedToCore(comms_task, "comms", 8192, nullptr, 2, nullptr, 0);

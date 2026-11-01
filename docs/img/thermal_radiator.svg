@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 545" width="1000" height="545" role="img">
+<title>Радиаторы агента в трубке катушки</title>
+<desc>Схема крепления радиаторов у каждого агента на ободе, два разреза, масштаб приблизительный. Слева — разрез вдоль трубки по её оси: силиконовая трубка 19 × 23 мм под обмоткой катушки (тороид по ободу Ø900 мм); внутри — плата XIAO ESP32-S3 обратной стороной вверх, чип под платой. На обратной стороне — двусторонний термоскотч 10 мм, на нём алюминиевая проставка 20 × 10 × 8 мм (Al 6061, около 4 г), на ней на своём заводском скотче два алюминиевых радиатора 10 × 10 × 10 мм с решёткой рёбер. Тепло идёт от чипа через плату, скотч и проставку к рёбрам. В стенке трубки над ними окно около 11 × 22 мм, рёбра выходят над трубкой на 9–11,5 мм. Витки провода катушки идут вокруг трубки; над радиаторами провод ложится в каналы решётки между рёбрами, медь касается рёбер и тоже уносит тепло. Антенна — отдельным проводом наружу. Справа — разрез поперёк трубки через канал решётки: стенка трубки с окном 11 мм вверху, плата поперёк трубки, на ней скотч, проставка, скотч и основание радиатора; рёбра — за каналом; виток провода обходит трубку и поверх основания радиатора проходит по каналу; по кромкам рёбер, где лежит провод, — полоска каптона, чтобы острые кромки не содрали лак и витки не замкнулись через алюминий. Внизу пояснения: без пути для тепла плата в трубке перегрелась бы даже в простое — на столе тепловое сопротивление до воздуха 65–70 К/Вт при 0,45–0,5 Вт; проставка растекает тепло на оба радиатора и добавляет меньше 0,3 К/Вт; два слоя скотча при ~0,3 Вт на радиатор стоят около 1 °C, паста не нужна; каждый радиатор — отдельный кусок алюминия, кольца вокруг трубки нет, полю он не мешает; скотч при нагреве держит слабо, но радиаторы прижаты обмоткой. Обозначения: голубая заливка — алюминий, жёлтая — термоскотч, зелёная — плата, оранжевые кружки и линия — провод катушки, лиловая полоска — каптон, серая штриховка — силикон, синий пунктир — антенна.</desc>
+<defs>
+<pattern id="sil" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="#ffffff"/><line x1="0" y1="0" x2="0" y2="7" stroke="#4a535e" stroke-width="1.2"/></pattern>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#D55E00"/></marker>
+</defs>
+<style>
+text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d2228}
+.h{font-size:15px;font-weight:600}.t{font-size:13px}.s{font-size:12px;fill:#4a535e}.k{font-size:12px}.b{font-weight:600}
+.al{fill:#56B4E9;fill-opacity:.3;stroke:#0072B2;stroke-width:1.3}
+.alb{fill:#ffffff;stroke:#0072B2;stroke-width:1.1;stroke-dasharray:3 2}
+.tape{fill:#F0E442;stroke:#1d2228;stroke-width:.8}
+.pcb{fill:#009E73;fill-opacity:.3;stroke:#1d2228;stroke-width:1.2}
+.chip{fill:#1d2228;stroke:#1d2228;stroke-width:1}
+.wall{fill:url(#sil);stroke:#4a535e;stroke-width:1.2}
+.cu{fill:#E69F00;stroke:#1d2228;stroke-width:.8}
+.cul{fill:none;stroke:#E69F00;stroke-width:6;stroke-linejoin:round}
+.kap{fill:none;stroke:#CC79A7;stroke-width:3.5}
+.ant{fill:none;stroke:#0072B2;stroke-width:2;stroke-dasharray:7 4}
+.ld{stroke:#4a535e;stroke-width:1;fill:none}
+.dim{stroke:#1d2228;stroke-width:1.2;fill:none}
+.box{fill:#fff;stroke:#1d2228;stroke-width:1.3}
+.halo{paint-order:stroke;stroke:#ffffff;stroke-width:4px;stroke-linejoin:round}
+</style>
+<rect width="1000" height="545" fill="#ffffff"/>
+<text class="h" x="16" y="28">Радиаторы агента в трубке катушки</text>
+<text class="s" x="16" y="48">Одинаково у всех агентов на ободе: радиаторы, окно, каптон, антенна. Размеры — в миллиметрах, масштаб приблизительный.</text>
+<rect class="box" x="16" y="66" width="556" height="380" rx="6"/>
+<text class="t b" x="28" y="88">вдоль трубки — разрез по оси</text>
+<g transform="translate(0 -100)">
+<rect class="wall" x="40" y="300.0" width="153" height="14.0"/>
+<rect class="wall" x="347" y="300.0" width="173" height="14.0"/>
+<rect class="wall" x="40" y="447.0" width="480" height="14.0"/>
+<rect class="pcb" x="197" y="362.3" width="147" height="8.4"/>
+<rect class="chip" x="245" y="370.7" width="50" height="7.7"/>
+<rect class="tape" x="200" y="356.7" width="140" height="5.6"/>
+<rect class="al" x="200" y="300.7" width="140" height="56.0"/>
+<rect class="tape" x="200" y="297.2" width="70" height="3.5"/>
+<rect class="al" x="200" y="283.2" width="70" height="14.0"/>
+<rect class="al" x="200.0" y="227.2" width="8" height="56.0"/>
+<rect class="al" x="215.5" y="227.2" width="8" height="56.0"/>
+<rect class="al" x="231.0" y="227.2" width="8" height="56.0"/>
+<rect class="al" x="246.5" y="227.2" width="8" height="56.0"/>
+<rect class="al" x="262.0" y="227.2" width="8" height="56.0"/>
+<rect class="tape" x="270" y="297.2" width="70" height="3.5"/>
+<rect class="al" x="270" y="283.2" width="70" height="14.0"/>
+<rect class="al" x="270.0" y="227.2" width="8" height="56.0"/>
+<rect class="al" x="285.5" y="227.2" width="8" height="56.0"/>
+<rect class="al" x="301.0" y="227.2" width="8" height="56.0"/>
+<rect class="al" x="316.5" y="227.2" width="8" height="56.0"/>
+<rect class="al" x="332.0" y="227.2" width="8" height="56.0"/>
+<line x1="320" y1="369.3" x2="320" y2="233.5" stroke="#D55E00" stroke-width="2" marker-end="url(#ar)"/>
+<text class="k b halo" x="312" y="328.7" text-anchor="middle" transform="rotate(-90 312 328.7)">тепло</text>
+<circle class="cu" cx="48.0" cy="464.2" r="3.2"/>
+<circle class="cu" cx="48.0" cy="296.8" r="3.2"/>
+<circle class="cu" cx="65.5" cy="464.2" r="3.2"/>
+<circle class="cu" cx="65.5" cy="296.8" r="3.2"/>
+<circle class="cu" cx="83.0" cy="464.2" r="3.2"/>
+<circle class="cu" cx="83.0" cy="296.8" r="3.2"/>
+<circle class="cu" cx="100.5" cy="464.2" r="3.2"/>
+<circle class="cu" cx="100.5" cy="296.8" r="3.2"/>
+<circle class="cu" cx="118.0" cy="464.2" r="3.2"/>
+<circle class="cu" cx="118.0" cy="296.8" r="3.2"/>
+<circle class="cu" cx="135.5" cy="464.2" r="3.2"/>
+<circle class="cu" cx="135.5" cy="296.8" r="3.2"/>
+<circle class="cu" cx="153.0" cy="464.2" r="3.2"/>
+<circle class="cu" cx="153.0" cy="296.8" r="3.2"/>
+<circle class="cu" cx="170.5" cy="464.2" r="3.2"/>
+<circle class="cu" cx="170.5" cy="296.8" r="3.2"/>
+<circle class="cu" cx="188.0" cy="464.2" r="3.2"/>
+<circle class="cu" cx="188.0" cy="296.8" r="3.2"/>
+<circle class="cu" cx="205.5" cy="464.2" r="3.2"/>
+<circle class="cu" cx="223.0" cy="464.2" r="3.2"/>
+<circle class="cu" cx="240.5" cy="464.2" r="3.2"/>
+<circle class="cu" cx="258.0" cy="464.2" r="3.2"/>
+<circle class="cu" cx="275.5" cy="464.2" r="3.2"/>
+<circle class="cu" cx="293.0" cy="464.2" r="3.2"/>
+<circle class="cu" cx="310.5" cy="464.2" r="3.2"/>
+<circle class="cu" cx="328.0" cy="464.2" r="3.2"/>
+<circle class="cu" cx="345.5" cy="464.2" r="3.2"/>
+<circle class="cu" cx="363.0" cy="464.2" r="3.2"/>
+<circle class="cu" cx="363.0" cy="296.8" r="3.2"/>
+<circle class="cu" cx="380.5" cy="464.2" r="3.2"/>
+<circle class="cu" cx="380.5" cy="296.8" r="3.2"/>
+<circle class="cu" cx="398.0" cy="464.2" r="3.2"/>
+<circle class="cu" cx="398.0" cy="296.8" r="3.2"/>
+<circle class="cu" cx="415.5" cy="464.2" r="3.2"/>
+<circle class="cu" cx="415.5" cy="296.8" r="3.2"/>
+<circle class="cu" cx="433.0" cy="464.2" r="3.2"/>
+<circle class="cu" cx="433.0" cy="296.8" r="3.2"/>
+<circle class="cu" cx="450.5" cy="464.2" r="3.2"/>
+<circle class="cu" cx="450.5" cy="296.8" r="3.2"/>
+<circle class="cu" cx="468.0" cy="464.2" r="3.2"/>
+<circle class="cu" cx="468.0" cy="296.8" r="3.2"/>
+<circle class="cu" cx="485.5" cy="464.2" r="3.2"/>
+<circle class="cu" cx="485.5" cy="296.8" r="3.2"/>
+<circle class="cu" cx="503.0" cy="464.2" r="3.2"/>
+<circle class="cu" cx="503.0" cy="296.8" r="3.2"/>
+<circle class="cu" cx="211.75" cy="280.0" r="3.2"/>
+<circle class="cu" cx="227.25" cy="280.0" r="3.2"/>
+<circle class="cu" cx="242.75" cy="280.0" r="3.2"/>
+<circle class="cu" cx="258.25" cy="280.0" r="3.2"/>
+<circle class="cu" cx="281.75" cy="280.0" r="3.2"/>
+<circle class="cu" cx="297.25" cy="280.0" r="3.2"/>
+<circle class="cu" cx="312.75" cy="280.0" r="3.2"/>
+<circle class="cu" cx="328.25" cy="280.0" r="3.2"/>
+<path class="dim" d="M180 300.0 V227.2 M174 300.0 H186 M174 227.2 H186"/>
+<text class="k" x="172" y="261.6" text-anchor="end">рёбра над</text>
+<text class="k" x="172" y="277.6" text-anchor="end">трубкой 9–11,5 мм</text>
+<path class="ant" d="M197 366.5 H90 V506"/>
+<text class="k" x="98" y="504">антенна — отдельным проводом наружу</text>
+<text class="k" x="380" y="240">2 радиатора 10 × 10 × 10 мм,</text>
+<text class="k" x="380" y="256">решётка рёбер, на своём скотче</text>
+<path class="ld" d="M376 244 L343 244"/>
+<text class="k" x="380" y="284">окно в стенке ≈ 11 × 22 мм</text>
+<path class="ld" d="M376 281 L349 302"/>
+<text class="k" x="380" y="334">проставка 20 × 10 × 8 мм,</text>
+<text class="k" x="380" y="350">Al 6061, ≈ 4 г</text>
+<path class="ld" d="M376 330 L342 330"/>
+<text class="k" x="380" y="374">термоскотч 10 мм</text>
+<path class="ld" d="M376 370 L342 360"/>
+<text class="k" x="380" y="396">плата XIAO ESP32-S3,</text>
+<text class="k" x="380" y="412">обратной стороной вверх</text>
+<path class="ld" d="M376 392 L345 367"/>
+<text class="k" x="270" y="390.7" text-anchor="middle">чип</text>
+<text class="k" x="52" y="340">силиконовая трубка</text>
+<text class="k" x="52" y="356">19 × 23 мм</text>
+<circle class="cu" cx="44" cy="530" r="3.2"/>
+<text class="k" x="54" y="534">провод катушки: витки вокруг трубки, над радиаторами — в каналах решётки</text>
+</g>
+<rect class="box" x="584" y="66" width="400" height="380" rx="6"/>
+<text class="t b" x="596" y="88">поперёк трубки — разрез через канал</text>
+<g transform="translate(0 -100)">
+<path class="wall" d="M834 319.2 A92 92 0 1 1 746 319.2 L746 338 A76 76 0 1 0 834 338 Z"/>
+<rect class="pcb" x="720" y="379.2" width="140" height="9.6"/>
+<rect class="chip" x="765" y="388.8" width="50" height="11.2"/>
+<rect class="tape" x="750" y="372.8" width="80" height="6.4"/>
+<rect class="al" x="750" y="308.8" width="80" height="64.0"/>
+<rect class="tape" x="750" y="304.8" width="80" height="4.0"/>
+<rect class="alb" x="750" y="224.8" width="8" height="64.0"/>
+<rect class="alb" x="768" y="224.8" width="8" height="64.0"/>
+<rect class="alb" x="786" y="224.8" width="8" height="64.0"/>
+<rect class="alb" x="804" y="224.8" width="8" height="64.0"/>
+<rect class="alb" x="822" y="224.8" width="8" height="64.0"/>
+<rect class="al" x="750" y="288.8" width="80" height="16.0"/>
+<path class="kap" d="M749 306 V289.5 H764 M831 306 V289.5 H816"/>
+<path class="cul" d="M740 319.2 L743 283.5 L837 283.5 L840 319.2 A95 95 0 1 1 740 319.2"/>
+<text class="k" x="868" y="236">рёбра — за каналом</text>
+<path class="ld" d="M864 232 L831 244"/>
+<text class="k" x="868" y="270">виток в канале</text>
+<path class="ld" d="M864 266 L838 281"/>
+<text class="k" x="872" y="306">каптон по кромкам</text>
+<path class="ld" d="M868 302 L833 296"/>
+<text class="k" x="880" y="342">проставка</text>
+<path class="ld" d="M876 338 L831 338"/>
+<text class="k" x="892" y="386">плата</text>
+<path class="ld" d="M888 382 L861 383"/>
+<text class="k b" x="790" y="397.3" text-anchor="middle" style="fill:#ffffff">чип</text>
+<text class="k" x="600" y="300">окно в стенке</text>
+<text class="k" x="600" y="316">11 мм</text>
+<path class="ld" d="M650 312 L745 330"/>
+<text class="k" x="600" y="452">виток вокруг</text>
+<text class="k" x="600" y="468">трубки</text>
+<path class="ld" d="M650 456 L703 448"/>
+<text class="k" x="868" y="470">трубка</text>
+<text class="k" x="868" y="486">19 × 23 мм</text>
+<path class="ld" d="M864 466 L850 452"/>
+</g>
+<text class="s" x="16" y="470">Без пути для тепла плата в трубке перегрелась бы даже в простое: на столе тепловое сопротивление до воздуха 65–70 К/Вт при 0,45–0,5 Вт.</text>
+<text class="s" x="16" y="487">Проставка поднимает радиаторы и растекает тепло чипа на оба (добавляет &lt; 0,3 К/Вт); два слоя скотча при ~0,3 Вт на радиатор — около 1 °C, паста не нужна.</text>
+<text class="s" x="16" y="504">Каптон (полиимид, до ~260 °C, пробой — киловольты): кромки не сдирают лак, витки не замыкаются через алюминий. Каждый радиатор — отдельный кусок:</text>
+<text class="s" x="16" y="521">кольца вокруг трубки нет, полю не мешает. Скотч при нагреве держит слабо, но радиаторы прижаты обмоткой; переставленный — только на новый скотч.</text>
+</svg>

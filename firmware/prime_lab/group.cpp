@@ -10,6 +10,7 @@
 #include "primes.h"
 #include "entropy.h"
 #include "prime_log.h"
+#include "psram.h"
 
 namespace group {
 
@@ -132,7 +133,7 @@ static uint8_t   s_rsv[MSG_MAX];                // запас уцелевших
 static int       s_rsv_n = 0;
 
 // сбор (мастер): кусочки по местам в группе, с номером цикла и круга
-static uint8_t   s_pieces[MAX_GROUP][MSG_MAX];
+static uint8_t (*s_pieces)[MSG_MAX] = nullptr;  // [MAX_GROUP] — в PSRAM (s_big_bufs)
 static bool      s_pcs_ok[MAX_GROUP];
 static uint32_t  s_pcs_cyc[MAX_GROUP];
 static uint8_t   s_pcs_rnd[MAX_GROUP];
@@ -189,7 +190,7 @@ static uint32_t  s_last_res_cycle = 0;
 // запас растёт до числа недостающих (s_hold), до MAX_GROUP − 1. Был предел 4: в каскаде из 6
 // недостающих до 5, все держали наборы себе, соседям не отдавали — группа вставала (24.10.2026).
 static const int PRE_MAX = MAX_GROUP;
-static uint8_t   s_prep[PRE_MAX][MSG_MAX];
+static uint8_t (*s_prep)[MSG_MAX] = nullptr;    // [PRE_MAX] — в PSRAM (s_big_bufs)
 static int       s_pre_n = 0;
 static int       s_hold = 0;                    // эстафета, каскад: столько наборов держать для своего круга (замена недостающих)
 struct PReq { uint32_t cycle; uint8_t round, to; bool job; };   // job — заготовки не было, набирали по просьбе
@@ -292,7 +293,16 @@ static void ensure_peer(const uint8_t* mac) {
 // подряд забивали радио, и у агента пропадал обычный Wi-Fi (замер 03.10.2026).
 struct TxFrame { uint8_t mac[6]; uint16_t len; int64_t t_ok; uint8_t data[MSG_MAX]; };   // t_ok — не раньше (0 — сразу)
 static const int      TXQ = 32;      // итог — всем до 15 участникам, плюс рассеяние
-static TxFrame        s_txq[TXQ];
+static TxFrame*       s_txq = nullptr;   // [TXQ] — в PSRAM: 32 × 624 байт
+// Выделяются до setup() (PSRAM и куча готовы раньше конструкторов): настройку группы применяют и роли, которые
+// group::begin не зовут (моторы и катушка, статика)
+static struct BigBufs {
+  BigBufs() {
+    s_pieces = (uint8_t(*)[MSG_MAX])big_alloc(sizeof(uint8_t) * MAX_GROUP * MSG_MAX);
+    s_prep = (uint8_t(*)[MSG_MAX])big_alloc(sizeof(uint8_t) * PRE_MAX * MSG_MAX);
+    s_txq = (TxFrame*)big_alloc(sizeof(TxFrame) * TXQ);
+  }
+} s_big_bufs;
 static int            s_txq_head = 0, s_txq_n = 0;
 static bool           s_tx_busy = false;
 static int64_t        s_tx_t0 = 0;
@@ -2038,6 +2048,7 @@ static void b_on_prime(const Hdr& h, const uint8_t* d, size_t len) {
   const Prm& m = *(const Prm*)d;
   const int nb = m.bits / 8;
   if (nb != s_nbytes || len < PRM_HDR + (size_t)nb) return;    // другая длина — не наша настройка
+  if (s_cfg.ba && (h.from >= 64 || !(s_cfg.ba & (1ULL << h.from)))) return;   // простое не того генератора (ba)
   ++s_stats.prx;
   if (s_cfg.sm == SM_SILENT || (s_cfg.sm == SM_CHAIN && s_bpos != 0)) return;   // эстафету начинает первый
   b_push(false, h.from, h.cycle, m.data, (uint16_t)nb);

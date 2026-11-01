@@ -1,0 +1,205 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1214" width="1000" height="1214" role="img">
+<title>Эксперимент: от параметров до вывода</title>
+<desc>Шесть блоков сверху вниз. Первый — параметры опыта в окне «Эксперимент»: восемь карточек лесенкой, порядок карточек — вложенность циклов: вращение колёс (rot), скорость (speed), отступ от невесомости (zgo), поле катушек (field), излучение и поглощение (roles), совместная работа (team), поглощение (absorb), шум (noise); верхняя меняется реже всех, нижняя — от опыта к опыту. Второй — список опытов: все сочетания отмеченных значений без одинаковых. Пример: опыт 1 — колёса стоят, поле выкл — контрольный; опыт 2 — вместе 30 об/мин; опыты 3, 4, 5 — невесомость минус 3 %, 0 и плюс 3 % оборотов (шаг 3 %, k около 1,06 при плюс одном шаге); режим у всех один, поэтому контроль 1 общий. По желанию первым идёт опыт «все стоят». Список проходится заданное число повторов, порядок — по вложенности или случайный в каждом повторе, зерно пишется в программу; пример трёх повторов: 3 1 5 2 4, 2 4 1 5 3, 5 2 3 1 4. Третий — фазы каждого опыта: отдых, если задан (агенты стоят на 80 МГц); старт — новый номер настройки, поле, вращение; установление — 15 с после смены вращения или скорости, 8 с после смены режима, 5 с после смены только поля, не меряется; проверка 5 с с телеметрией — идёт ли счёт; измерение — по умолчанию 30 с, три окна статики по 10 с, меряется, молчание телеметрии только здесь; итоги — телеметрия возвращается, собираются итоги агентов и статики. Четвёртый — запись опыта: генерация по каждому агенту и всем вместе (простых и кандидатов в секунду, время Миллера — Рабина, циклы группы, кадры рассеяния); ковариаты рядом, в сравнение не идут (температура, доля работы, rssi); статика по каждому датчику и оси (мощность полос в дБ, разброс, среднее, эксцесс, асимметрия, вывод за опыт); установка (расстояние между колёсами, обороты по ободу, радиусы и k агентов, поле катушек по магнитометру, магнитометры, аккумуляторы, память); параметры опыта, проверка, отдых. Пятый — испорчен ли опыт: статика сказала «повторить» (толчок, сдвиг, сбой прибора), кто-то не подтвердил настройку за 20 с, замолчал посреди опыта (нет пакета 6 с, при редкой телеметрии 25 с), не сдал итоги или не вышел из молчания, опыт оборван «Всё стоп»; тогда опыт повторяется сразу, до двух раз, а если связи нет дольше 30 с — пауза. Шестой — сравнение неиспорченного опыта с контрольными опытами того же режима (нужно не меньше трёх): t = (x − m) / (s · √(1 + 1/n)), вероятность по Стьюденту с n − 1 степенями свободы, умноженная на число показателей опыта M (поправка Бонферрони), сравнивается с вероятностью |Z| ≥ z у нормального, z = 4. Нет — аномалии нет, в записи разведка: три показателя ближе всех к порогу. Да — аномалия: сразу после опыта добавляются confirm пар «опыт — контроль», порядок в паре случайный. Подтвердилась, если хотя бы в двух третях повторов тот же показатель того же агента отклонился в ту же сторону хотя бы на z/2; иначе — не подтвердилась, случайный выброс. Таблица нужного |t| при z = 4: один показатель — 17, 7, 5 при 5, 10, 20 контролях; 10 показателей — 31, 9, 6; 60 показателей — 49, 12, 7. Обозначения: штриховка — установление, не меряется; голубая заливка — измерение; зелёная пунктирная рамка с буквой К — контрольный опыт; красная пунктирная стрелка — повтор испорченного опыта; лиловая рамка со знаком ❗︎ — аномалия.</desc>
+<defs>
+<pattern id="hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="8" height="8" fill="#ffffff"/><line x1="0" y1="0" x2="0" y2="8" stroke="#E69F00" stroke-width="3"/></pattern>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1d2228"/></marker>
+<marker id="arR" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#D55E00"/></marker>
+</defs>
+<style>
+text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d2228}
+.h{font-size:15px;font-weight:600}.t{font-size:13px}.s{font-size:12px;fill:#4a535e}.k{font-size:12px}.b{font-weight:600}
+.box{fill:#fff;stroke:#1d2228;stroke-width:1.3}.nb{fill:#fff;stroke:#4a535e;stroke-width:1}
+.card{fill:#fff;stroke:#4a535e;stroke-width:1.1}
+.ctl{fill:#fff;stroke:#009E73;stroke-width:2;stroke-dasharray:5 3}
+.meas{fill:#56B4E9;fill-opacity:.32;stroke:#0072B2;stroke-width:2}
+.set{fill:url(#hatch);stroke:#E69F00;stroke-width:2}
+.rest{fill:#fff;stroke:#4a535e;stroke-width:1.4;stroke-dasharray:2 3}
+.an{fill:#fff;stroke:#CC79A7;stroke-width:2.4}
+.fl{stroke:#1d2228;stroke-width:1.6;fill:none}
+.redo{stroke:#D55E00;stroke-width:2;fill:none;stroke-dasharray:6 4}
+.halo{paint-order:stroke;stroke:#ffffff;stroke-width:4px;stroke-linejoin:round}
+</style>
+<rect width="1000" height="1214" fill="#ffffff"/>
+<text class="h" x="16" y="28">Эксперимент: от параметров до вывода</text>
+<text class="s" x="16" y="48">Окно «✎ Эксперимент…» строит список опытов; сервер проводит каждый, повторяет испорченные, сравнивает с контролем и сам добавляет проверку.</text>
+
+<!-- ① параметры -->
+<rect class="box" x="16" y="66" width="330" height="340" rx="6"/>
+<text class="t b" x="28" y="88">① Что меняем: параметры опыта</text>
+<text class="s" x="28" y="104">порядок карточек — вложенность циклов</text>
+<text class="s" x="28" y="124">▲ верхняя меняется реже всех</text>
+<rect class="card" x="28" y="134" width="306" height="24" rx="4"/><text class="k" x="38" y="150">⟳ вращение колёс · rot</text>
+<rect class="card" x="38" y="164" width="296" height="24" rx="4"/><text class="k" x="48" y="180">⏲ скорость · speed</text>
+<rect class="card" x="48" y="194" width="286" height="24" rx="4"/><text class="k" x="58" y="210">± отступ от невесомости · zgo</text>
+<rect class="card" x="58" y="224" width="276" height="24" rx="4"/><text class="k" x="68" y="240">⇉ поле катушек · field</text>
+<rect class="card" x="68" y="254" width="266" height="24" rx="4"/><text class="k" x="78" y="270">⇄ излучение / поглощение · roles</text>
+<rect class="card" x="78" y="284" width="256" height="24" rx="4"/><text class="k" x="88" y="300">⋈ совместная работа · team</text>
+<rect class="card" x="88" y="314" width="246" height="24" rx="4"/><text class="k" x="98" y="330">▼ поглощение · absorb</text>
+<rect class="card" x="98" y="344" width="236" height="24" rx="4"/><text class="k" x="108" y="360">∿ шум · noise</text>
+<text class="s" x="28" y="390">▼ нижняя — от опыта к опыту</text>
+
+<line class="fl" x1="346" y1="236" x2="372" y2="236" marker-end="url(#ar)"/>
+
+<!-- ② список опытов -->
+<rect class="box" x="376" y="66" width="608" height="340" rx="6"/>
+<text class="t b" x="392" y="88">② Список опытов и повторы</text>
+<text class="s" x="392" y="104">все сочетания отмеченных значений; одинаковые опыты убираются, лишние снимаются галочкой</text>
+<rect class="ctl" x="392" y="118" width="330" height="24" rx="4"/><text class="k" x="402" y="134"><tspan class="b">1</tspan>   ■■ стоят · поле выкл</text>
+<text class="k" x="734" y="134"><tspan class="b">К</tspan> — контрольный опыт</text>
+<rect class="card" x="392" y="146" width="330" height="24" rx="4"/><text class="k" x="402" y="162"><tspan class="b">2</tspan>   ⟳⟳ вместе · 30 об/мин · поле выкл</text>
+<text class="k" x="734" y="162">сравнивается с контролем 1</text>
+<rect class="card" x="392" y="174" width="330" height="24" rx="4"/><text class="k" x="402" y="190"><tspan class="b">3</tspan>   ⟳⟳ невесомость −3 % · поле выкл</text>
+<text class="k" x="734" y="190">± отступ: −1 шаг (шаг 3 %)</text>
+<rect class="card" x="392" y="202" width="330" height="24" rx="4"/><text class="k" x="402" y="218"><tspan class="b">4</tspan>   ⟳⟳ невесомость 0 · поле выкл</text>
+<text class="k" x="734" y="218">расчётная: k = ω²r/g = 1</text>
+<rect class="card" x="392" y="230" width="330" height="24" rx="4"/><text class="k" x="402" y="246"><tspan class="b">5</tspan>   ⟳⟳ невесомость +3 % · поле выкл</text>
+<text class="k" x="734" y="246">+1 шаг: k ≈ 1,06</text>
+<text class="s" x="392" y="274">режим у всех один (▶▶ оба генерируют · каскад · ⚄ ГСЧ) — контроль 1 общий</text>
+<text class="s" x="392" y="290">по желанию первым — «все стоят»: агенты не считают, меряется только статика</text>
+
+<text class="k" x="392" y="317">повтор 1</text>
+<rect class="card" x="460" y="302" width="34" height="22" rx="3"/><text class="k" x="477" y="317" text-anchor="middle">3</text>
+<rect class="ctl" x="500" y="302" width="34" height="22" rx="3"/><text class="k b" x="517" y="317" text-anchor="middle">1К</text>
+<rect class="card" x="540" y="302" width="34" height="22" rx="3"/><text class="k" x="557" y="317" text-anchor="middle">5</text>
+<rect class="card" x="580" y="302" width="34" height="22" rx="3"/><text class="k" x="597" y="317" text-anchor="middle">2</text>
+<rect class="card" x="620" y="302" width="34" height="22" rx="3"/><text class="k" x="637" y="317" text-anchor="middle">4</text>
+<text class="k" x="392" y="345">повтор 2</text>
+<rect class="card" x="460" y="330" width="34" height="22" rx="3"/><text class="k" x="477" y="345" text-anchor="middle">2</text>
+<rect class="card" x="500" y="330" width="34" height="22" rx="3"/><text class="k" x="517" y="345" text-anchor="middle">4</text>
+<rect class="ctl" x="540" y="330" width="34" height="22" rx="3"/><text class="k b" x="557" y="345" text-anchor="middle">1К</text>
+<rect class="card" x="580" y="330" width="34" height="22" rx="3"/><text class="k" x="597" y="345" text-anchor="middle">5</text>
+<rect class="card" x="620" y="330" width="34" height="22" rx="3"/><text class="k" x="637" y="345" text-anchor="middle">3</text>
+<text class="k" x="392" y="373">повтор 3</text>
+<rect class="card" x="460" y="358" width="34" height="22" rx="3"/><text class="k" x="477" y="373" text-anchor="middle">5</text>
+<rect class="card" x="500" y="358" width="34" height="22" rx="3"/><text class="k" x="517" y="373" text-anchor="middle">2</text>
+<rect class="card" x="540" y="358" width="34" height="22" rx="3"/><text class="k" x="557" y="373" text-anchor="middle">3</text>
+<rect class="ctl" x="580" y="358" width="34" height="22" rx="3"/><text class="k b" x="597" y="373" text-anchor="middle">1К</text>
+<rect class="card" x="620" y="358" width="34" height="22" rx="3"/><text class="k" x="637" y="373" text-anchor="middle">4</text>
+<text class="k" x="676" y="317">порядок — случайный в каждом повторе</text>
+<text class="s" x="676" y="335">(зерно пишется в программу: повторяется в точности)</text>
+<text class="s" x="676" y="353">или по порядку вложенности;</text>
+<text class="s" x="676" y="371">контроль — в каждом повторе: n растёт с повторами</text>
+
+<!-- ③ фазы опыта -->
+<line class="fl" x1="300" y1="406" x2="300" y2="424" marker-end="url(#ar)"/>
+<rect class="box" x="16" y="426" width="968" height="168" rx="6"/>
+<text class="t b" x="28" y="448">③ Каждый опыт — фазы</text>
+<text class="s" x="200" y="448">статика пишется всё время; итог опыта — разность счётчиков агентов за окно измерения</text>
+<rect class="rest" x="32" y="464" width="118" height="40" rx="4"/><text class="t b" x="91" y="489" text-anchor="middle">⏸ отдых</text>
+<rect class="nb" x="156" y="464" width="112" height="40" rx="4"/><text class="t b" x="212" y="489" text-anchor="middle">⚙ старт</text>
+<rect class="set" x="274" y="464" width="196" height="40" rx="4"/><text class="t b halo" x="372" y="489" text-anchor="middle">⟳ установление</text>
+<rect class="nb" x="476" y="464" width="100" height="40" rx="4"/><text class="t b" x="526" y="489" text-anchor="middle">✓ проверка</text>
+<rect class="meas" x="582" y="464" width="268" height="40" rx="4"/><text class="t b" x="716" y="489" text-anchor="middle">▶ измерение — меряется</text>
+<rect class="nb" x="856" y="464" width="112" height="40" rx="4"/><text class="t b" x="912" y="489" text-anchor="middle">⇪ итоги</text>
+<text class="s" x="91" y="524" text-anchor="middle">если задан:</text>
+<text class="s" x="91" y="540" text-anchor="middle">стоят на 80 МГц</text>
+<text class="s" x="91" y="556" text-anchor="middle">до стабилизации t°</text>
+<text class="s" x="212" y="524" text-anchor="middle">новый номер</text>
+<text class="s" x="212" y="540" text-anchor="middle">настройки, поле,</text>
+<text class="s" x="212" y="556" text-anchor="middle">вращение</text>
+<text class="s" x="372" y="524" text-anchor="middle">вращение, скорость 15 с</text>
+<text class="s" x="372" y="540" text-anchor="middle">режим 8 с · только поле 5 с</text>
+<text class="s b" x="372" y="556" text-anchor="middle">не меряется</text>
+<text class="s" x="526" y="524" text-anchor="middle">5 с телеметрии:</text>
+<text class="s" x="526" y="540" text-anchor="middle">счёт идёт?</text>
+<text class="s" x="716" y="524" text-anchor="middle">по умолчанию 30 с — 3 окна статики</text>
+<text class="s" x="716" y="540" text-anchor="middle">по 10 с; молчание телеметрии —</text>
+<text class="s" x="716" y="556" text-anchor="middle">только в этой фазе</text>
+<text class="s" x="912" y="524" text-anchor="middle">телеметрия</text>
+<text class="s" x="912" y="540" text-anchor="middle">возвращается, итоги</text>
+<text class="s" x="912" y="556" text-anchor="middle">агентов и статики</text>
+<text class="s" x="28" y="582">отдых — «нет», «при смене верхнего параметра» или «перед каждым опытом»; как — столько минут, до стабилизации температуры, пока не остынут до заданной</text>
+
+<!-- ④ запись опыта -->
+<line class="fl" x1="300" y1="594" x2="300" y2="634" marker-end="url(#ar)"/>
+<rect class="box" x="16" y="636" width="610" height="210" rx="6"/>
+<text class="t b" x="28" y="658">④ Запись опыта</text>
+<text class="k" x="28" y="682"><tspan class="b">генерация</tspan> — по каждому агенту (gen:№…) и всем вместе (gen:все):</text>
+<text class="s" x="28" y="699">простых/с, кандидатов/с, время Миллера — Рабина, циклы группы, кадры рассеяния</text>
+<text class="k" x="28" y="722"><tspan class="b">ковариаты</tspan> — лежат рядом, в сравнение не идут: температура, доля работы, rssi</text>
+<text class="k" x="28" y="745"><tspan class="b">статика</tspan> — по каждому датчику и оси: мощность полос (дБ), разброс, среднее,</text>
+<text class="s" x="28" y="762">эксцесс, асимметрия; вывод за опыт: продолжать · повторить · проверить</text>
+<text class="k" x="28" y="785"><tspan class="b">установка</tspan>: расстояние между колёсами, обороты по ободу, радиусы и k агентов,</text>
+<text class="s" x="28" y="802">поле катушек по магнитометру колеса, магнитометры за опыт, аккумуляторы, память</text>
+<text class="k" x="28" y="825"><tspan class="b">ещё</tspan>: параметры опыта (set), итог проверки 5 с, отдых — длина и температура</text>
+
+<!-- ⑤ испорчен? -->
+<line class="fl" x1="626" y1="740" x2="648" y2="740" marker-end="url(#ar)"/>
+<rect class="box" x="650" y="636" width="334" height="210" rx="6"/>
+<text class="t b" x="662" y="658">⑤ Опыт испорчен?</text>
+<text class="k" x="662" y="682">↻ статика: толчок, сдвиг, сбой прибора</text>
+<text class="k" x="662" y="699">не подтвердили настройку за 20 с</text>
+<text class="k" x="662" y="716">замолчали посреди опыта: нет пакета 6 с</text>
+<text class="s" x="662" y="733">(при редкой телеметрии — 25 с)</text>
+<text class="k" x="662" y="750">не сдали итоги, не вышли из молчания</text>
+<text class="k" x="662" y="767">опыт оборван «■ Всё стоп»</text>
+<text class="k b" x="662" y="792">да → повторить сразу, до redo = 2 раз</text>
+<text class="k" x="662" y="809">нет связи дольше 30 с → ⏸ пауза</text>
+<text class="k b" x="662" y="832">нет → в сравнение</text>
+<path class="redo" d="M940 636 V598" marker-end="url(#arR)"/>
+<text class="k b halo" x="930" y="622" text-anchor="end">↻ повторить опыт</text>
+
+<!-- переход к сравнению -->
+<path class="fl" d="M817 846 V866 H130 V886" marker-end="url(#ar)"/>
+<text class="s halo" x="480" y="861" text-anchor="middle">неиспорченный опыт — в сравнение</text>
+
+<!-- ⑥ сравнение и проверка -->
+<rect class="box" x="16" y="888" width="968" height="272" rx="6"/>
+<text class="t b" x="28" y="910">⑥ Сравнение с контролем и проверка</text>
+<text class="s" x="28" y="928">правило задаётся до запуска и по ходу не меняется; с основного экрана сравниваются простых/с и кандидатов/с</text>
+<rect class="nb" x="30" y="944" width="200" height="104" rx="4"/>
+<text class="t" x="42" y="966"><tspan class="b">опыт</tspan>: показатель x</text>
+<text class="k" x="42" y="986">контрольные опыты</text>
+<text class="k" x="42" y="1002">того же режима: n ≥ 3,</text>
+<text class="k" x="42" y="1018">их среднее m, разброс s</text>
+<text class="s" x="42" y="1038">n &lt; 3 — не сравнивается</text>
+<line class="fl" x1="230" y1="996" x2="246" y2="996" marker-end="url(#ar)"/>
+<rect class="nb" x="248" y="944" width="236" height="104" rx="4"/>
+<text class="t b" x="260" y="968">t = (x − m) / (s·√(1 + 1/n))</text>
+<text class="s" x="260" y="986">интервал предсказания</text>
+<text class="s" x="260" y="1004">p по Стьюденту (n − 1)</text>
+<text class="s" x="260" y="1022">× M показателей опыта</text>
+<text class="s" x="260" y="1040">(поправка Бонферрони)</text>
+<line class="fl" x1="484" y1="996" x2="498" y2="996" marker-end="url(#ar)"/>
+<polygon class="nb" points="500,996 590,944 680,996 590,1048" style="stroke:#1d2228;stroke-width:1.3"/>
+<text class="k b" x="590" y="992" text-anchor="middle">p·M ≤ p(|Z| ≥ z)?</text>
+<text class="s" x="590" y="1009" text-anchor="middle">z = 4</text>
+<line class="fl" x1="680" y1="996" x2="698" y2="996" marker-end="url(#ar)"/>
+<text class="k b" x="689" y="986" text-anchor="middle">да</text>
+<line class="fl" x1="590" y1="1048" x2="590" y2="1066" marker-end="url(#ar)"/>
+<text class="k b" x="602" y="1062">нет</text>
+<rect class="an" x="700" y="944" width="268" height="104" rx="4"/>
+<text class="t b" x="712" y="966">❗︎ аномалия → проверка</text>
+<text class="k" x="712" y="986">сразу после опыта — confirm пар</text>
+<text class="k" x="712" y="1002">«опыт — контроль», порядок в паре</text>
+<text class="k" x="712" y="1018">случайный</text>
+<text class="s" x="712" y="1038">контроль — свой (парный), иначе любой</text>
+<line class="fl" x1="834" y1="1048" x2="834" y2="1066" marker-end="url(#ar)"/>
+<rect class="nb" x="500" y="1068" width="180" height="80" rx="4"/>
+<text class="t b" x="512" y="1088">✓ нет аномалии</text>
+<text class="s" x="512" y="1106">в записи — разведка:</text>
+<text class="s" x="512" y="1122">3 показателя ближе всех</text>
+<text class="s" x="512" y="1138">к порогу (t, n, p)</text>
+<rect class="an" x="700" y="1068" width="268" height="80" rx="4"/>
+<text class="t b" x="712" y="1088">❗︎ подтвердилась, если в ≥ 2/3</text>
+<text class="k" x="712" y="1104">повторов тот же показатель того же</text>
+<text class="k" x="712" y="1120">агента ушёл в ту же сторону ≥ z/2</text>
+<text class="s" x="712" y="1138">иначе ◐ не подтвердилась — выброс</text>
+<rect class="nb" x="30" y="1068" width="454" height="80" rx="4"/>
+<text class="k b" x="42" y="1086">нужное |t| при z = 4</text>
+<text class="k" x="300" y="1086" text-anchor="middle">n = 5</text><text class="k" x="370" y="1086" text-anchor="middle">n = 10</text><text class="k" x="440" y="1086" text-anchor="middle">n = 20</text>
+<text class="k" x="42" y="1104">1 показатель (названный заранее)</text>
+<text class="k" x="300" y="1104" text-anchor="middle">17</text><text class="k" x="370" y="1104" text-anchor="middle">7</text><text class="k" x="440" y="1104" text-anchor="middle">5</text>
+<text class="k" x="42" y="1121">10 показателей</text>
+<text class="k" x="300" y="1121" text-anchor="middle">31</text><text class="k" x="370" y="1121" text-anchor="middle">9</text><text class="k" x="440" y="1121" text-anchor="middle">6</text>
+<text class="k" x="42" y="1138">60 показателей (разведка)</text>
+<text class="k" x="300" y="1138" text-anchor="middle">49</text><text class="k" x="370" y="1138" text-anchor="middle">12</text><text class="k" x="440" y="1138" text-anchor="middle">7</text>
+
+<!-- обозначения -->
+<rect class="set" x="16" y="1180" width="36" height="16" rx="2"/><text class="s" x="60" y="1193">установление — не меряется</text>
+<rect class="meas" x="240" y="1180" width="36" height="16" rx="2"/><text class="s" x="284" y="1193">измерение</text>
+<rect class="ctl" x="370" y="1180" width="36" height="16" rx="2"/><text class="s" x="414" y="1193">К — контрольный опыт</text>
+<line class="redo" x1="574" y1="1188" x2="614" y2="1188"/><text class="s" x="622" y="1193">↻ повтор испорченного</text>
+<rect class="an" x="790" y="1180" width="36" height="16" rx="2"/><text class="s" x="834" y="1193">❗︎ аномалия</text>
+</svg>

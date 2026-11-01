@@ -1,0 +1,147 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 812" width="1000" height="812" role="img">
+<title>Статика: каждое окно 10 с против эталона шума</title>
+<desc>Датчик роли S (ICM-42688 или ADXL355) меряет 1000 раз в секунду, усредняет по два отсчёта и шлёт оси x, y, z 500 раз в секунду пакетами по 140 отсчётов со сквозными номерами, поэтому пропуск виден сразу. Сервер режет поток на окна по 10 с: 5000 отсчётов на ось и десять секунд со средним, разбросом и крайними значениями. По каждому окну и оси считается спектр Уэлча (8 отрезков по 1024 отсчёта, 2 с, шаг частоты 0,49 Гц, окно Ханна, перекрытие наполовину), мощность в октавах от 1–2 до 128–250 Гц, форма шума (асимметрия и эксцесс), квантование (доли значений, кратных 2, 4 … 256), среднее, а по секундам — разброс и выбросы. Эталон шума — те же показатели за 1–120 минут (кнопки 1, 3, 5 мин), пока основные группы стоят, только из чистых окон, не меньше шести: среднее и разброс в каждом бине спектра, уровни полос, форма шума, доли кратных, среднее и обычный разброс секунды; привязан к режиму датчика. Сразу оценивается: шум в мкg/√Гц на 10–100 Гц, гауссов ли шум, ровный ли фон, мелкое ли квантование, стояли ли группы. Каждое окно сравнивается с эталоном, найденное делится на три класса. Помеха: толчок — разброс секунды в 4 раза выше обычного или выброс в 8 обычных разбросов; выбросы почти каждую секунду — импульсная помеха; сдвиг — среднее ушло больше чем на 5 мg. Прибор: квантование ушло на 6 разбросов или все значения кратны крупному шагу; значения не меняются; пропуск отсчётов, зашкал, смена режима датчика. Отклонение: линия — бин спектра выше эталона на 6 разбросов; линия эталона пропала; полоса — широкий шум октавы ушёл на 5 разбросов; форма шума ушла на 5. Линия у известной частоты (сеть 50 Гц и гармоники, маяки роутера 102,4 мс, пинг CSI работающих агентов, телеметрия, пакеты отсчётов, обороты колеса; выше половины частоты отсчётов — с заворотом) помечается и тревогой не считается. Вывод по отрезку — опыту программы, сессии или последним двум минутам: есть помеха или сбой прибора — повторить (в программе опыт испорчен и повторяется сразу); иначе отклонение без известной причины держится два окна подряд или видно за весь отрезок по средним окон — проверить (в программе тревога и повтор опыта); иначе есть эталон для этого режима — продолжать; эталона нет — нет эталона, сравнивать не с чем. Обозначения: красная пунктирная рамка и знак ↻ — повторить, оранжевая толстая рамка и знак ⚠ — проверить, зелёная рамка и знак ✓ — продолжать, серая точечная рамка и знак ◌ — нет эталона, синяя штриховая рамка и знак ◐ — известные источники.</desc>
+<defs>
+<marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1d2228"/></marker>
+</defs>
+<style>
+text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d2228}
+.h{font-size:15px;font-weight:600}.t{font-size:13px}.s{font-size:12px;fill:#4a535e}.k{font-size:12px}.b{font-weight:600}
+.box{fill:#fff;stroke:#1d2228;stroke-width:1.3}.nb{fill:#fff;stroke:#4a535e;stroke-width:1}
+.rep{fill:#fff;stroke:#D55E00;stroke-width:2;stroke-dasharray:6 4}
+.chk{fill:#fff;stroke:#E69F00;stroke-width:3.2}
+.ok{fill:#fff;stroke:#009E73;stroke-width:2.2}
+.nob{fill:#fff;stroke:#4a535e;stroke-width:1.6;stroke-dasharray:2 3}
+.kn{fill:#fff;stroke:#0072B2;stroke-width:1.6;stroke-dasharray:8 3 2 3}
+.fl{stroke:#1d2228;stroke-width:1.6;fill:none}
+</style>
+<rect width="1000" height="812" fill="#ffffff"/>
+<text class="h" x="16" y="28">Статика: каждое окно 10 с против эталона шума</text>
+<text class="s" x="16" y="48">Датчик роли S только меряет и шлёт оси; спектр, эталон, тревоги и вывод считает сервер (server/static_watch.py).</text>
+
+<!-- датчик, окно, показатели -->
+<rect class="box" x="16" y="66" width="206" height="150" rx="6"/>
+<text class="t b" x="28" y="88">◆ датчик роли S</text>
+<text class="k" x="28" y="110">ICM-42688 или ADXL355</text>
+<text class="k" x="28" y="127">1000 Гц, среднее по 2 →</text>
+<text class="k" x="28" y="144">500 Гц, оси x, y, z</text>
+<text class="s" x="28" y="164">пакеты по 140 отсчётов,</text>
+<text class="s" x="28" y="181">номера сквозные:</text>
+<text class="s" x="28" y="198">пропуск виден сразу</text>
+<line class="fl" x1="222" y1="140" x2="240" y2="140" marker-end="url(#ar)"/>
+<rect class="box" x="242" y="66" width="168" height="150" rx="6"/>
+<text class="t b" x="254" y="88">окно 10 с</text>
+<text class="k" x="254" y="110">5000 отсчётов</text>
+<text class="k" x="254" y="127">на каждую ось</text>
+<text class="s" x="254" y="147">и по каждой из 10 секунд:</text>
+<text class="s" x="254" y="164">среднее, разброс,</text>
+<text class="s" x="254" y="181">крайние значения —</text>
+<text class="s" x="254" y="198">графики и толчки</text>
+<line class="fl" x1="410" y1="140" x2="432" y2="140" marker-end="url(#ar)"/>
+<rect class="box" x="434" y="66" width="550" height="150" rx="6"/>
+<text class="t b" x="446" y="88">что считается по каждому окну и оси</text>
+<text class="k" x="446" y="110"><tspan class="b">спектр</tspan> — Уэлч: 8 отрезков по 1024 отсчёта (2 с, шаг частоты 0,49 Гц),</text>
+<text class="s" x="446" y="126">окно Ханна, перекрытие наполовину</text>
+<text class="k" x="446" y="146"><tspan class="b">полосы</tspan> — мощность в октавах 1–2, 2–4 … 128–250 Гц, дБ</text>
+<text class="k" x="446" y="164"><tspan class="b">форма шума</tspan> — асимметрия и эксцесс (у гауссова шума оба около нуля)</text>
+<text class="k" x="446" y="182"><tspan class="b">квантование</tspan> — доли значений, кратных 2, 4 … 256 (у живого шума ½, ¼ …)</text>
+<text class="k" x="446" y="200"><tspan class="b">среднее</tspan> — наклон, сдвиг; <tspan class="b">по секундам</tspan> — разброс и выбросы</text>
+
+<!-- эталон -->
+<rect class="box" x="16" y="240" width="300" height="230" rx="6"/>
+<text class="t b" x="28" y="262">◆ эталон шума</text>
+<text class="k" x="28" y="284">те же показатели за 1–120 мин</text>
+<text class="k" x="28" y="301">(кнопки 1, 3, 5 мин), пока основные</text>
+<text class="k" x="28" y="318">группы стоят; только чистые окна —</text>
+<text class="k" x="28" y="335">без толчков и пропусков, не меньше 6</text>
+<text class="s" x="28" y="358">хранит: среднее и разброс в каждом</text>
+<text class="s" x="28" y="375">бине спектра, уровни полос, форму</text>
+<text class="s" x="28" y="392">шума, доли кратных, среднее, обычный</text>
+<text class="s" x="28" y="409">разброс секунды</text>
+<text class="k" x="28" y="432">привязан к режиму датчика (предел,</text>
+<text class="k" x="28" y="449">усреднение): сменили — переписать</text>
+<line class="fl" x1="316" y1="340" x2="338" y2="340" marker-end="url(#ar)"/>
+<line class="fl" x1="166" y1="470" x2="166" y2="484" marker-end="url(#ar)"/>
+<line class="fl" x1="700" y1="216" x2="700" y2="238" marker-end="url(#ar)"/>
+
+<!-- сравнение -->
+<rect class="box" x="340" y="240" width="644" height="230" rx="6"/>
+<text class="t b" x="352" y="262">каждое окно против эталона</text>
+<text class="s" x="560" y="262">z — в разбросах эталона (не меньше теории Уэлча)</text>
+<rect class="rep" x="352" y="276" width="198" height="26" rx="4"/><text class="k b" x="451" y="294" text-anchor="middle">↻ помеха</text>
+<rect class="rep" x="562" y="276" width="198" height="26" rx="4"/><text class="k b" x="661" y="294" text-anchor="middle">↻ прибор</text>
+<rect class="chk" x="772" y="276" width="198" height="26" rx="4"/><text class="k b" x="871" y="294" text-anchor="middle">⚠︎ отклонение</text>
+<text class="k" x="356" y="322">толчок: разброс секунды</text>
+<text class="k" x="356" y="339">в 4 раза выше обычного</text>
+<text class="k" x="356" y="356">или выброс в 8 разбросов</text>
+<text class="k" x="356" y="379">выбросы почти каждую</text>
+<text class="k" x="356" y="396">секунду — импульсная помеха</text>
+<text class="k" x="356" y="419">сдвиг: среднее ушло</text>
+<text class="k" x="356" y="436">больше чем на 5 мg</text>
+<text class="k" x="566" y="322">квантование: доли кратных</text>
+<text class="k" x="566" y="339">ушли на 6 или все значения</text>
+<text class="k" x="566" y="356">кратны крупному шагу</text>
+<text class="k" x="566" y="379">значения не меняются —</text>
+<text class="k" x="566" y="396">датчик завис?</text>
+<text class="k" x="566" y="419">пропуск отсчётов, зашкал,</text>
+<text class="k" x="566" y="436">смена режима датчика</text>
+<text class="k" x="776" y="322">линия: бин выше эталона</text>
+<text class="k" x="776" y="339">на 6 разбросов</text>
+<text class="k" x="776" y="356">линия эталона пропала</text>
+<text class="k" x="776" y="379">полоса: широкий шум</text>
+<text class="k" x="776" y="396">октавы ушёл на 5</text>
+<text class="k" x="776" y="419">форма шума: асимметрия</text>
+<text class="k" x="776" y="436">или эксцесс ушли на 5</text>
+<text class="s" x="352" y="460">в окне с толчком спектр и форма шума не сравниваются — они от толчка</text>
+
+<!-- оценка эталона и известные источники -->
+<rect class="nb" x="16" y="486" width="300" height="64" rx="6"/>
+<text class="s" x="28" y="506">сразу оценка: шум, мкg/√Гц на 10–100 Гц;</text>
+<text class="s" x="28" y="523">гауссов ли шум; ровный ли фон; мелкое ли</text>
+<text class="s" x="28" y="540">квантование; стояли ли основные группы</text>
+<line class="fl" x1="871" y1="470" x2="871" y2="484" marker-end="url(#ar)"/>
+<rect class="kn" x="340" y="486" width="644" height="64" rx="6"/>
+<text class="k b" x="352" y="506">◐ известные источники — помечаются, тревогой не считаются</text>
+<text class="s" x="352" y="523">сеть 50 Гц и гармоники · маяки роутера 102,4 мс · пинг CSI работающих агентов · телеметрия ·</text>
+<text class="s" x="352" y="540">пакеты отсчётов · обороты колеса; выше половины частоты отсчётов — с заворотом</text>
+
+<!-- вывод -->
+<rect class="box" x="16" y="574" width="968" height="226" rx="6"/>
+<text class="t b" x="28" y="596">вывод по отрезку</text>
+<text class="s" x="148" y="596">опыт программы, сессия или последние 2 минуты; на основном экране — карточка статики</text>
+<rect class="nb" x="30" y="612" width="220" height="64" rx="4" style="stroke:#1d2228;stroke-width:1.3"/>
+<text class="k b" x="140" y="638" text-anchor="middle">в отрезке помеха</text>
+<text class="k b" x="140" y="655" text-anchor="middle">или сбой прибора?</text>
+<line class="fl" x1="250" y1="644" x2="288" y2="644" marker-end="url(#ar)"/><text class="k" x="269" y="636" text-anchor="middle">нет</text>
+<line class="fl" x1="140" y1="676" x2="140" y2="702" marker-end="url(#ar)"/><text class="k" x="150" y="694">да</text>
+<rect class="nb" x="290" y="612" width="300" height="64" rx="4" style="stroke:#1d2228;stroke-width:1.3"/>
+<text class="k b" x="440" y="632" text-anchor="middle">отклонение без известной причины</text>
+<text class="k b" x="440" y="649" text-anchor="middle">держится 2 окна подряд или видно</text>
+<text class="k b" x="440" y="666" text-anchor="middle">за весь отрезок (средние окон)?</text>
+<line class="fl" x1="590" y1="644" x2="628" y2="644" marker-end="url(#ar)"/><text class="k" x="609" y="636" text-anchor="middle">нет</text>
+<line class="fl" x1="440" y1="676" x2="440" y2="702" marker-end="url(#ar)"/><text class="k" x="450" y="694">да</text>
+<rect class="nb" x="630" y="612" width="160" height="64" rx="4" style="stroke:#1d2228;stroke-width:1.3"/>
+<text class="k b" x="710" y="638" text-anchor="middle">эталон есть</text>
+<text class="k b" x="710" y="655" text-anchor="middle">для этого режима?</text>
+<line class="fl" x1="790" y1="644" x2="818" y2="644" marker-end="url(#ar)"/><text class="k" x="804" y="636" text-anchor="middle">нет</text>
+<line class="fl" x1="710" y1="676" x2="710" y2="702" marker-end="url(#ar)"/><text class="k" x="720" y="694">да</text>
+<rect class="nob" x="820" y="612" width="150" height="64" rx="4"/>
+<text class="t b" x="895" y="634" text-anchor="middle">◌ нет эталона</text>
+<text class="s" x="895" y="651" text-anchor="middle">сравнивать не с чем;</text>
+<text class="s" x="895" y="667" text-anchor="middle">толчки, пропуски видны</text>
+<rect class="rep" x="30" y="704" width="220" height="56" rx="4"/>
+<text class="t b" x="140" y="726" text-anchor="middle">↻ повторить</text>
+<text class="s" x="140" y="745" text-anchor="middle">данные отрезка испорчены</text>
+<rect class="chk" x="290" y="704" width="300" height="56" rx="4"/>
+<text class="t b" x="440" y="726" text-anchor="middle">⚠︎ проверить</text>
+<text class="s" x="440" y="745" text-anchor="middle">то, что ищем: пропускать нельзя</text>
+<rect class="ok" x="630" y="704" width="160" height="56" rx="4"/>
+<text class="t b" x="710" y="726" text-anchor="middle">✓ продолжать</text>
+<text class="s" x="710" y="745" text-anchor="middle">всё как в эталоне</text>
+<text class="s" x="30" y="782">в программе: опыт испорчен,</text>
+<text class="s" x="30" y="797">повторяется сразу (до redo раз)</text>
+<text class="s" x="290" y="782">в программе: ❗︎ тревога, звук и окно;</text>
+<text class="s" x="290" y="797">по желанию — повтор опыта (again)</text>
+<text class="s" x="630" y="782">толчок сразу у 2 и больше датчиков —</text>
+<text class="s" x="630" y="797">помеха снаружи: шаги, дверь, здание</text>
+</svg>
