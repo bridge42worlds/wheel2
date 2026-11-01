@@ -75,7 +75,7 @@ def say(t):
 
 
 # ---------- состав ----------
-fleet = [b for b in get("/api/fleet")["agents"] if not b.get("retired") and b.get("kind") == "A"
+fleet = [b for b in get("/api/fleet")["agents"] if not b.get("retired") and b.get("kind") in ("A", "B")
          and b.get("slot") != "coil" and str(b.get("wheel")) in ("1", "2")]
 live = {a["mac"]: a for a in get("/api/dash")["agents"] if a.get("mac")}
 W, OFF, SENS = {"1": [], "2": []}, [], {}

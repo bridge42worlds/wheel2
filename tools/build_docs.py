@@ -16,7 +16,7 @@
 все ссылки внутри комплекта; адреса сети опыта и её имя вычищены. Главная страница комплекта —
 index.html без обёртки <html>/<head> (её добавляет площадка публикации), остальные — полные.
 """
-import html, os, re, shutil, sys
+import html, os, re, sys
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 DOCS = os.path.join(ROOT, "docs")
@@ -460,8 +460,12 @@ def copy_images(out_dir):
     names = sorted(f for f in os.listdir(IMG) if re.match(r"^[\w.-]+\.(?:svg|png|jpg)$", f))
     for f in names:
         src, dst = os.path.join(IMG, f), os.path.join(out_dir, "img", f)
-        if not os.path.exists(dst) or open(src, "rb").read() != open(dst, "rb").read():
-            shutil.copyfile(src, dst)
+        data = open(src, "rb").read()
+        if f.endswith(".svg"):              # DOCTYPE от matplotlib браузеру не нужен, а публикация копии его не принимает
+            data = re.sub(rb"<!DOCTYPE[^>]*>\s*", b"", data, count=1)
+        if not os.path.exists(dst) or open(dst, "rb").read() != data:
+            with open(dst, "wb") as fo:
+                fo.write(data)
     return ["img/" + f for f in names]
 
 
