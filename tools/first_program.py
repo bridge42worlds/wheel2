@@ -1,5 +1,5 @@
-"""Первый эксперимент на двух колёсах, ~37 минут: невесомость навстречу и вместе, поле, сложные шумы, поглощение и
-обратный шум, оба колеса одной группой, у каждого свой шум.
+"""Первый эксперимент на двух колёсах, ~40 минут: невесомость навстречу и вместе, поле, сложные шумы, поглощение и
+обратный шум, оба колеса одной группой, колесо-пустышка (подслушивающие, мост), у каждого свой шум.
 
     python tools/first_program.py              план словами и время — ничего не запускает
     python tools/first_program.py --start      эталон статики при вращении навстречу, затем программа
@@ -17,10 +17,21 @@
            каждый стоя (контроль) и навстречу k = 1 с полем + + (обратный порядок — дрейф поровну); отдых;
   4        навстречу k = 1, поле выкл: К1 генерирует — К2 поглощает (смешать целиком) против пустышки и
            наоборот; обратный шум — К2 поглощает простые К1, К1 считает только из его кадров (петля через
-           эфир) против пустышки; оба колеса одной группой (12 каскадом) — поле выкл и + +; отдых;
-  3        каждый сам (эгоистичный), у каждого агента свой шум: акселерометр, магнитометр, ГСЧ, CSI, АЦП, RC —
+           эфир) против пустышки; оба колеса одной группой (12 каскадом) — поле выкл и + +;
+  5        с колесом-пустышкой (если есть; выключаются --no-listen, --no-bridge), навстречу k = 1, поле выкл:
+           подслушивающие — оба колеса одной группой считают только из кадров плат колеса-пустышки, те
+           поглощают простые обоих колёс (смешать целиком) против пустышки-поглотителя; мост — первая плата
+           звеном каскада колеса 1 (неподвижное среди вращающихся), вторая — одна, навстречу и контроль стоя; отдых;
+  3       каждый сам (эгоистичный), у каждого агента свой шум: акселерометр, магнитометр, ГСЧ, CSI, АЦП, RC —
            навстречу k = 1 с полем + + и без, стоя с полем + +, контроль стоя; отдых;
   конец    третий контроль каскада — у опытов блока 1 три контроля (начало, середина, конец).
+
+Колесо-пустышка — колесо 3 в составе (две платы без датчиков, без мотора и поля, лежат рядом): в каждом опыте своей
+группой тем же режимом, что колёса — каскад, тот же шум, «каждый сам» (ГСЧ и CSI); в опытах с поглощением —
+пара между собой: одна генерирует, другая поглощает (смешать или пустышка), в обратном шуме — поглощает и
+возвращает кадры. Проверяется тем же критерием; её «аномалия» — ложная тревога детектора. Нет её — опыты те же.
+В блоке 5 платы колеса-пустышки работают вместе с колёсами — там они участники опыта, не пустышка (сервер
+считает пустышкой только группу из одних её плат).
 
 Сравнение генерации — с контролем того же режима (control_for); статика — со своим эталоном. Проверочная
 пара при аномалии — одна (confirm 1), испорченный опыт повторяется один раз. Для прогона на имитаторах —
@@ -42,6 +53,10 @@ ap.add_argument("--base", choices=("spin", "still", "keep"), default="spin",
 ap.add_argument("--base-min", type=float, default=2, help="эталон, мин")
 ap.add_argument("--spin-wait", type=float, default=90, help="ждать выхода колёс на обороты перед эталоном, с")
 ap.add_argument("--partial", action="store_true", help="запускать, даже если кого-то из шин нет на связи")
+ap.add_argument("--listen", action=argparse.BooleanOptionalAction, default=True,
+                help="подслушивающие: колёса считают из кадров плат колеса-пустышки (--no-listen — без них)")
+ap.add_argument("--bridge", action=argparse.BooleanOptionalAction, default=True,
+                help="мост: плата колеса-пустышки звеном каскада колеса 1 (--no-bridge — без него)")
 A = ap.parse_args()
 
 CASCADE = {"mode": 1, "gv": 2, "dc": 1, "rk": 1, "pw": 20}
@@ -76,9 +91,9 @@ def say(t):
 
 # ---------- состав ----------
 fleet = [b for b in get("/api/fleet")["agents"] if not b.get("retired") and b.get("kind") in ("A", "B")
-         and b.get("slot") != "coil" and str(b.get("wheel")) in ("1", "2")]
+         and b.get("slot") != "coil" and str(b.get("wheel")) in ("1", "2", "3")]
 live = {a["mac"]: a for a in get("/api/dash")["agents"] if a.get("mac")}
-W, OFF, SENS = {"1": [], "2": []}, [], {}
+W, OFF, SENS = {"1": [], "2": [], "3": []}, [], {}
 for b in sorted(fleet, key=lambda b: b["id"]):
     a = live.get(b["mac"]) or {}
     if a.get("status") not in ("online", "late", "quiet"):
@@ -89,6 +104,8 @@ for b in sorted(fleet, key=lambda b: b["id"]):
 ID = {b["mac"]: b["id"] for b in fleet}
 if not W["1"] or not W["2"]:
     sys.exit(f"нужны оба колеса: на связи колесо 1 — {len(W['1'])}, колесо 2 — {len(W['2'])}")
+D = W.pop("3")                                  # колесо-пустышка: колесо 3 без мотора и поля
+DL = "колесо-пустышка"
 
 
 def own_noise(macs):
@@ -107,16 +124,32 @@ def own_noise(macs):
 
 
 OWN = {w: own_noise(W[w]) for w in W}
+OWN["3"] = own_noise(D)                         # датчиков нет — ГСЧ и CSI
 
 
 # ---------- шаги ----------
 def groups(way, noise=None, own=False):
     out = []
-    for w in ("1", "2"):
-        o = {m: {"role": 0, **({"src": OWN[w][m][0]} if own else {})} for m in W[w]}
-        out.append({"targets": W[w], "cfg": {**(SOLO if way == "solo" else CASCADE), **COMMON, **(noise or RNG)},
-                    "own": o, "label": f"колесо {w} · {'каждый сам' if way == 'solo' else 'каскад'}"})
+    for w, macs in (("1", W["1"]), ("2", W["2"]), ("3", D)):
+        if not macs:
+            continue
+        o = {m: {"role": 0, **({"src": OWN[w][m][0]} if own else {})} for m in macs}
+        out.append({"targets": macs, "cfg": {**(SOLO if way == "solo" else CASCADE), **COMMON, **(noise or RNG)},
+                    "own": o, "label": f"{DL if w == '3' else 'колесо ' + w} · {'каждый сам' if way == 'solo' else 'каскад'}"})
     return out
+
+
+def dummy_pair(gw, sham, noise=None):
+    """Колесо-пустышка в опыте с поглощением — пара между собой: та, что «на колесе gw», генерирует, другая поглощает
+    (тот же способ: смешать или пустышка, тот же шум). Одна плата — просто генерирует (обратного шума ей не из чего)."""
+    if not D:
+        return []
+    if len(D) == 1:
+        return [{"targets": D, "cfg": {**CASCADE, **COMMON, **RNG}, "own": {D[0]: {"role": 0}}, "label": f"{DL} · каскад"}]
+    g, a = (D[0], D[1]) if gw == "1" else (D[1], D[0])
+    return [{"targets": [g, a], "cfg": {**CASCADE, **COMMON, **(noise or RNG), "sm": 1, "sh": 1 if sham else 0},
+             "own": {g: {"role": 0}, a: {"role": 1, "ba": [], "src": 1}},
+             "label": f"{DL} · №{ID[g]} генерирует, №{ID[a]} поглощает"}]
 
 
 def absorb(gw, sham, noise=None):
@@ -126,14 +159,38 @@ def absorb(gw, sham, noise=None):
     own = {m: {"role": 0} for m in W[gw]}
     own.update({m: {"role": 1, "ba": [], "src": 1} for m in W[aw]})
     return [{"targets": W[gw] + W[aw], "cfg": {**CASCADE, **COMMON, **(noise or RNG), "sm": 1, "sh": 1 if sham else 0},
-             "own": own, "label": f"колесо {gw} · генерация, колесо {aw} поглощает"}]
+             "own": own, "label": f"колесо {gw} · генерация, колесо {aw} поглощает"}] + dummy_pair(gw, sham, noise)
 
 
 def merged(noise=None):
-    """Оба колеса одной группой: 12 агентов каскадом (предел прошивки — 16 в группе)."""
+    """Оба колеса одной группой: 12 агентов каскадом (предел прошивки — 16 в группе); колесо-пустышка — своей."""
     m = W["1"] + W["2"]
     return [{"targets": m, "cfg": {**CASCADE, **COMMON, **(noise or RNG)}, "own": {x: {"role": 0} for x in m},
-             "label": "колёса 1+2 · генерация одной группой"}]
+             "label": "колёса 1+2 · генерация одной группой"}] + [g for g in groups("cascade", noise) if g["targets"] == D]
+
+
+def listen(sham):
+    """Подслушивающие: оба колеса одной группой считают только из кадров плат колеса-пустышки (обратный шум,
+    src 16), а те поглощают простые обоих колёс (смешать целиком или пустышка) — петля через неподвижных."""
+    m = W["1"] + W["2"]
+    own = {x: {"role": 0} for x in m}
+    own.update({x: {"role": 1, "ba": [], "src": 1} for x in D})
+    return [{"targets": m + D, "cfg": {**CASCADE, **COMMON, **BC, "sm": 1, "sh": 1 if sham else 0}, "own": own,
+             "label": f"колёса 1+2 · генерация из кадров плат {DL} (поглощают)"}]
+
+
+def bridge():
+    """Мост: первая плата колеса-пустышки — звено каскада колеса 1 (неподвижное среди вращающихся), колесо 2 —
+    своим каскадом, вторая плата — одна, «каждый сам» (ГСЧ): она и остаётся пустышкой."""
+    b, k1 = D[0], W["1"] + D[:1]
+    out = [{"targets": k1, "cfg": {**CASCADE, **COMMON, **RNG}, "own": {x: {"role": 0} for x in k1},
+            "label": f"колесо 1 + №{ID[b]} (мост) · каскад"},
+           {"targets": W["2"], "cfg": {**CASCADE, **COMMON, **RNG}, "own": {x: {"role": 0} for x in W["2"]},
+            "label": "колесо 2 · каскад"}]
+    if D[1:]:
+        out.append({"targets": D[1:], "cfg": {**SOLO, **COMMON, **RNG}, "own": {x: {"role": 0} for x in D[1:]},
+                    "label": f"{DL} · каждый сам"})
+    return out
 
 
 def mot(k, pair="opposite"):
@@ -162,7 +219,7 @@ def step(name, way, k, field, noise=None, nword="ГСЧ", own=False, control=Fal
     s = {"name": name, "minutes": round((sec or A.sec) / 60, 3), "mot": mot(k, pair), "coil": f, "rest": rest,
          "layers": {"rot": rot_word(k, pair), "field": f, "w1": (lay or {}).get("1", wl), "w2": (lay or {}).get("2", wl)}}
     if idle:
-        s["groups"] = [{"targets": W["1"] + W["2"], "cfg": {"mode": 0, "dc": 0, "run": 0}, "own": {},
+        s["groups"] = [{"targets": W["1"] + W["2"] + D, "cfg": {"mode": 0, "dc": 0, "run": 0}, "own": {},
                         "label": "все стоят — только статика"}]
     else:
         s["groups"] = g or groups(way, noise, own)
@@ -221,6 +278,22 @@ step("обратный шум К1 ← К2: К2 поглощает простые
 C12 ="контроль: оба колеса одной группой · навстречу k = 1 · поле выкл"
 step(C12, "cascade", 0, OFFF, g=merged(), control=True)
 step("оба колеса одной группой · навстречу k = 1 · поле + +", "cascade", 0, PP, g=merged(), control_for=C12)
+# блок 5 — с колесом-пустышкой: подслушивающие и мост (выключаются --no-listen, --no-bridge). Здесь его платы —
+# участники опыта: в группе с колёсами сервер их пустышкой не считает
+if A.listen and D and len(W["1"] + W["2"] + D) <= 16:
+    LW = {"role": "gen", "way": "cascade", "noise": f"обратный шум от {DL}"}
+    SL = "контроль: подслушивающие — поглотитель-пустышка, колёса считают из кадров · навстречу k = 1"
+    step(SL, "cascade", 0, OFFF, g=listen(True), lay={"1": LW, "2": LW}, control=True)
+    step("подслушивающие: платы колеса-пустышки поглощают простые обоих колёс (смешать), колёса считают из их кадров"
+         " · навстречу k = 1",
+         "cascade", 0, OFFF, g=listen(False), lay={"1": LW, "2": LW}, control_for=SL)
+elif A.listen and D:
+    print(f"подслушивающих нет: колёса и {DL} вместе — {len(W['1'] + W['2'] + D)} плат, в группе не больше 16")
+if A.bridge and D:
+    CB = f"контроль: мост — №{ID[D[0]]} в каскаде колеса 1 · стоят · поле выкл"
+    step(f"мост: №{ID[D[0]]} в каскаде колеса 1 · навстречу k = 1 · поле выкл", "cascade", 0, OFFF, g=bridge(),
+         control_for=CB)
+    step(CB, "cascade", None, OFFF, g=bridge(), control=True)
 # блок 3 — каждый сам, у каждого свой шум
 C3 = "контроль: у каждого свой шум, стоят, поле выкл"
 step("у каждого свой шум · навстречу k = 1 · поле + +", "solo", 0, PP, nword="у каждого свой", own=True,
@@ -235,13 +308,20 @@ step(C1, "cascade", None, OFFF, control=True, rest=True)
 PROG = {"name": "первый эксперимент: невесомость навстречу, поле, шумы, у каждого свой шум",
         "baseline_min": A.base_min if A.base == "still" else 0, "repeat": 1, "shuffle": False, "settle_s": 8,
         "rest": A.rest, "z": 4, "confirm": 1, "redo": 1, "again": 0, "pause_lost": True,
-        "metrics": ["pr_s", "cand_s"], "targets": W["1"] + W["2"], "steps": STEPS}
+        "metrics": ["pr_s", "cand_s"], "targets": W["1"] + W["2"] + D, "steps": STEPS,
+        **({"dummy": D} if D else {})}
 
 # ---------- план словами ----------
 nm = lambda ms: " ".join(f"№{ID[m]}" for m in ms)
-print(f"колесо 1: {nm(W['1'])} · колесо 2: {nm(W['2'])}" + (f" · нет на связи: {' '.join(f'№{i}' for i in OFF)}" if OFF else ""))
-for w in W:
-    print(f"  у каждого свой шум, колесо {w}: " + ", ".join(f"№{ID[m]} {OWN[w][m][1]}" for m in W[w]))
+print(f"колесо 1: {nm(W['1'])} · колесо 2: {nm(W['2'])}" + (f" · колесо-пустышка: {nm(D)}" if D else " · колеса-пустышки нет")
+      + (f" · нет на связи: {' '.join(f'№{i}' for i in OFF)}" if OFF else ""))
+for w, macs in (("1", W["1"]), ("2", W["2"]), ("3", D)):
+    if macs:
+        print(f"  у каждого свой шум, {DL if w == '3' else 'колесо ' + w}: " + ", ".join(f"№{ID[m]} {OWN[w][m][1]}" for m in macs))
+if D:
+    print(f"  блок 5: подслушивающие {'да' if A.listen else 'выкл (--no-listen)'} · мост {'да' if A.bridge else 'выкл (--no-bridge)'}")
+if len(D) >= 2:
+    print(f"  поглощение у колеса-пустышки — между собой: К1 → К2 ~ №{ID[D[0]]} → №{ID[D[1]]}, К2 → К1 ~ №{ID[D[1]]} → №{ID[D[0]]}")
 T = 0.0
 if A.base == "spin":
     T += 40 + A.base_min * 60 + 10

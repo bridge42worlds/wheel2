@@ -87,6 +87,7 @@ function runVerdict(x, r, i) {
   if (an) return vd ? (vd.confirmed ? { cls: "bad", w: "❗ аномалия подтвердилась", d: `${vd.same} из ${vd.of} проверок` } : { cls: "warn", w: "◐ аномалия не подтвердилась", d: `${vd.same} из ${vd.of}` })
     : { cls: "warn", w: "◐ аномалия — проверяется", d: "" };
   if (r.alert || (r.watch || {}).verdict === "check") return { cls: "warn", w: "⚠ отклонение статики", d: "" };
+  if (((x.placebo || {}).anomalies || {})[String(i)]) return { cls: "warn", w: "▣ тревога у колеса‑пустышки", d: "ложная: колесо‑пустышка не вращается" };
   if (r.control) return { cls: "ok", w: "✓ контроль", d: "" };
   return { cls: "ok", w: r.scan ? "✓ как контроль" : "✓ без замечаний", d: "" };
 }
@@ -115,7 +116,7 @@ async function loadProg() {
 }
 function agentsOf(x) {
   const ids = new Set();
-  for (const r of x.runs || []) for (const k of Object.keys(r.gen || {})) if (k !== "все") ids.add(k);
+  for (const r of x.runs || []) for (const k of Object.keys(r.gen || {})) if (k !== "все" && k !== "колесо-пустышка") ids.add(k);
   return [...ids].sort((a, b) => (parseInt(a.replace(/\D/g, "")) || 0) - (parseInt(b.replace(/\D/g, "")) || 0));
 }
 // Поле за шаг: по каждому магнитометру — |B| среднее ± СКО; эксцесс > 1 — «толчки поля» (переключения, железо рядом)
@@ -151,8 +152,12 @@ function render() {
     `<tr class="${r.control ? "ctl" : ""} ${r.spoiled ? "spoiled" : ""}"><td>${i + 1}</td><td class="small">${esc(r.name)}</td>${ags.map(a => { const m = (r.gen || {})[a] || {}; return `<td class="num">${m.pr_s != null ? fmt(m.pr_s, 1) : "—"}${m.temp != null ? ` · ${fmt(m.temp, 0)}°` : ""}</td>`; }).join("")}</tr>`).join("")}</table>`;
   renderAna(x);
   const an = Object.entries(x.anomalies || {});
-  $("anom").innerHTML = an.length ? an.map(([i, hits]) => `<div><b>шаг ${+i + 1}</b>: ${hits.map(h => `${esc(h.mac)}/${esc(h.metric)} t ${fmtZ(h.z)} (p_adj ${esc(h.p_adj)}, n ${h.n})`).join("; ")}${(x.verdicts || {})[i] ? ` → ${(x.verdicts || {})[i].confirmed ? "<b>подтвердилась</b>" : "не подтвердилась"} (${(x.verdicts || {})[i].same} из ${(x.verdicts || {})[i].of})` : ""}</div>`).join("")
-    : `<div class="mut small">аномалий по критерию не найдено; в колонке «разведка» — самый большой t каждого опытного шага</div>`;
+  const anLine = (hs, vd) => ([i, hits]) => `<div><b>шаг ${+i + 1}</b>: ${hits.map(h => `${esc(h.mac)}/${esc(h.metric)} t ${fmtZ(h.z)} (p_adj ${esc(h.p_adj)}, n ${h.n})`).join("; ")}${vd[i] ? ` → ${vd[i].confirmed ? "<b>подтвердилась</b>" : "не подтвердилась"} (${vd[i].same} из ${vd[i].of})` : ""}${hs && hs.includes(+i) ? ` · <span class="warn">▣ в том же шаге тревога у колеса‑пустышки — не от вращения</span>` : ""}</div>`;
+  const pl = x.placebo;
+  $("anom").innerHTML = (an.length ? an.map(anLine(pl && pl.shared, x.verdicts || {})).join("")
+    : `<div class="mut small">аномалий по критерию не найдено; в колонке «разведка» — самый большой t каждого опытного шага</div>`)
+    + (pl ? `<div style="margin-top:8px"><b>▣ колесо‑пустышка</b> <span class="small mut">(неподвижная группа без мотора и поля, тот же режим и тот же критерий — её находки ложные)</span>: сравнено опытов ${pl.tested} · ${pl.hits ? `<span class="${pl.confirmed ? "bad" : "warn"}">ложных тревог ${pl.hits}${pl.confirmed ? `, подтвердилось ${pl.confirmed} — детектор ошибается, аномалиям колёс не верить` : ""}</span>` : `<span class="ok">✓ ложных тревог нет</span>`}</div>`
+      + Object.entries(pl.anomalies || {}).map(anLine(null, pl.verdicts || {})).join("") : "");
 }
 // ---------- что влияет: параметры опыта против результата ----------
 // Опыт с конструктора эксперимента несёт свои параметры (step.set): вращение, скорость, поле, излучение/поглощение,

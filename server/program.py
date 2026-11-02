@@ -115,11 +115,17 @@ def chans(r):
     return out
 
 
-def gen_metrics(snap, dur, snap0=None):
+def gen_name(a, mac):
+    """Имя агента в показателях генерации шага: №id или хвост MAC."""
+    return f"№{(a or {}).get('id') or mac[-5:]}"
+
+
+def gen_metrics(snap, dur, snap0=None, dummy=()):
     """Показатели генерации за шаг по каждому агенту и всем вместе. Счётчики агентов идут с момента
     применения настройки, а меряется шаг с t0 (после установления) — поэтому берётся разность со
-    снимком на t0 (snap0), если он есть. Температура и доля работы — ковариаты (COVARIATES)."""
-    out, tot = {}, {"pr_s": 0.0, "cand_s": 0.0}
+    снимком на t0 (snap0), если он есть. Температура и доля работы — ковариаты (COVARIATES).
+    dummy — агенты пустышки (неподвижная группа без мотора и поля): в «все» не входят, их сумма — «колесо-пустышка»."""
+    out, tot, dt = {}, {"pr_s": 0.0, "cand_s": 0.0}, {"pr_s": 0.0, "cand_s": 0.0}
     dur = max(dur, 1e-6)
     for mac, a in (snap or {}).items():
         g = a.get("gen") or {}
@@ -147,11 +153,14 @@ def gen_metrics(snap, dur, snap0=None):
             m["temp"] = a["temp"]
         if a.get("work") is not None:
             m["work"] = a["work"]
-        out[f"№{a.get('id') or mac[-5:]}"] = m
-        tot["pr_s"] += m["pr_s"]
-        tot["cand_s"] += m.get("cand_s", 0.0)
-    if out:
-        out["все"] = tot
+        out[gen_name(a, mac)] = m
+        t = dt if mac in dummy else tot
+        t["n"] = t.get("n", 0) + 1
+        t["pr_s"] += m["pr_s"]
+        t["cand_s"] += m.get("cand_s", 0.0)
+    for key, t in (("все", tot), ("колесо-пустышка", dt)):
+        if t.pop("n", 0):
+            out[key] = t
     return out
 
 
@@ -203,16 +212,40 @@ def anomalies(runs, z_thr, only=None):
             continue
         m_tests = len(tests)
         rows = []
+        fake = set(r.get("dummy_ch") or ())
         for mac, key, v, mu, sd, n, t in tests:
             p = t_p(t, n - 1)
             rows.append({"mac": mac, "metric": key, "z": round(t, 2), "value": round(v, 2), "ctrl": round(mu, 2),
-                         "sd": round(sd, 3), "n": n, "p": p, "p_adj": min(1.0, p * m_tests), "tests": m_tests})
+                         "sd": round(sd, 3), "n": n, "p": p, "p_adj": min(1.0, p * m_tests), "tests": m_tests,
+                         **({"dummy": True} if mac in fake else {})})
         rows.sort(key=lambda x: x["p"])
         r["scan"] = [{**x, "p": f"{x['p']:.2g}", "p_adj": f"{x['p_adj']:.2g}"} for x in rows[:3]]
         hits = [{**x, "p": f"{x['p']:.2g}", "p_adj": f"{x['p_adj']:.2g}"} for x in rows if x["p_adj"] <= p_thr]
         if hits:
             found[idx] = hits
     return found
+
+
+# ---------- колесо-пустышка ----------
+# Неподвижная группа без мотора и поля, записанная в программу как колесо: в каждом шаге она работает тем же
+# режимом, что и колёса (поглощение — между собой), и проверяется тем же критерием в той же семье сравнений.
+# Вращения у неё нет, поэтому любая её «аномалия» — ложная тревога детектора (дрейф, эфир, температура),
+# а аномалия колеса, которую в том же шаге показало и колесо-пустышка, — не от вращения.
+def split_dummy(found):
+    """Находки anomalies() — на колёса и на колесо-пустышку: ({шаг: [...]}, {шаг: [...]}), пустые шаги — мимо."""
+    real, fake = {}, {}
+    for idx, hits in found.items():
+        for h in hits:
+            (fake if h.get("dummy") else real).setdefault(idx, []).append(h)
+    return real, fake
+
+
+def placebo(runs, real, fake, fake_vd):
+    """Итог колеса-пустышки: опытных шагов сравнено, из них с ложной тревогой, подтвердилось ложных (детектор
+    врёт), шаги, где аномалия колёс совпала с тревогой колеса-пустышки (не от вращения)."""
+    tested = sum(1 for r in counted(runs) if r.get("dummy_ch") and not r.get("control") and len(controls_for(runs, r)) >= 3)
+    return {"tested": tested, "hits": len(fake), "confirmed": sum(1 for v in fake_vd.values() if v["confirmed"]),
+            "shared": sorted(i for i in real if i in fake)}
 
 
 def verdicts(runs, found, z_thr):
@@ -324,7 +357,10 @@ def validate(prog):
            "metrics": [str(x)[:40] for x in (prog.get("metrics") or []) if str(x).strip()][:20],
            # эксперимент с планшетки: параметры опыта (вращение, скорость, поле, роли, совместная работа, шум) —
            # порядок вложенности, названия и значения словами; по ним отчёт считает «что влияет»
-           "axes": _axes(prog.get("axes"))}
+           "axes": _axes(prog.get("axes")),
+           # колесо-пустышка: агенты неподвижной группы без мотора и поля — их генерация сравнивается с контролем отдельно
+           # от колёс (ложная тревога детектора), в «все» не входит
+           "dummy": sorted({str(m).lower() for m in (prog.get("dummy") or []) if m})}
     if 0 < out["baseline_min"] < 1:
         raise ValueError("эталон — не меньше 1 минуты (или 0 — взять уже записанный)")
     if out["rest"] == "below" and not (out["rest_below"] and 20 <= out["rest_below"] <= 80):
@@ -377,6 +413,8 @@ def validate(prog):
         out["steps"].append(step)
     if out["targets"] == "all" and any(s["groups"] for s in out["steps"]):
         out["targets"] = sorted({m for s in out["steps"] for g in (s["groups"] or []) for m in g["targets"]})
+    if out["dummy"] and isinstance(out["targets"], list) and not set(out["dummy"]) <= set(out["targets"]):
+        raise ValueError("колесо-пустышка: его агенты должны быть в опытах программы")
     names = {s["name"] for s in out["steps"] if s["control"]}
     for s in out["steps"]:
         if s["control_for"] and s["control_for"] not in names:
@@ -393,8 +431,8 @@ TEMPLATE = {
     "baseline_min": 5, "repeat": 4, "shuffle": True, "settle_s": 10, "rest": "stable", "z": 4, "confirm": 3, "redo": 2,
     "targets": "all",
     "steps": [
-        {"name": "рассеяние: каждый сам", "minutes": 3, "cfg": {"sm": 1, "sh": 0}, "control_for": "пустышка"},
-        {"name": "пустышка", "minutes": 3, "cfg": {"sm": 1, "sh": 1}, "control": True},
+        {"name": "рассеяние: каждый сам", "minutes": 3, "cfg": {"sm": 1, "sh": 0}, "control_for": "колесо-пустышка"},
+        {"name": "колесо-пустышка", "minutes": 3, "cfg": {"sm": 1, "sh": 1}, "control": True},
         {"name": "тишина", "minutes": 3, "cfg": {"sm": 0}, "control": True},
     ],
 }
@@ -456,6 +494,8 @@ class Runner:
                                   "runs": len(x.get("runs", [])), "anomalies": len(x.get("anomalies", {})),
                                   "confirmed": sum(1 for v in (x.get("verdicts") or {}).values() if v["confirmed"]),
                                   "spoiled": sum(1 for r in x.get("runs", []) if r.get("spoiled")),
+                                  "placebo": {k: v for k, v in (x.get("placebo") or {}).items()
+                                              if k in ("tested", "hits", "confirmed")} or None,
                                   "left": len(x.get("plan") or []) - len(x.get("runs") or []),
                                   "continued": len(x.get("continued") or []),
                                   "checks": sum(1 for r in x.get("runs", [])
@@ -608,6 +648,7 @@ class Runner:
         al = x.get("alerts") or []
         return {"id": x["id"], "name": x["program"]["name"], "state": x["state"], "now": x["now"],
                 "done": len(x["runs"]), "total": len(x["plan"]), "anomalies": len(x["anomalies"]),
+                "placebo": {k: v for k, v in (x.get("placebo") or {}).items() if k in ("tested", "hits", "confirmed")} or None,
                 "spoiled": sum(1 for r in x["runs"] if r.get("spoiled")),
                 "alerts": len(al), "last_alert": al[-1] if al else None, "again": x["program"].get("again", 0),
                 "pause_req": self.pause_req, "stop_req": self.stop_after, "left": len(x["plan"]) - len(x["runs"]),
@@ -718,8 +759,13 @@ class Runner:
                     x["plan"].insert(i + k, x["again_req"].pop(0))
                     k += 1
                 found = anomalies(x["runs"], prog["z"], prog.get("metrics"))
-                x["anomalies"] = {str(k): v for k, v in found.items()}
-                x["verdicts"] = verdicts(x["runs"], found, prog["z"])
+                real, fake = split_dummy(found)          # тревога колеса-пустышки — не аномалия колёс, но проверяется так же
+                x["anomalies"] = {str(k): v for k, v in real.items()}
+                x["verdicts"] = verdicts(x["runs"], real, prog["z"])
+                if prog.get("dummy"):
+                    fvd = verdicts(x["runs"], fake, prog["z"])
+                    x["placebo"] = {**placebo(x["runs"], real, fake, fvd), "anomalies": {str(k): v for k, v in fake.items()},
+                                    "verdicts": fvd}
                 # новая аномалия у опытного шага, ещё не проверявшегося — добавить пары «опыт — контроль»
                 last = len(x["runs"]) - 1
                 if (last in found and prog["confirm"] and not item.get("confirm")
@@ -777,6 +823,10 @@ class Runner:
         t_apply = time.time()
         self._phase("start")
         fixed = self.h["static_macs"]()
+        dummy = set(((self.active or {}).get("program") or {}).get("dummy") or ())
+        # колесо-пустышка — только в группе из одних его агентов; в группе колеса (мост, подслушивание) или в одной
+        # настройке на всех агент — участник опыта, и его отклонение может быть настоящим
+        dummy = {m for g in (st.get("groups") or []) if set(g["targets"]) <= dummy for m in g["targets"]}
         settle = st["settle_s"] if st.get("settle_s") is not None else self.h_settle()
         # План шага: одна настройка всем (как раньше) или несколько групп, каждая со своей настройкой и
         # своим номером (планшетка: колесо 1 — генерация, колесо 2 — поглощение или своя генерация).
@@ -833,10 +883,11 @@ class Runner:
             self._phase("test", TEST_S)
             s0, ta = self.h["snapshot"](macs), time.time()
             self.stop.wait(TEST_S)
-            gm = gen_metrics(self.h["snapshot"](macs), time.time() - ta, s0)
+            gm = gen_metrics(self.h["snapshot"](macs), time.time() - ta, s0, dummy)
             nm = self.h.get("name") or (lambda m: m)              # поглотители не считают — в «не считают» их не писать
             absn = {nm(m) for a in applied for m in a["targets"] if ((a["own"] or {}).get(m) or {}).get("role") == 1}
-            idle = sorted(k for k, v in gm.items() if k != "все" and k not in absn and not (v.get("pr_s") or v.get("cand_s") or v.get("cycles_s")))
+            idle = sorted(k for k, v in gm.items() if k not in ("все", "колесо-пустышка") and k not in absn
+                          and not (v.get("pr_s") or v.get("cand_s") or v.get("cycles_s")))
             test = {"s": round(time.time() - ta, 1), "pr_s": round((gm.get("все") or {}).get("pr_s") or 0, 2), "idle": idle,
                     "ok": bool((gm.get("все") or {}).get("pr_s") or (gm.get("все") or {}).get("cand_s"))}
         if st["quiet"]:                                        # продуктовый режим: на исполнение молчат генераторы;
@@ -882,11 +933,15 @@ class Runner:
             t0, t1, snap0 = t_apply, t_apply + dur["dur"], None   # остановки; счётчики с нуля — снимок на t0 не нужен
         snap = self.h["snapshot"](macs)
         stat = self.h["metrics"](t0, t1)
+        gen = gen_metrics(snap, t1 - t0, snap0, dummy)
+        fake = ["gen:" + gen_name(a, m) for m, a in snap.items() if m in dummy and gen_name(a, m) in gen]
+        if "колесо-пустышка" in gen:
+            fake.append("gen:колесо-пустышка")
         # обороты и поле по датчикам шины: на молчании их пакетов нет — берутся проверка (до молчания) и итоги (после)
         w0, w1 = (ta, time.time()) if st["quiet"] and not dur and ta else (t0, t1)
         return {**head, "t0": round(t0, 3), "t1": round(t1, 3), "not_confirmed": bad, "not_seen": not_seen, "not_done": not_done,
                 "cut": cut, "silent": silent, "test": test,
-                "agents": snap, "gen": gen_metrics(snap, t1 - t0, snap0),
+                "agents": snap, "gen": gen, **({"dummy_ch": fake} if fake else {}),
                 "static": stat, "watch": self.h["verdict"](t0, t1),
                 "snames": {m: self.h["name"](m) for m in (stat or {})} if self.h.get("name") else {},
                 "field": self.h["field"](w0, w1) if self.h.get("field") else {},

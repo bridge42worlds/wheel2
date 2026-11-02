@@ -275,6 +275,12 @@ different radii, the rim sensor and the regulator err — the steps catch weight
   table shows **what came out**.
 * **Control** — wheels standing, field off; every run with rotation or field is compared with its own
   control — the same mode and noise.
+* **▣ Placebo wheel** — two boards with no motor and no field ("wheel 3" in the composition) run in every
+  experiment in the same mode as the wheels; in absorption runs they work as a pair with each other. They are
+  tested by the same criterion; an "anomaly" of theirs is a false alarm of the detector, and a wheel anomaly
+  that coincides with one is not caused by rotation. In the "listeners" runs (the wheels count from these
+  boards' frames) and the "bridge" run (a board as a link in a wheel's cascade) the boards are participants,
+  not a placebo.
 * **Program** — the list of runs on "▶ Run": noise reference first, repeats, rest, comparison with control
   under a criterion named in advance, pairwise re-checks of an anomaly, repeats of spoiled runs and runs
   with a static deviation.

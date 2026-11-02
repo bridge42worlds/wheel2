@@ -1076,7 +1076,7 @@ function zoneOf(d, a) {
   if (isHwAgent(d, a)) return "motor";
   return w ? "w" + w : "free";
 }
-const DEST = { w1: ["⟳", "колесо 1", 0], w2: ["⟳", "колесо 2", 0], coil1: ["⇉", "катушка К1", 3], coil2: ["⇉", "катушка К2", 3],
+const DEST = { w1: ["⟳", "колесо 1", 0], w2: ["⟳", "колесо 2", 0], w3: ["▣", "колесо‑пустышка (колесо 3)", 0], coil1: ["⇉", "катушка К1", 3], coil2: ["⇉", "катушка К2", 3],
                motor: ["⚙", "моторы", 3], static: ["◆", "измеритель", 2], free: ["○", "свободна", 0] };
 const ROLE_W = { 0: "генератором", 2: "измерителем (статика)", 3: "агентом моторов и катушек (роль M)" };
 // Свободные: выходили на связь, генераторы, ни на каком колесе (новые прошитые и снятые с колёс)
@@ -1152,6 +1152,8 @@ function setupHTML(d) {
         m.length ? `${plural(m.length, "агент", "агента", "агентов")}, на связи ${onw}${G.length > 1 ? ` · <span class="warn">◐ несколько групп</span>` : ""}${m.length > MAX_GROUP ? ` · <span class="bad">больше ${MAX_GROUP} в группе</span>` : ""}` : "пусто — поставьте генераторы",
         G.length > 1 ? [btn("split", "одной группой", `data-w="${w}" data-n="1"`)] : []);
   }
+  const dm = wheelMacs(d, "3"), ond = dm.filter(x => alive(agentById(d, x).status)).length;
+  if (dm.length) add(ond === dm.length ? "ok" : "warn", "колесо‑пустышка", `${plural(dm.length, "плата", "платы", "плат")}, на связи ${ond} · стоит, без поля — проверка детектора${dm.length < 2 ? " · <span class=\"warn\">◐ для поглощения между собой нужны две</span>" : ""}`);
   const mot = (MOTS || {}).agents || [];
   add(!mot.length ? "todo" : mot.some(x => x.alive) ? "ok" : "warn", "моторы",
       mot.length ? mot.map(x => `№${x.id} ${x.alive ? "на связи" : "нет связи"}`).join(", ") + (mot.length > 1 ? " · <span class=\"warn\">агентов моторов несколько</span>" : "") : "нет — выберите плату и нажмите «моторы» внизу посередине",
@@ -1220,7 +1222,7 @@ function lanesSVG(d, w, macs, NW) {
 }
 function renderPic(d) {
   renderPicHead(d);
-  const free = freeAgents(d), tray = SETUP.on || free.length > 0, pick = SETUP.on ? SETUP.pick : null;
+  const free = freeAgents(d), dummy = wheelMacs(d, "3"), tray = SETUP.on || free.length > 0 || dummy.length > 0, pick = SETUP.on ? SETUP.pick : null;
   const W = PG.W, H = tray ? PG.HT : PG.H, R = PG.R, cx = PG.cx, cy = PG.cy, M = CM || commModel(d);
   const bats = (d.battery && d.battery.list) || [];
   const T = (x, y, size, text, o = "") => `<text x="${f1(x)}" y="${f1(y)}" text-anchor="middle" font-size="${size}" ${o.includes("fill=") ? "" : 'fill="var(--ink)"'} ${o}>${text}</text>`;   // свой цвет в o — без второго fill
@@ -1488,7 +1490,7 @@ function renderPic(d) {
     ${T(mx, my + 19, 13, mDrop ? "＋ моторы" : ma ? `⚙ №${ma.id} моторы ${mOff ? "✗" : "✓"}` : "⚙ моторов нет", mDrop ? 'font-weight="700" fill="var(--on)"' : mOff ? 'fill="var(--w-bad)"' : ma ? "" : 'fill="var(--mut)"')}</g>`;
   // свободные платы: новые прошитые и снятые с колёс — внизу, чтобы их было видно и можно было поставить
   if (tray) {
-    const ty = H - 30, fDrop = pick && zoneOf(d, agentById(d, pick)) !== "free", room = Math.floor((W - 300) / 52);
+    const ty = H - 30, fDrop = pick && zoneOf(d, agentById(d, pick)) !== "free", room = Math.floor((W - 300 - 276) / 52);
     L8 += `<g ${fDrop ? `data-act="place" data-dest="free" data-tt="снять ${esc(nameOf(d, pick))} с места — свободна"` : 'data-tt="свободные платы: выходили на связь, ни на каком колесе"'}>
       <rect x="16" y="${ty - 25}" width="${W - 32}" height="50" rx="12" style="fill:var(${fDrop ? "--on-bg" : "--card"});stroke:var(${fDrop ? "--on" : "--line2"})" stroke-width="${fDrop ? 2.5 : 1.2}" stroke-dasharray="7 5"/>
       <text x="32" y="${ty - 3}" font-size="13.5" font-weight="700" fill="var(--${fDrop ? "on" : "ink"})">${fDrop ? "○ снять сюда" : "○ свободные"}</text>
@@ -1502,7 +1504,20 @@ function renderPic(d) {
         ${sensBadges(a).length ? `<text x="${x + 14}" y="${ty - 12}" font-size="9" font-weight="700" fill="var(--ink)">${sensBadges(a).join("")}</text>` : ""}
         ${a.mac === pick ? `<circle cx="${x}" cy="${ty}" r="25" fill="none" style="stroke:var(--on)" stroke-width="3.5" stroke-dasharray="6 3"/>` : ""}</g>`;
     });
-    if (free.length > room) L8 += T(W - 40, ty + 4, 12, `+${free.length - room}`, 'fill="var(--mut)"');
+    if (free.length > room) L8 += T(W - 316, ty + 4, 12, `+${free.length - room}`, 'fill="var(--mut)"');
+    // колесо‑пустышка — «колесо 3» без мотора и поля: неподвижная группа, в программе работает тем же режимом, что колёса
+    const zx = W - 16 - 268, zDrop = pick && zoneOf(d, agentById(d, pick)) !== "w3";
+    L8 += `<g ${zDrop ? `data-act="place" data-dest="w3" data-tt="поставить ${esc(nameOf(d, pick))} в колесо‑пустышку (колесо 3 без мотора и поля)" tabindex="0" role="button" aria-label="поставить сюда: колесо‑пустышка"` : 'data-tt="колесо‑пустышка: неподвижная группа без мотора и поля — в опытах тем же режимом, что колёса; её «аномалии» — ложные тревоги"'}>
+      <rect x="${zx}" y="${ty - 21}" width="260" height="42" rx="9" style="fill:var(${zDrop ? "--on-bg" : "--card"});stroke:var(${zDrop ? "--on" : dummy.length ? "--ink" : "--line2"})" stroke-width="${zDrop ? 2.5 : 1.2}" ${dummy.length && !zDrop ? "" : 'stroke-dasharray="5 4"'}/>
+      <text x="${zx + 12}" y="${ty - 3}" font-size="13" font-weight="700" fill="var(--${zDrop ? "on" : "ink"})">${zDrop ? "＋ в колесо‑пустышку" : "▣ колесо‑пустышка"}</text>
+      <text x="${zx + 12}" y="${ty + 13}" font-size="11" fill="var(--mut)">${dummy.length ? "стоит · без поля" : "пусто · 2 платы"}</text></g>`;
+    dummy.slice(0, 3).forEach((m, i) => {
+      const a = agentById(d, m), x = zx + 176 + i * 34, off = stateOf(d, a).k === 3;
+      L8 += `<g data-act="agent" data-mac="${m}" data-zone="w3" data-pop="agent|${m}" tabindex="0" role="button" aria-label="${esc(nameOf(d, m) + ": колесо‑пустышка")}">
+        <rect class="pa" x="${x - 15}" y="${ty - 14}" width="30" height="28" rx="5" style="fill:var(--card);stroke:var(${off ? "--w-bad" : "--ink"})" stroke-width="1.5" ${off ? 'stroke-dasharray="3 2"' : ""}/>
+        <text x="${x}" y="${ty + 5}" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">${a.id || "?"}</text>
+        ${m === pick ? `<rect x="${x - 19}" y="${ty - 18}" width="38" height="36" rx="7" fill="none" style="stroke:var(--on)" stroke-width="3" stroke-dasharray="6 3"/>` : ""}</g>`;
+    });
   }
   setPic(`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="group" aria-label="${esc("схема установки — " + summary)}">${defs}${L1}${L2}${L3}${L4}${L5}${L6}${L7}${L8}<g class="l9"></g></svg>`);
   if (Object.keys(FXK).length > 200) for (const k of Object.keys(FXK)) if (!FXU.has(k)) delete FXK[k];   // за часы опытов ключи не копятся
@@ -1608,6 +1623,12 @@ function renderStatic(d) {
 
 // ---------- итоги: простые, температура, последняя программа (строки плашки) ----------
 // Простых за шаг: по общей скорости за измеренное время (счётчики агентов — накопительные, в группе — у мастера)
+// колесо‑пустышка (неподвижная группа без мотора и поля): её «аномалии» — ложные тревоги детектора
+function placeboWord(p) {
+  const q = p && p.placebo;
+  if (!q) return "";
+  return ` · ▣ колесо‑пустышка: ${q.hits ? `<span class="${q.confirmed ? "bad" : "warn"}">ложных тревог ${q.hits}${q.confirmed ? `, подтвердилось ${q.confirmed} — детектор ошибается` : ""}</span>` : "ложных тревог нет"} (сравнено ${q.tested})`;
+}
 function primesInRun(r) { const g = (r.gen || {})["все"] || {}; return r.t1 && r.t0 && g.pr_s != null ? Math.round(g.pr_s * (r.t1 - r.t0)) : 0; }
 // Температура агентов строкой: размах, предел, кто у предела
 function tempLine(d) {
@@ -2540,7 +2561,7 @@ function renderRuns(d) {
     const steps = (prog.program || {}).steps || [], plan = prog.plan || [], runs = prog.runs || [];
     const now = running && d.program && d.program.state === "running" && d.program.now ? d.program.now : prog.now;   // как строка над колёсами
     cur = running && now ? now.n - 1 : runs.length - 1;
-    head += `<div class="small mut">«${esc((prog.program || {}).name || "")}» · ${stateWord(prog.state)} · ${runs.length} из ${plan.length} · простых ${fmt(runs.reduce((a, r) => a + primesInRun(r), 0))}${Object.keys(prog.anomalies || {}).length ? ` · <span class="bad">аномалий ${Object.keys(prog.anomalies).length}</span>` : ""}</div>`;
+    head += `<div class="small mut">«${esc((prog.program || {}).name || "")}» · ${stateWord(prog.state)} · ${runs.length} из ${plan.length} · простых ${fmt(runs.reduce((a, r) => a + primesInRun(r), 0))}${Object.keys(prog.anomalies || {}).length ? ` · <span class="bad">аномалий ${Object.keys(prog.anomalies).length}</span>` : ""}${placeboWord(prog)}</div>`;
     const nextI = running && now ? now.n : runs.length;
     rows = `<table class="rt">${RT_HEAD}${plan.map((it, i) => {
       const st = steps[it.step] || {}, r = runs[i], isCur = running && now && now.n - 1 === i;
@@ -2577,14 +2598,14 @@ function renderRibbon(d) {
     body = `<span class="mut small">программа не запускалась</span>`;
   } else {
     const steps = (prog.program || {}).steps || [], plan = prog.plan || [], runs = prog.runs || [], now = prog.now;
-    head += `<span class="small mut">«${esc((prog.program || {}).name || "")}» · ${stateWord(prog.state)} · ${runs.length} из ${plan.length} опытов · простых ${fmt(runs.reduce((s, r) => s + primesInRun(r), 0))} · аномалий ${Object.keys(prog.anomalies || {}).length}</span>`;
+    head += `<span class="small mut">«${esc((prog.program || {}).name || "")}» · ${stateWord(prog.state)} · ${runs.length} из ${plan.length} опытов · простых ${fmt(runs.reduce((s, r) => s + primesInRun(r), 0))} · аномалий ${Object.keys(prog.anomalies || {}).length}${placeboWord(prog)}</span>`;
     body = plan.map((it, i) => {
       const st = steps[it.step] || {}, r = runs[i], cur = running && now && now.n - 1 === i;
       let res;
       if (r) {
         const g = (r.gen || {})["все"] || {}, sv = r.watch && STATIC_VERDICT[r.watch.verdict];
         const why = sv && sv.cls !== "ok" && sv.cls !== "mut" ? Object.values(r.watch.sensors || {}).flatMap(p => (p.reasons || []).slice(0, 1))[0] : "";
-        res = `<div>${r.alert ? `<b class="bad" title="отклонение статики на этом шаге">❗</b> ` : ""}${r.spoiled ? `<span class="bad">✗ испорчен: ${esc(r.spoiled_why || "")}</span>` : `<b>${fmt(primesInRun(r))}</b> пр · ${fmt(g.pr_s, 1)}/с`}${prog.anomalies && prog.anomalies[String(i)] ? ` <span class="bad">аномалия</span>` : ""}</div>
+        res = `<div>${r.alert ? `<b class="bad" title="отклонение статики на этом шаге">❗</b> ` : ""}${r.spoiled ? `<span class="bad">✗ испорчен: ${esc(r.spoiled_why || "")}</span>` : `<b>${fmt(primesInRun(r))}</b> пр · ${fmt(g.pr_s, 1)}/с`}${prog.anomalies && prog.anomalies[String(i)] ? ` <span class="bad">аномалия</span>` : ""}${((prog.placebo || {}).anomalies || {})[String(i)] ? ` <span class="warn" title="тревога у неподвижного колеса‑пустышки — детектор, не вращение">▣ у колеса‑пустышки</span>` : ""}</div>
           ${sv ? `<div class="${sv.cls}" title="${esc(sv.word)}${why ? ": " + esc(why) : ""}">${sv.icon} ${sv.short}${why ? ` <span class="mut">· ${reasonHTML(why).replace(/^(\S+) /, "")}</span>` : ""}</div>` : ""}`;
       } else if (cur) {
         const t0 = now.t_meas || now.t0, tot = (now.minutes || 0) * 60, el2 = Math.max(0, Date.now() / 1000 - t0);

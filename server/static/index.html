@@ -1584,7 +1584,7 @@ async function loadPrograms() {
     $("progList").innerHTML = r.list.length ? `<table>${r.list.slice(0, 10).map(x => `<tr><td>№${x.id}</td>
       <td>${esc(x.name)}</td><td class="mut">${fmtTime(x.t_start)}</td><td>${STATES[x.state] || x.state}</td>
       <td class="r">шагов ${x.runs}</td><td>${x.confirmed ? `<span class="bad">⚠ подтвердилось ${x.confirmed}</span>`
-        : x.anomalies ? `◐ выбросов ${x.anomalies}, не подтвердились` : "✓ без аномалий"}${x.spoiled ? ` · ↻ испорчено ${x.spoiled}` : ""}</td>
+        : x.anomalies ? `◐ выбросов ${x.anomalies}, не подтвердились` : "✓ без аномалий"}${x.spoiled ? ` · ↻ испорчено ${x.spoiled}` : ""}${x.placebo ? ` · ▣ колесо‑пустышка: ${x.placebo.hits ? `ложных ${x.placebo.hits}` : "✓"}` : ""}</td>
       <td><button data-pid="${x.id}">открыть</button></td></tr>`).join("")}</table>` : `<span class="mut">программ ещё не было</span>`;
     $("progList").querySelectorAll("button[data-pid]").forEach(b => b.onclick = () => openProgram(+b.dataset.pid));
     if (progShown) openProgram(progShown, true);
@@ -1634,7 +1634,10 @@ async function openProgram(id, quiet) {
     </table></div>
     ${Object.entries(x.verdicts || {}).map(([i, v]) => `<div>${v.confirmed ? '<span class="bad">⚠ ПОДТВЕРДИЛОСЬ</span>'
       : '<span class="ok">✓ не подтвердилось — случайный выброс</span>'}: шаг ${+i + 1} «${esc(x.runs[+i].name)}», ${esc(chanName(v.mac))}
-      ${v.metric} (z ${fmtNum(v.z, 1)}); в проверке то же отклонение — в ${v.same} из ${v.of} повторов</div>`).join("")}`;
+      ${v.metric} (z ${fmtNum(v.z, 1)}); в проверке то же отклонение — в ${v.same} из ${v.of} повторов</div>`).join("")}
+    ${x.placebo ? `<div>▣ колесо‑пустышка (неподвижное, без мотора и поля): сравнено опытов ${x.placebo.tested} · ${x.placebo.hits
+      ? `<span class="${x.placebo.confirmed ? "bad" : "warn"}">ложных тревог ${x.placebo.hits}${x.placebo.confirmed ? `, подтвердилось ${x.placebo.confirmed} — детектор ошибается` : ""}</span>`
+      : '<span class="ok">✓ ложных тревог нет</span>'}</div>` : ""}`;
   $("progView").hidden = false;
   $("progClose").onclick = () => { $("progView").hidden = true; progShown = null; };
   if (!quiet) $("progView").scrollIntoView();
