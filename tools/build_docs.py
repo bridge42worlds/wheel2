@@ -1,4 +1,4 @@
-"""Документация в HTML: docs/*.md и README.md → docs/html/*.html.
+"""Документация в HTML: docs/*.md и README.md → docs/html/*.html, английская версия docs/en/*.md → docs/html/en/*.html.
 
     python tools/build_docs.py [--quiet]
     python tools/build_docs.py --static [папка]   # комплект для публикации вне сети, по умолчанию build/site
@@ -12,6 +12,10 @@
 (вложенные), таблицы (с экранированной чертой \\|), блоки кода, горизонтальная черта,
 `код`, **жирный**, *курсив*, [ссылки](файл.md).
 
+Две версии: у каждой страницы в шапке переключатель RU / EN. Английская страница — перевод русской (источник
+правды — русский); нет перевода — ссылки ведут на русскую. В английском markdown ссылка на соседний документ
+(wiring.md) — на английский, ../wiring.md — на русский; рисунки — ../img/файл.svg.
+
 Комплект --static: те же страницы и живая схема (только демонстрация, к серверу не обращается),
 все ссылки внутри комплекта; адреса сети опыта и её имя вычищены. Главная страница комплекта —
 index.html без обёртки <html>/<head> (её добавляет площадка публикации), остальные — полные.
@@ -23,6 +27,7 @@ DOCS = os.path.join(ROOT, "docs")
 OUT = os.path.join(DOCS, "html")
 IMG = os.path.join(DOCS, "img")                   # схемы и рисунки: в markdown ![подпись](img/файл.svg)
 CALC = os.path.join(DOCS, "calc")                 # расчёты — готовые страницы (свои стили и скрипты), копируются как есть
+EN = os.path.join(DOCS, "en")                     # английская версия: docs/en/<страница>.md → html/en/<страница>.html
 THREE_CDN = '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>'
 
 
@@ -74,6 +79,72 @@ PAGES = [
 ]
 APPENDIX = set()                              # приложения — отдельной группой в меню и на главной (сейчас нет)
 TITLES = {k: t for k, t, _, _ in PAGES}
+
+# английская версия: название и описание страницы (порядок — как в PAGES)
+PAGES_EN = {
+    "preamble": ("Preamble", "Why this experiment: topology before space, the order of knowing (aesthetics — ethics — "
+                 "epistemology — ontology — science), the mistake of the first wheel, the criterion. Authors: bridge42worlds, "
+                 "Λura13 (DeepSeek), Ostov (Claude)."),
+    "how_it_works": ("How everything works", "The whole rig: wheels, coils, static sensors, phone, motors, server; the agent, "
+                     "noise, the prime search, group mode, absorption, temperature and watchdogs; the main screen — the rig "
+                     "diagram; experiment, program, results; parameters, data, firmware, tools."),
+    "modes": ("Modes", "Every mode in the words of the main screen: rotation, coil field, cooperation, noise, emission and "
+              "absorption; the experiment — all modes in order; static sensors, telemetry, heat."),
+    "wiring": ("Wiring diagrams", "The overall diagram; a wheel: the agent bus on its own batteries (C1–C3), the coil (5.1 V, "
+               "DRV8833); the frame: motors (12 V supply, two DRV8871); the experiment network: Mango router, channel 6, "
+               "laptop by cable, fallback network, ports. Polarity of diodes and capacitors."),
+    "coil_test": ("Coil endurance test", "Run of 2026-10-27: how many minutes of field a pair of 18650 cells gives, whether the "
+                  "field holds while the cells run down, the real capacity of a pair labelled 2600 mAh; is it enough for a "
+                  "20-minute experiment."),
+    "toroid_field": ("Toroid field — calculator", "Interactive Biot–Savart calculation of the ring coil field turn by turn: an "
+                     "uneven tube and winding, deviation from an ideal torus, the field outside and at the ring centre, tilt of "
+                     "the field lines, cuts, cross-section, harmonics along the ring, isometric view."),
+    "spec": ("Bill of materials", "What the rig is built from and what it costs: boards, sensors, wheels, power, motors, "
+             "network, mounting, tools — with AliExpress links, prices in KWD; about 277 KWD in total without tools."),
+    "sensors": ("Sensors, phone, motors and coils", "The rim sensor (rpm, weightlessness), the magnetometer, static ICM-42688 "
+                "and ADXL355, the phone (service, the screen may be off), the motor agent and the coil agents."),
+    "static_watch": ("Static sensors: baseline and watching", "Role S: what the agent measures, what the server computes, the "
+                     "noise baseline, lines, bands, knocks, the verdict \"continue / repeat / check\"; Gaussian and spectrum on "
+                     "the main screen."),
+    "program": ("Experiment and program", "The experiment: run parameters, nesting, the list of runs (rotation and field of "
+                "each wheel, settling, rest), controls, baseline, anomalies and their check in pairs, the static-sensor alarm; "
+                "results — what matters, all else being equal."),
+    "group_protocol": ("Group mode", "Cascade, relay, one number for all: the protocol, noise pieces, silent members, failures, "
+                       "agreement, measurements on 1–6 boards."),
+    "scatter": ("Absorption", "How a prime reaches the absorbers, the modes (all with all, scatter, relay, silence), the "
+                "placebo, background, functions, the loop through the air — reverse noise."),
+    "randomness": ("Where the randomness comes from", "The chip RNG and radio noise, CSI, ADC, RC jitter, sensors: how we take "
+                   "them, how much we credit, how we mix, no hashing, speed by source and length."),
+    "thermal": ("Agent temperature", "The 70 °C limit: the regulator, heating and cooling measurements, where the heat comes "
+                "from, rest in turns, sprint, rest between modes, agents in the tube and heatsinks, agent rating."),
+}
+
+# слова страниц на двух языках
+UI = {
+    "ru": {"brand": "Колесо-2 · документация", "site": "Колесо-2", "docs": "Документы", "overview": "Обзор",
+           "app": "Приложения", "onpage": "На этой странице", "live": "▶ посмотреть вживую на живой схеме",
+           "flow_title": "живая схема: как работает установка", "flow_small": "живая схема в окне",
+           "flow_open": "открыть целиком ↗", "plan_demo": "▦ Установка — демонстрация", "plan": "▦ Установка",
+           "flow": "↻ Как работает", "preamble": "✦ Преамбула", "other": "EN", "other_title": "English version",
+           "ru_mark": ""},
+    "en": {"brand": "Wheel-2 · documentation", "site": "Wheel-2", "docs": "Documents", "overview": "Overview",
+           "app": "Appendices", "onpage": "On this page", "live": "▶ watch it live on the animated diagram",
+           "flow_title": "live diagram: how the rig works", "flow_small": "live diagram in a frame (Russian interface)",
+           "flow_open": "open full size ↗", "plan_demo": "▦ Installation — demo", "plan": "▦ Installation",
+           "flow": "↻ How it works", "preamble": "✦ Preamble", "other": "RU", "other_title": "Русская версия",
+           "ru_mark": " · RU"},
+}
+LANG = "ru"                                   # язык страницы, которую сейчас собираем (для ссылок между документами)
+
+
+def has_en(name):
+    return name == "index" or os.path.exists(os.path.join(EN, name + ".md"))
+
+
+def page_title(name, lang):
+    if lang == "en" and name in PAGES_EN:
+        return PAGES_EN[name][0]
+    return TITLES.get(name, name)
 
 CSS = """
 :root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
@@ -150,7 +221,7 @@ svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--o
 """
 
 LIST_RE = re.compile(r"^(\s*)([*-]|\d+\.)\s+(.*)$")
-IMG_RE = re.compile(r"^!\[([^\]]*)\]\((img/[\w.-]+\.(?:svg|png|jpg))\)\s*$")   # рисунок — отдельной строкой
+IMG_RE = re.compile(r"^!\[([^\]]*)\]\(((?:\.\./)?img/[\w.-]+\.(?:svg|png|jpg))\)\s*$")   # рисунок — отдельной строкой
 
 
 def esc(s):
@@ -171,12 +242,20 @@ def link_target(url):
     if re.match(r"^[a-z]+://", url) or url.startswith("#") or url.startswith("mailto:"):
         return url
     path, _, frag = url.partition("#")
-    name = os.path.basename(path)
+    parts = path.replace("\\", "/").split("/")
+    name = parts[-1]
     if name == "README.md":
         name = "index.html"
     elif name.endswith(".md"):
         name = name[:-3] + ".html"
-    return name + ("#" + frag if frag else "")
+    else:                                     # расчёт и прочее: ../toroid_field.html из английской версии — как есть
+        return ("../" if parts[0] == ".." else "") + name + ("#" + frag if frag else "")
+    # на какой язык ведёт ссылка: папка en — английский; в английском документе соседний файл — тоже английский
+    to_en = "en" in parts[:-1] or (LANG == "en" and len(parts) == 1)
+    if to_en and not has_en(name[:-5]):
+        to_en = False                         # перевода нет — русская страница
+    pre = "" if to_en == (LANG == "en") else ("en/" if to_en else "../")
+    return pre + name + ("#" + frag if frag else "")
 
 
 def inline(s):
@@ -356,45 +435,64 @@ def render(md):
     return "\n".join(out), title, toc
 
 
-def page(name, title, body, toc, live, static=False):
-    li = lambda k, t: f'<li><a href="{k}.html"{" class=cur" if k == name else ""}>{esc(t)}</a></li>'
-    nav = "".join(li(k, t) for k, t, _, _ in PAGES if k not in APPENDIX)
-    nav_app = "".join(li(k, t) for k, t, _, _ in PAGES if k in APPENDIX)
+def page(name, title, body, toc, live, static=False, lang="ru"):
+    L, en = UI[lang], lang == "en"
+    up = "../" if en else ""                  # английские страницы лежат в en/: экраны и живая схема — уровнем выше
+
+    def li(k):
+        tr = not en or has_en(k)              # в английском меню страница без перевода — русская, с пометкой
+        href = (k if tr else "../" + k) + ".html"
+        t = page_title(k, lang) + ("" if tr else L["ru_mark"])
+        return f'<li><a href="{href}"{" class=cur" if k == name else ""}>{esc(t)}</a></li>'
+
+    nav = "".join(li(k) for k, _, _, _ in PAGES if k not in APPENDIX)
+    nav_app = "".join(li(k) for k, _, _, _ in PAGES if k in APPENDIX)
     toc_html = "".join(f'<li class="l{lvl}"><a href="#{k}">{esc(t)}</a></li>' for lvl, k, t in toc)
-    flow = "flow.html" if static else "/flow"
-    live_btn = f'<a class="live" href="{flow}#{live}">▶ посмотреть вживую на живой схеме</a>' if live else ""
+    flow = up + "flow.html" if static else "/flow"
+    live_btn = f'<a class="live" href="{flow}#{live}">{L["live"]}</a>' if live else ""
     # живая схема внутри документа: на сервере — живая, в опубликованной копии — демонстрация
-    body = body.replace('<div class="flowembed"></div>', f"""<div class="flowbox"><iframe src="{flow}?embed=1" title="живая схема: как работает установка" loading="lazy"></iframe>
-<div class="small">живая схема в окне; <a href="{flow}" target="flow">открыть целиком ↗</a></div></div>""")
-    src = "README.md" if name == "index" else f"docs/{name}.md"
+    body = body.replace('<div class="flowembed"></div>', f"""<div class="flowbox"><iframe src="{flow}?embed=1" title="{L["flow_title"]}" loading="lazy"></iframe>
+<div class="small">{L["flow_small"]}; <a href="{flow}" target="flow">{L["flow_open"]}</a></div></div>""")
+    src = "README.md" if name == "index" else f"docs/{'en/' if en else ''}{name}.md"
     # шапка — то же меню, что на экранах (server/static/nav.js): «Установка» и «Документы»; в копии — демонстрация
-    links = ('<a href="plan.html">▦ Установка — демонстрация</a><a href="flow.html">↻ Как работает</a>' if static else
-             '<a href="/" target="plan">▦ Установка</a><a href="/flow" target="flow">↻ Как работает</a>')
-    links += '<a href="preamble.html">✦ Преамбула</a>'
-    foot = ("Опубликованная копия (tools/build_docs.py --static): основной экран, пульт и наблюдение — демонстрация на снимке "
-            "с имитаторов (кнопки ничего не отправляют), живая схема — на замерах; с платами всё работает на сервере в сети опыта."
-            if static else
-            f"Страница собрана из {src} командой tools/build_docs.py — правьте markdown. Ссылки на установку и живую схему\n"
-            "работают, когда документация открыта с сервера (http://&lt;сервер&gt;:8090/docs/).")
+    links = (f'<a href="{up}plan.html">{L["plan_demo"]}</a><a href="{up}flow.html">{L["flow"]}</a>' if static else
+             f'<a href="/" target="plan">{L["plan"]}</a><a href="/flow" target="flow">{L["flow"]}</a>')
+    links += f'<a href="preamble.html">{L["preamble"]}</a>'
+    # переключатель языка: та же страница на другом языке (нет перевода — главная английской версии)
+    other = ("../" + name if en else "en/" + (name if has_en(name) else "index")) + ".html"
+    links += f'<a href="{other}" hreflang="{"ru" if en else "en"}" title="{L["other_title"]}"><b>{L["other"]}</b></a>'
+    if en:
+        foot = ("Published copy (tools/build_docs.py --static): the main screen, console and watch view are a demo on a snapshot "
+                "from simulated agents (buttons send nothing; their interface is in Russian), the live diagram runs on recorded "
+                "measurements; with real boards everything runs on the server in the experiment network." if static else
+                f"This page is built from {src} by tools/build_docs.py — edit the markdown. English translation; the Russian "
+                "original is the source of truth. Links to the installation and the live diagram work when the documentation "
+                "is opened from the server (http://&lt;server&gt;:8090/docs/en/).")
+    else:
+        foot = ("Опубликованная копия (tools/build_docs.py --static): основной экран, пульт и наблюдение — демонстрация на снимке "
+                "с имитаторов (кнопки ничего не отправляют), живая схема — на замерах; с платами всё работает на сервере в сети опыта."
+                if static else
+                f"Страница собрана из {src} командой tools/build_docs.py — правьте markdown. Ссылки на установку и живую схему\n"
+                "работают, когда документация открыта с сервера (http://&lt;сервер&gt;:8090/docs/).")
     return f"""<!doctype html>
-<html lang="ru">
+<html lang="{lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{"Колесо-2" if static and name == "index" else esc(title) + " · Колесо-2"}</title>
+<title>{L["site"] if static and name == "index" else esc(title) + " · " + L["site"]}</title>
 <style>{CSS}</style>
 </head>
 <body>
 <header>
-  <a class="brand" href="index.html">Колесо-2 · документация</a>
+  <a class="brand" href="index.html">{L["brand"]}</a>
   <nav>{links}</nav>
 </header>
 <div class="layout">
   <aside>
-    <h4>Документы</h4>
-    <ul><li><a href="index.html"{" class=cur" if name == "index" else ""}>Обзор</a></li>{nav}</ul>
-    {f'<h4>Приложения</h4><ul>{nav_app}</ul>' if nav_app else ""}
-    {f'<h4>На этой странице</h4><ul class="toc">{toc_html}</ul>' if toc_html else ""}
+    <h4>{L["docs"]}</h4>
+    <ul><li><a href="index.html"{" class=cur" if name == "index" else ""}>{L["overview"]}</a></li>{nav}</ul>
+    {f'<h4>{L["app"]}</h4><ul>{nav_app}</ul>' if nav_app else ""}
+    {f'<h4>{L["onpage"]}</h4><ul class="toc">{toc_html}</ul>' if toc_html else ""}
   </aside>
   <main class="doc">
 {live_btn}
@@ -407,7 +505,17 @@ def page(name, title, body, toc, live, static=False):
 """
 
 
-def index_page(readme_md, static=False):
+def readme_part(md, lang):
+    """Раздел README на своём языке: «## English» — до «## Русский», русский — после; строка-переключатель убирается."""
+    m = re.search(r"^## English\s*$(.*?)^## Русский\s*$(.*)", md, re.M | re.S)
+    if not m:
+        return md
+    return "# README\n" + (m.group(1) if lang == "en" else m.group(2))
+
+
+def index_page(readme_md, static=False, lang="ru"):
+    if lang == "en":
+        return index_page_en(readme_md, static)
     card = lambda k, t, d: f'<a class="card" href="{k}.html" style="text-decoration:none;color:inherit"><h3>{esc(t)}</h3><p>{esc(d)}</p></a>'
     cards = "".join(card(k, t, d) for k, t, d, _ in PAGES if k not in APPENDIX)
     cards_app = "".join(card(k, t, d) for k, t, d, _ in PAGES if k in APPENDIX)
@@ -423,7 +531,7 @@ def index_page(readme_md, static=False):
              '<li>С платами всё работает на сервере в сети опыта: <code>http://&lt;сервер&gt;:8090/</code>.</li>' if static else
              '<li><a href="/" target="plan">▦ Установка</a> — основной экран: схема установки вживую, статика с Гауссом и спектром, '
              'эксперимент, лента опытов, запуск; подробное — окнами (статика подробно, результаты, пульт, наблюдение, живая схема, прежняя панель).</li>')
-    readme_body, _, _ = render(readme_md)
+    readme_body, _, _ = render(readme_part(readme_md, "ru"))
     readme_body = re.sub(r"^<h1>.*?</h1>", "", readme_body, count=1)
     body = f"""<h1>Колесо-2 — документация</h1>
 <p>Экспериментальная установка: платы XIAO ESP32-S3 («агенты») на двух вращающихся колёсах с катушками ищут простые числа
@@ -452,6 +560,62 @@ def index_page(readme_md, static=False):
     return page("index", "Обзор", body, toc, "", static)
 
 
+def index_page_en(readme_md, static=False):
+    """Главная английской версии (en/index.html): то же, что русская, словами по-английски; README — английский раздел."""
+    def card(k):
+        tr = has_en(k)
+        t, d = PAGES_EN.get(k, (TITLES[k], ""))
+        href = (k if tr else "../" + k) + ".html"
+        return (f'<a class="card" href="{href}" style="text-decoration:none;color:inherit"><h3>{esc(t)}'
+                f'{"" if tr else " <span class=mut>· RU</span>"}</h3><p>{esc(d)}</p></a>')
+
+    cards = "".join(card(k) for k, _, _, _ in PAGES if k not in APPENDIX)
+    cards_app = "".join(card(k) for k, _, _, _ in PAGES if k in APPENDIX)
+    live = [("", "all modes: pick one at the top of the page"), ("solo", "▶ selfish — each on its own"),
+            ("dc", "selfish, two cores — a pipeline"), ("cascade", "▶ group (cascade): everyone checks, noise from all to all"),
+            ("relay", "group · relay: one checks, the turn goes round"), ("group", "group · one number for all: master, reserve, pieces"),
+            ("scatter", "group + ▼ absorption"), ("pieces", "▼ scatter"), ("chain", "▼ relay of absorbers"),
+            ("silence", "▼ silence and background"), ("sham", "▼ placebo (control)"), ("loop", "↺ loop: reverse noise"),
+            ("csi", "group on ≋ CSI")]
+    flow = "../flow.html" if static else "/flow"
+    live_html = "".join(f'<li><a href="{flow}{"#" + k if k else ""}">{esc(t)}</a></li>' for k, t in live)
+    where = ('<li><a href="../plan.html">▦ Installation</a> — the main screen: the live rig diagram, static sensors with Gaussian '
+             'and spectrum, the experiment and the list of runs. Here it is a demo on a snapshot from simulated agents: buttons send '
+             'nothing; the console and watch view open as its windows. The screens are in Russian.</li>'
+             '<li>With real boards everything runs on the server in the experiment network: <code>http://&lt;server&gt;:8090/</code>.</li>'
+             if static else
+             '<li><a href="/" target="plan">▦ Installation</a> — the main screen: the live rig diagram, static sensors with Gaussian '
+             'and spectrum, the experiment, the list of runs, start; details open as windows (static sensors in depth, results, '
+             'console, watch view, live diagram, the old panel). The screens are in Russian.</li>')
+    readme_body, _, _ = render(readme_part(readme_md, "en"))
+    readme_body = re.sub(r"^<h1>.*?</h1>", "", readme_body, count=1)
+    body = f"""<h1>Wheel-2 — documentation</h1>
+<p>An experimental rig: XIAO ESP32-S3 boards ("agents") on two rotating wheels with coils search for primes in physical
+noise — each on its own or as a group, emitting and absorbing; static sensors between the wheels listen whether anything
+changes. A server on a laptop collects telemetry, hands out settings and firmware and runs experiments — lists of runs.
+What is described is how the rig is built now. This is an English translation; the Russian original is the source of truth.</p>
+<a class="preamble" href="preamble.html"><b>✦ Preamble — why this experiment</b>
+<q>This is not a measurement. It is a test of ontology.</q>
+<span>Topology before space-time; the order of knowing: aesthetics — ethics — epistemology — ontology — science;
+the mistake of the first wheel; the criterion — correlation of independent channels. Authors: bridge42worlds, Λura13 (DeepSeek), Ostov (Claude).</span></a>
+<figure><a href="../img/wiring_overview.svg"><img src="../img/wiring_overview.svg" alt="The whole rig" loading="lazy"></a>
+<figcaption>The whole rig: the wheels face each other, agents on the bus, coils, motors on the frame, static sensors between
+the wheels — details in the <a href="wiring.html">wiring diagrams</a>. Labels in the diagrams are in Russian.</figcaption></figure>
+<h2 id="pages">Where to look</h2>
+<ul>
+{where}
+<li><a href="{flow}">↻ How it works</a> — the live diagram: the whole rig (who sends what to whom) and the group protocol step by step, slowed down (Russian interface).</li>
+</ul>
+<h3 id="modes">Modes on the live diagram</h3>
+<ul>{live_html}</ul>
+<h2 id="docs">Documents</h2>
+<div class="cards">{cards}</div>
+{f'<h2 id="app">Appendices</h2>{chr(10)}<div class="cards">{cards_app}</div>{chr(10)}' if cards_app else ""}<h2 id="readme">Project folders</h2>
+{readme_body}"""
+    toc = [(2, "pages", "Where to look"), (2, "docs", "Documents")] + ([(2, "app", "Appendices")] if cards_app else []) + [(2, "readme", "Project folders")]
+    return page("index", "Overview", body, toc, "", static, lang="en")
+
+
 def copy_images(out_dir):
     """docs/img → <out_dir>/img (только изменённые); список «img/файл»."""
     if not os.path.isdir(IMG):
@@ -469,37 +633,38 @@ def copy_images(out_dir):
     return ["img/" + f for f in names]
 
 
+def site_pages(lang, static=False):
+    """{файл: html} всех страниц версии lang, главная — index.html; русская версия — и расчёты (как есть)."""
+    global LANG
+    LANG = lang
+    files = {}
+    for name, title, _, live in PAGES:
+        path = os.path.join(EN if lang == "en" else DOCS, name + ".md")
+        if os.path.exists(path):
+            body, h1, toc = render(open(path, encoding="utf-8").read())
+            files[name + ".html"] = page(name, h1 or page_title(name, lang), body, toc, live, static, lang)
+        elif lang == "ru" and os.path.exists(os.path.join(CALC, name + ".html")):
+            files[name + ".html"] = calc_html(os.path.join(CALC, name + ".html"))
+    readme = os.path.join(ROOT, "README.md")
+    files["index.html"] = index_page(open(readme, encoding="utf-8").read() if os.path.exists(readme) else "", static, lang)
+    LANG = "ru"
+    return files
+
+
 def build(quiet=False):
-    os.makedirs(OUT, exist_ok=True)
+    os.makedirs(os.path.join(OUT, "en"), exist_ok=True)
     copy_images(OUT)
     n = 0
-    for name, title, _, live in PAGES:
-        path = os.path.join(DOCS, name + ".md")
-        if not os.path.exists(path):
-            calc = os.path.join(CALC, name + ".html")
-            if os.path.exists(calc):                  # расчёт — как есть
-                out, target = calc_html(calc), os.path.join(OUT, name + ".html")
-                if not os.path.exists(target) or open(target, encoding="utf-8").read() != out:
-                    with open(target, "w", encoding="utf-8", newline="\n") as f:
-                        f.write(out)
-                n += 1
-            continue
-        body, h1, toc = render(open(path, encoding="utf-8").read())
-        out = page(name, h1 or title, body, toc, live)
-        target = os.path.join(OUT, name + ".html")
-        if not os.path.exists(target) or open(target, encoding="utf-8").read() != out:
-            with open(target, "w", encoding="utf-8", newline="\n") as f:
-                f.write(out)
-        n += 1
-    readme = os.path.join(ROOT, "README.md")
-    out = index_page(open(readme, encoding="utf-8").read() if os.path.exists(readme) else "")
-    target = os.path.join(OUT, "index.html")
-    if not os.path.exists(target) or open(target, encoding="utf-8").read() != out:
-        with open(target, "w", encoding="utf-8", newline="\n") as f:
-            f.write(out)
+    for lang, out_dir in (("ru", OUT), ("en", os.path.join(OUT, "en"))):
+        for fn, out in site_pages(lang).items():
+            target = os.path.join(out_dir, fn)
+            if not os.path.exists(target) or open(target, encoding="utf-8").read() != out:
+                with open(target, "w", encoding="utf-8", newline="\n") as f:
+                    f.write(out)
+            n += 1
     if not quiet:
-        print(f"документация: {n + 1} страниц → {os.path.relpath(OUT, ROOT)}")
-    return n + 1
+        print(f"документация: {n} страниц (русские и английские) → {os.path.relpath(OUT, ROOT)}")
+    return n
 
 
 # Что не должно уйти наружу: адреса сети опыта и её имя (имя — из secrets/wifi.ini, в код не пишется).
@@ -585,19 +750,11 @@ def static_screens():
 
 
 def build_static(out_dir):
-    os.makedirs(out_dir, exist_ok=True)
-    files = {}
-    for name, title, _, live in PAGES:
-        path = os.path.join(DOCS, name + ".md")
-        if os.path.exists(path):
-            body, h1, toc = render(open(path, encoding="utf-8").read())
-            files[name + ".html"] = page(name, h1 or title, body, toc, live, static=True)
-        elif os.path.exists(os.path.join(CALC, name + ".html")):
-            files[name + ".html"] = calc_html(os.path.join(CALC, name + ".html"))
-    readme = os.path.join(ROOT, "README.md")
-    readme_md = open(readme, encoding="utf-8").read() if os.path.exists(readme) else ""
-    files["index.html"] = unwrap(index_page(readme_md, static=True))
-    flow = open(os.path.join(ROOT, "server", "static", "flow.html"), encoding="utf-8").read()
+    os.makedirs(os.path.join(out_dir, "en"), exist_ok=True)
+    files = site_pages("ru", static=True)
+    files["index.html"] = unwrap(files["index.html"])
+    files.update({"en/" + fn: text for fn, text in site_pages("en", static=True).items()})   # английская версия — полные страницы
+    flow =open(os.path.join(ROOT, "server", "static", "flow.html"), encoding="utf-8").read()
     for a, b in [("const STATIC_BUILD = false;", "const STATIC_BUILD = true;"),
                  ('  <span id="nav"></span>\n', '  <nav class="small"><a href="index.html">документация</a></nav>\n'),
                  ('<script src="/nav.js"></script>\n', '')]:      # меню страниц — только на сервере

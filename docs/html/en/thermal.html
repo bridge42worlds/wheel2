@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent temperature: regulator, rest, heatsinks · Wheel-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+.flowbox { margin:12px 0 18px; }
+.flowbox iframe { width:100%; height:min(82vh, 860px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.flowbox .small { font-size:13px; color:var(--mut); margin-top:4px; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.preamble { display:flex; flex-direction:column; gap:4px; margin:14px 0 18px; padding:12px 16px; border:1px solid var(--line);
+             border-left:4px solid var(--on); border-radius:8px; background:var(--soft); color:var(--ink); text-decoration:none; }
+.preamble b { color:var(--on); }
+.preamble q { font-style:italic; quotes:"«" "»"; }
+.preamble span { font-size:13px; color:var(--mut); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Wheel-2 · documentation</a>
+  <nav><a href="/" target="plan">▦ Installation</a><a href="/flow" target="flow">↻ How it works</a><a href="preamble.html">✦ Preamble</a><a href="../thermal.html" hreflang="ru" title="Русская версия"><b>RU</b></a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Documents</h4>
+    <ul><li><a href="index.html">Overview</a></li><li><a href="preamble.html">Preamble</a></li><li><a href="how_it_works.html">How everything works</a></li><li><a href="modes.html">Modes</a></li><li><a href="wiring.html">Wiring diagrams</a></li><li><a href="coil_test.html">Coil endurance test</a></li><li><a href="../toroid_field.html">Toroid field — calculator · RU</a></li><li><a href="spec.html">Bill of materials</a></li><li><a href="sensors.html">Sensors, phone, motors and coils</a></li><li><a href="static_watch.html">Static sensors: baseline and watching</a></li><li><a href="program.html">Experiment and program</a></li><li><a href="group_protocol.html">Group mode</a></li><li><a href="scatter.html">Absorption</a></li><li><a href="randomness.html">Where the randomness comes from</a></li><li><a href="thermal.html" class=cur>Agent temperature</a></li></ul>
+    
+    <h4>On this page</h4><ul class="toc"><li class="l2"><a href="#1-how-it-works">1. How it works</a></li><li class="l2"><a href="#2-measurements">2. Measurements</a></li><li class="l2"><a href="#3-where-the-heat-comes-from">3. Where the heat comes from</a></li><li class="l2"><a href="#4-what-to-do-about-it">4. What to do about it</a></li><li class="l3"><a href="#4-1-cpu-frequency-less-benefit-than-it-seems">4.1 CPU frequency — less benefit than it seems</a></li><li class="l3"><a href="#4-2-heatsinks-and-the-floor">4.2 Heatsinks and the "floor"</a></li><li class="l3"><a href="#4-3-rest-in-turns">4.3 Rest in turns</a></li><li class="l3"><a href="#4-4-sprint-full-performance">4.4 Sprint: full performance</a></li><li class="l3"><a href="#4-5-rest-between-runs">4.5 Rest between runs</a></li><li class="l2"><a href="#5-agent-rating-the-error-history">5. Agent rating: the error history</a></li><li class="l2"><a href="#6-what-else-to-check">6. What else to check</a></li></ul>
+  </aside>
+  <main class="doc">
+
+<h1>Agent temperature: regulator, rest, heatsinks</h1>
+<p><i>English translation of <a href="../thermal.html">docs/thermal.md</a> — the Russian original is the source of truth. Labels inside the diagrams are in Russian.</i></p>
+<p>The goal is the <b>largest total coherent work</b> of a group: more primes from everyone's noise without overheating (die limit 73 °C, settable up to 75) and without failures that break the group. The agents sit in the tube under the coil winding, each with heatsinks (§ 4.2).</p>
+<figure><a href="../img/thermal_levels.svg"><img src="../img/thermal_levels.svg" alt="Die temperature: regulator steps at a 73 °C limit, floor and plateau in the tube" loading="lazy"></a><figcaption>Die temperature: regulator steps at a 73 °C limit, floor and plateau in the tube</figcaption></figure>
+<h2 id="1-how-it-works">1. How it works<a class="anc" href="#1-how-it-works">#</a></h2>
+<ul><li><b>Die sensor</b> — once a second, 1 °C step. For the first 12 s after a restart we do not trust it: it reads 5–9 °C high.</li><li><b>Work-share regulator</b> (<code>thermal.cpp</code>): once a second the work share changes by 4 % for every degree of deviation from the target (limit − 1 °C), from 5 to 100 %. For the rest of the time the computation sleeps in chunks of 2 ms and more. Both computations are throttled: the test on the compute core and noise with sieving on the radio core (in "two cores" mode), each core has its own sleep debt.</li><li><b>Radio sleep</b> — only when the share is already 5 % and the die has been 3 °C above the limit for 20 s in a row: the radio sleeps between router beacons and wakes at limit − 3 °C.</li><li><b>Emergency</b> — 8 °C above the limit for three seconds in a row: computing stops, the radio sleeps until the die cools to limit − 3 °C; then work resumes at ¼.</li><li><b>CPU frequency</b> — set by hand only (80 / 160 / 240 MHz, usually 240), the regulator does not touch it; "Stop" sets 80 MHz. <b>Transmit power</b> — by hand (<code>txp</code>, 2–20 dBm, usually 20). The router ping runs only with ping CSI noise.</li></ul>
+<h2 id="2-measurements">2. Measurements<a class="anc" href="#2-measurements">#</a></h2>
+<p><b>In the tube with heatsinks</b> (wheel 1, 240 MHz, the hottest agent): the "floor" at 80 MHz without computing ≈ 57 °C; under computing — a plateau of "floor + heating of the mode": the heaviest mode (cascade 20 ms, two cores) — 67 °C, 6 °C below the limit, the regulator does not intervene. Heating to the plateau has a time constant of ≈ 85 s, cooling ≈ 30 s. From these figures the experiment summary estimates the heat of runs (selfish and cascade +10 °C, the others +8; <code>THERM</code> in <code>server/static/plan.html</code>, <a href="program.html">program.md</a>).</p>
+<p><b>On the table without heatsinks</b> (four boards, 15 min or longer in one state, median, °C):</p>
+<div class="tw"><table><thead><tr><th>standing</th><th>№3</th><th>№4</th><th>№5</th><th>№6</th></tr></thead><tbody>
+<tr><td>80 MHz, LED off ("Stop")</td><td>56.3</td><td>54.8</td><td>58.5</td><td>57.7</td></tr>
+<tr><td>240 MHz</td><td>59.3</td><td>59.8</td><td>61.5</td><td>56.7 ¹</td></tr>
+<tr><td>cold start, first seconds</td><td>44.3</td><td>41.8</td><td>44.5</td><td>44.7</td></tr>
+</tbody></table></div>
+<p>¹ a different time of day — the room was cooler.</p>
+<p>Under computing (240 MHz, limit 70 °C) the boards sat at the limit: each on its own, two cores — 141–170 primes/s for the four at a work share of 48–100 %; cascade — 63 at 24–89 %; relay (33–37) and one number for all (8) — at 100 %; even slow noise (ADC, CSI, jitter: 1–3 primes/s) — 62–69 °C. Heating from idle: +4…5 °C in 10 s, +7…9 °C in a minute, at the limit after 3–5 minutes. Cooling in "Stop": −2…3 °C in 30 s, −4 in a minute, the "floor" after ~5 minutes. Two time constants: the die (seconds) and the board (minutes).</p>
+<p><b>The main point:</b> between the idle "floor" and the limit there are only 10–14 °C, and most of the heat comes not from computing but from what is always running.</p>
+<h2 id="3-where-the-heat-comes-from">3. Where the heat comes from<a class="anc" href="#3-where-the-heat-comes-from">#</a></h2>
+<ol><li><b>The radio is always receiving</b> — without sleep, otherwise ESP-NOW loses frames, and CSI and radio noise disappear. This is the main "floor".</li><li><b>240 MHz clock</b> — +3…5 °C even at idle (clock tree, idle cycles).</li><li><b>RNG noise spins the core idle.</b> <code>esp_random()</code> waits ~22 µs per word actively, in a loop (<a href="randomness.html">randomness.md</a>); in "two cores" mode this is ~70 % of the noise core's time — heat without computing.</li><li><b>The transmitter at 20 dBm.</b> In a cascade — hundreds of frames per second, each at the amplifier's full power. The boards are close (signal −45 dBm): four "all on one number" at 2 dBm gave 7.5 primes/s against 7.7 at 20 dBm.</li><li><b>The computing itself</b>: Miller–Rabin (accelerator) and the sieve.</li><li><b>The 5 → 3.3 V regulator</b> on the board next to the die.</li><li><b>The sensors differ</b>: №4 reads about 3 °C lower than the others (cold start 41.8 against 44.3–44.7); one limit for all cuts harder those whose sensor reads "hotter".</li></ol>
+<h2 id="4-what-to-do-about-it">4. What to do about it<a class="anc" href="#4-what-to-do-about-it">#</a></h2>
+<h3 id="4-1-cpu-frequency-less-benefit-than-it-seems">4.1 CPU frequency — less benefit than it seems<a class="anc" href="#4-1-cpu-frequency-less-benefit-than-it-seems">#</a></h3>
+<p>The flash runs at 80 MHz, and then the core is powered at the <b>same</b> 1.25 V at 80, 160 and 240 MHz (<code>soc/rtc.h</code> in ESP-IDF: <code>DIG_DBIAS_80M_160M</code> = <code>DIG_DBIAS_240M</code> with <code>CONFIG_ESPTOOLPY_FLASHFREQ_80M</code>). Work per degree at 160 MHz is almost the same as at 240 with regulator pauses. The gain is only on idle cycles (+3…5 °C at idle) and on active waiting for noise (§ 3, item 3). More would come from RNG noise without active waiting: read the register when a word is ready, and sieve candidates in between.</p>
+<h3 id="4-2-heatsinks-and-the-floor">4.2 Heatsinks and the "floor"<a class="anc" href="#4-2-heatsinks-and-the-floor">#</a></h3>
+<p>The agents sit inside a silicone tube (19 × 23 mm) under the coil winding (a toroid along a Ø900 mm rim). Without a heat path a board in the tube would overheat even at idle (on the table the thermal resistance to air is 65–70 K/W at 0.45–0.5 W), so every agent has the same arrangement:</p>
+<figure><a href="../img/thermal_radiator.svg"><img src="../img/thermal_radiator.svg" alt="Agent heatsinks in the coil tube: sections along and across the tube" loading="lazy"></a><figcaption>Agent heatsinks in the coil tube: sections along and across the tube</figcaption></figure>
+<ul><li>on the back of the board — an aluminium <b>spacer</b> 20 × 10 × 8 mm (cut from a 6061 strip with an 8 × 20 mm cross section, ≈ 4 g) on 10 mm thermal tape, with <b>two heatsinks</b> 10 × 10 × 10 mm with a grid of fins in a row on it, on their factory tape; the spacer spreads the chip's heat to both (&lt; 0.3 K/W), two layers of tape — about 1 °C, no thermal paste needed. The fins come out through a <b>window</b> ≈ 11 × 22 mm, 9–11.5 mm above the tube;</li><li><b>the coil wire</b> lies in the channels of the fin grid (the winding is not broken, the copper itself carries heat away); along the fin edges under the wire — <b>kapton</b>: the edges do not scrape the enamel, the turns do not short through the aluminium. Each heatsink is a separate piece, there is no ring around the tube, it does not disturb the field. The tape holds weakly when hot, but the heatsinks are pressed by the winding; one that has been moved goes only onto new tape. <b>The antenna</b> — a separate wire to the outside.</li></ul>
+<p>The "floor" would go even lower with: <b>transmit power by signal margin</b> (start at 11 dBm instead of 20, check losses per pair with <code>fail_to</code>, then follow the worst pair) and <b>sensor calibration</b> (the offset of each board from its cold start, the limit applied to the corrected temperature). Neither has been done yet.</p>
+<h3 id="4-3-rest-in-turns">4.3 Rest in turns<a class="anc" href="#4-3-rest-in-turns">#</a></h3>
+<p>A board that the regulator has throttled slows the whole group in relay and cascade: its pieces and turns are waited for, rounds are assembled without it. An announced rest does not slow the group — the resting one is not waited for. A dispatcher on the server (<code>rest_tick()</code> in <code>server/monitor.py</code>, settings <code>REST_ROT</code> and <code>REST_GROUP</code>) looks at everyone's temperatures every 2 s; a button on the old panel switches <b>off → in turns → whole group</b> (default off).</p>
+<ul><li><b>In turns:</b> a candidate is at the limit (≥ limit − 2 °C) and throttled (work &lt; 85 %); the hottest one rests, no more than a quarter of the group at a time (one of four), groups of three and more. Rest lasts until it cools by 5 °C, from 60 to 150 s; between rests of the same agent — at least 3 min.</li><li><b>Whole group:</b> everyone works at full power until the regulator starts cutting the hottest (≥ limit − 2 °C, work &lt; 95 %); then everyone rests until it cools by 6 °C (40–90 s), and they return together — while they work, rounds are assembled from everyone's pieces.</li><li>The rest command <b>does not change the settings</b> (the <code>cid</code> number stays the same): the agent stops computing and transmitting, sets 80 MHz and tells the group "resting" (<code>REST s=…</code> / <code>BACK</code>, frame <code>M_REST</code> — <a href="group_protocol.html">group_protocol.md</a>); on return — "back in action". It comes back by itself after <code>s</code> seconds (180), even if the server disappears. Each rest is a line in the agent's history ("rest in turns: 68.5 → 63.5 °C in 75 s"); a resting agent's silence is not counted as an error. One number for all — no rest (the bases are divided between everyone: the resting one would have to be replaced).</li></ul>
+<p><b>What the experiment showed</b> (cascade for 10 minutes starting from rest, four boards without heatsinks, limit 70 °C, <code>tools/rest_ab.py</code>):</p>
+<div class="tw"><table><thead><tr><th>rest</th><th>primes/s</th><th>second half</th><th>rounds from everyone's pieces</th><th>coherent primes/s</th></tr></thead><tbody>
+<tr><td>none</td><td>85.7</td><td>82.3</td><td>42.5 %</td><td>~36</td></tr>
+<tr><td>in turns (7 rests of 60 s)</td><td>89.6</td><td>82.5</td><td>26.2 %</td><td>~23</td></tr>
+<tr><td>whole group (40 s rest)</td><td>~47 over the first 6 min</td><td>—</td><td>—</td><td>—</td></tr>
+</tbody></table></div>
+<p>Without rest the regulator held the boards from 24–28 % work (the hottest) to 100 % (the coolest): on average the group worked at ~62 % power (82–86 primes/s instead of 124 in a sprint). In turns the mechanics work (exactly one rests, it cools by 6–11 °C in a minute, the group does not stall), but in steady state there is no gain: after 40–60 s of work the die is at the limit again, and the others replace the resting one's pieces with their own noise. Whole group — after 40 s of rest the hottest is back at the limit in 20–30 s. <b>Rest does not cancel heat, it redistributes it:</b> the limit is the average power the board can dissipate. The total is raised by less heat per prime and better dissipation — heatsinks, RNG noise without active waiting, a quieter transmitter.</p>
+<h3 id="4-4-sprint-full-performance">4.4 Sprint: full performance<a class="anc" href="#4-4-sprint-full-performance">#</a></h3>
+<p>Everyone rests down to the "floor" → the mode runs at full power for 60–90 s (from a cold state the regulator does not have time to throttle) → totals → rest again. This shows the full performance of each mode; long runs show the sustained one. <code>tools/sprint.py 75</code> (four boards without heatsinks, 256 bits, 240 MHz, limit 70 °C, measured from second 15 to second 75):</p>
+<div class="tw"><table><thead><tr><th>mode</th><th>primes/s</th><th>per agent</th><th>work (lowest)</th></tr></thead><tbody>
+<tr><td>each on its own</td><td>103.6</td><td>25.9</td><td>100 %</td></tr>
+<tr><td>each on its own, two cores</td><td>183.6</td><td>45.9</td><td>62 % — by the end one at the limit</td></tr>
+<tr><td>all on one number</td><td>10.8</td><td>2.7</td><td>100 %</td></tr>
+<tr><td>relay, two cores</td><td>36.8</td><td>9.2</td><td>100 %</td></tr>
+<tr><td>cascade, two cores, 20 ms deadline</td><td><b>123.9</b></td><td>31.0</td><td>32 % — the hottest at the limit within a minute</td></tr>
+</tbody></table></div>
+<h3 id="4-5-rest-between-runs">4.5 Rest between runs<a class="anc" href="#4-5-rest-between-runs">#</a></h3>
+<p>Before a program run the generators stand at 80 MHz with the coils off until the temperature settles (dropped by no more than 0.5 °C over 90 s, from 60 s to 6 min), until they cool to a set value, or for a set time. Every mode starts from the same state, and the initial temperature is written into the run's totals as a covariate. When to rest — <a href="program.html">program.md</a>.</p>
+<h2 id="5-agent-rating-the-error-history">5. Agent rating: the error history<a class="anc" href="#5-agent-rating-the-error-history">#</a></h2>
+<p>The server keeps a history of events for every agent (<code>data/agents/events.jsonl</code>, <code>server/agent_rating.py</code>) and computes a rating: 100 minus the weights of events over a day, a weight halves every 6 h; the same event three times in a day is marked "systematic". The agent tile shows the rating and the latest events, the number gets a badge. Reliable ones go into groups and sprints; an unreliable one should be checked or removed.</p>
+<div class="tw"><table><thead><tr><th>event</th><th>where it is seen</th><th>weight</th></tr></thead><tbody>
+<tr><td>a prime failed the server's check</td><td>prime log</td><td>50</td></tr>
+<tr><td>the firmware self-test failed</td><td><code>st</code></td><td>40</td></tr>
+<tr><td>a neighbour found a witness: the "prime" is composite</td><td><code>split</code> at the neighbour</td><td>30</td></tr>
+<tr><td>restart after a fault: firmware, watchdog, brown-out or power fault, core hang</td><td><code>rbt</code></td><td>25</td></tr>
+<tr><td>the radio watchdog restarted it: the radio was not transmitting</td><td><code>rbt</code></td><td>20</td></tr>
+<tr><td>the watchdog restarted it: no Wi-Fi for 90 s; "zombie" even after three reconnects</td><td><code>rbt</code></td><td>15</td></tr>
+<tr><td>the Wi-Fi firmware update did not load</td><td>OTA</td><td>10</td></tr>
+<tr><td>Wi-Fi "zombie" — the watchdog reconnected</td><td><code>wrst</code></td><td>8</td></tr>
+<tr><td>frames from it get lost</td><td><code>fail_to</code> per pair</td><td>5</td></tr>
+<tr><td>self-cleaning: low memory — restart between runs</td><td><code>rbt</code></td><td>5</td></tr>
+<tr><td>the group did not hear it ("silent")</td><td><code>mute</code> at the neighbours</td><td>3</td></tr>
+<tr><td>thermal emergency: computing stopped</td><td><code>ts</code></td><td>2</td></tr>
+<tr><td>a normal restart (power, USB, firmware), rest in turns</td><td>—</td><td>0</td></tr>
+</tbody></table></div>
+<h2 id="6-what-else-to-check">6. What else to check<a class="anc" href="#6-what-else-to-check">#</a></h2>
+<ul><li>Sprint and steady state at 240 / 160 / 80 MHz in the tube; cascade at 20 / 11 / 5 dBm.</li><li>RNG noise without active waiting, transmit power by signal margin.</li><li>Calibration of the board temperature sensors (they differ by several degrees).</li></ul>
+  </main>
+</div>
+<footer>This page is built from docs/en/thermal.md by tools/build_docs.py — edit the markdown. English translation; the Russian original is the source of truth. Links to the installation and the live diagram work when the documentation is opened from the server (http://&lt;server&gt;:8090/docs/en/).</footer>
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wheel 1 coil endurance test · Wheel-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+.flowbox { margin:12px 0 18px; }
+.flowbox iframe { width:100%; height:min(82vh, 860px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.flowbox .small { font-size:13px; color:var(--mut); margin-top:4px; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.preamble { display:flex; flex-direction:column; gap:4px; margin:14px 0 18px; padding:12px 16px; border:1px solid var(--line);
+             border-left:4px solid var(--on); border-radius:8px; background:var(--soft); color:var(--ink); text-decoration:none; }
+.preamble b { color:var(--on); }
+.preamble q { font-style:italic; quotes:"«" "»"; }
+.preamble span { font-size:13px; color:var(--mut); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Wheel-2 · documentation</a>
+  <nav><a href="/" target="plan">▦ Installation</a><a href="/flow" target="flow">↻ How it works</a><a href="preamble.html">✦ Preamble</a><a href="../coil_test.html" hreflang="ru" title="Русская версия"><b>RU</b></a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Documents</h4>
+    <ul><li><a href="index.html">Overview</a></li><li><a href="preamble.html">Preamble</a></li><li><a href="how_it_works.html">How everything works</a></li><li><a href="modes.html">Modes</a></li><li><a href="wiring.html">Wiring diagrams</a></li><li><a href="coil_test.html" class=cur>Coil endurance test</a></li><li><a href="../toroid_field.html">Toroid field — calculator · RU</a></li><li><a href="spec.html">Bill of materials</a></li><li><a href="sensors.html">Sensors, phone, motors and coils</a></li><li><a href="static_watch.html">Static sensors: baseline and watching</a></li><li><a href="program.html">Experiment and program</a></li><li><a href="group_protocol.html">Group mode</a></li><li><a href="scatter.html">Absorption</a></li><li><a href="randomness.html">Where the randomness comes from</a></li><li><a href="thermal.html">Agent temperature</a></li></ul>
+    
+    <h4>On this page</h4><ul class="toc"><li class="l2"><a href="#how-we-measured">How we measured</a></li><li class="l2"><a href="#what-we-got">What we got</a></li><li class="l2"><a href="#capacity-of-the-pair-not-2600">Capacity of the pair: not 2600</a></li><li class="l2"><a href="#is-it-enough-for-20-minutes">Is it enough for 20 minutes</a></li><li class="l2"><a href="#how-to-repeat">How to repeat</a></li></ul>
+  </aside>
+  <main class="doc">
+
+<h1>Wheel 1 coil endurance test</h1>
+<p><i>English translation of <a href="../coil_test.html">docs/coil_test.md</a> — the Russian original is the source of truth. Labels inside the diagrams are in Russian.</i></p>
+<p>Measured on 2026-10-27. The question: is a pair of 18650 cells enough for a <b>20-minute run at full field</b>, does the field hold while the cells run down, and how much does a pair labelled "2600 mAh" really deliver.</p>
+<h2 id="how-we-measured">How we measured<a class="anc" href="#how-we-measured">#</a></h2>
+<ul><li>The wheel 1 coil circuit as in the <a href="wiring.html#batteries-ina219">overall diagram</a>: a pair of 2×18650 cells ("2600 mAh" on the can) → switch → INA219 (0x40) → 5.1 V DC‑DC → DRV8871 bridge and coil agent №13. The coil is a toroid of about 5 Ω.</li><li>Current and voltage of the pair — the INA219 at №13, once a second. Field — the MLX90393 magnetometer of agent №20 inside the coil tube: readings minus background (field-off seconds close in time).</li><li><code>tools/coil_soak.py</code>: the field cycles "+ → 2 s pause → − → 2 s pause", 10 s each for the first 14 minutes, then 30 s each; stop when the pair sags to 6.5 V under field (3.25 V per cell). Logs — <code>data/tests/coil_soak_2026-10-27_*.csv</code>, plot — <code>tools/coil_soak_plot.py</code>.</li><li>Gaps in the plot: 4–6 and 21 min — server restarts (no field), 16 min — switch to 30 s phases.</li></ul>
+<figure><a href="../img/coil_soak_2026-10-27.svg"><img src="../img/coil_soak_2026-10-27.svg" alt="Run: pair voltage, current under field, coil field from the sensor" loading="lazy"></a><figcaption>Run: pair voltage, current under field, coil field from the sensor</figcaption></figure>
+<h2 id="what-we-got">What we got<a class="anc" href="#what-we-got">#</a></h2>
+<div class="tw"><table><thead><tr><th></th><th></th></tr></thead><tbody>
+<tr><td>total</td><td>40.5 min, of which <b>field on for 34.3 min</b></td></tr>
+<tr><td>used</td><td><b>511 mAh</b> (plus about 25 mAh for checks before the start)</td></tr>
+<tr><td>current from the pair under field</td><td>0.85 A at the start → 0.98 A at the end; without field — 0.1 A (№13 itself and the DC‑DC)</td></tr>
+<tr><td>voltage under field</td><td>7.65 → 7.25 V over 30 min, then faster: 7.0 V at minute 37, 6.45 V at minute 40.5 — stop</td></tr>
+<tr><td>open-circuit voltage</td><td>8.02 V at the start, 6.92 V one minute after the end</td></tr>
+<tr><td>coil field at the sensor</td><td>1.20–1.26 mT, both signs, <b>flat right to the end</b></td></tr>
+</tbody></table></div>
+<ul><li><b>The field does not weaken as the pair runs down</b>: the DC‑DC holds 5.1 V on the bridge until the last minute, and the current from the pair rises (the same power at a lower voltage: 0.85 → 0.98 A).</li><li>Over 30 s of field the field drops by 0.1–0.3 %, over the first minutes after a pause by 1.5 %, and then holds: the coil wire warms a little (copper resistance +0.4 % per degree — that is about 4 °C).</li><li>A −2 % step at minute 20 at the same current — the sensor moved in the tube (the coil itself is not to blame).</li><li>"+" and "−" differ in magnitude by 0.8 % — a difference between sensor axes, or the background not subtracted perfectly.</li><li>The field of a non-ideal toroid inside and outside — the <a href="../toroid_field.html">toroid field</a> calculator (Russian).</li></ul>
+<h2 id="capacity-of-the-pair-not-2600">Capacity of the pair: not 2600<a class="anc" href="#capacity-of-the-pair-not-2600">#</a></h2>
+<ul><li>At the start, open-circuit 8.02 V, that is 4.01 V per cell: charged to roughly <b>80 %</b> (full is 8.4 V, 4.2 V per cell). At the end, open-circuit 6.92 V, 3.46 V per cell: about <b>5 %</b> left.</li><li>Over these ~75 % the pair gave 0.53 Ah → <b>the full capacity of the pair is about 0.7 Ah</b>, 3–4 times less than the label. Even if it started at 60 % rather than 80 %, it is about 0.9 Ah.</li><li>The internal resistance is high: under 0.75 A the voltage drops by 0.32 V — about 0.4 Ω per pair together with the shunt (0.1 Ω), switch and wires, that is 0.1–0.15 Ω per cell. Good 18650 cells have 0.03–0.05.</li><li>Conclusion: the cells are weak — cheap ones with an inflated label, or worn. To check: put empty cells on a charger that shows how many mAh went in — that is their capacity; or charge the pair fully (8.4 V) and repeat the run — the server records the measured capacity itself (<code>battery.json</code>).</li></ul>
+<h2 id="is-it-enough-for-20-minutes">Is it enough for 20 minutes<a class="anc" href="#is-it-enough-for-20-minutes">#</a></h2>
+<ul><li><b>Yes.</b> This pair at ~80 % gave 34 minutes of field; 20 minutes of full field is about 0.3 Ah. From a full charge such cells give about 45 minutes of field; good 2.5–3 Ah cells — 2.5–3 hours.</li><li><b>The agent bus</b> draws more: six agents computing take 1.5–2 A from their pair. With the same cells the bus runs down after 20–25 minutes, before the coil. For a 20-minute experiment — charge both pairs before every experiment or fit better cells (<a href="spec.html">bill of materials</a>).</li><li>So that "≈ min" and the pause "batteries ran down" are honest, set the pair capacity in the experiment (section "batteries") to the measured value — about 700 mAh, while these cells are in use.</li></ul>
+<h2 id="how-to-repeat">How to repeat<a class="anc" href="#how-to-repeat">#</a></h2>
+<pre><code>python tools/coil_soak.py --wheel 1 --mag 20 --on 30 --gap 2 --stop-v 6.5
+python tools/coil_soak_plot.py docs/img/coil_soak_&lt;date&gt;.svg data/tests/coil_soak_&lt;date_time&gt;.csv</code></pre>
+<p>Once a second <code>data/tests/coil_soak_&lt;date_time&gt;.csv</code> gets what was commanded, the INA219 voltage and current, the mAh used and the wheel magnetometer field. To stop earlier — Ctrl+C in the script window or the file <code>data/tests/coil_soak.stop</code>; the field is switched off at the end.</p>
+  </main>
+</div>
+<footer>This page is built from docs/en/coil_test.md by tools/build_docs.py — edit the markdown. English translation; the Russian original is the source of truth. Links to the installation and the live diagram work when the documentation is opened from the server (http://&lt;server&gt;:8090/docs/en/).</footer>
+</body>
+</html>

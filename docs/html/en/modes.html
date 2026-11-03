@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Modes: what the rig does in each · Wheel-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+.flowbox { margin:12px 0 18px; }
+.flowbox iframe { width:100%; height:min(82vh, 860px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.flowbox .small { font-size:13px; color:var(--mut); margin-top:4px; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.preamble { display:flex; flex-direction:column; gap:4px; margin:14px 0 18px; padding:12px 16px; border:1px solid var(--line);
+             border-left:4px solid var(--on); border-radius:8px; background:var(--soft); color:var(--ink); text-decoration:none; }
+.preamble b { color:var(--on); }
+.preamble q { font-style:italic; quotes:"«" "»"; }
+.preamble span { font-size:13px; color:var(--mut); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Wheel-2 · documentation</a>
+  <nav><a href="/" target="plan">▦ Installation</a><a href="/flow" target="flow">↻ How it works</a><a href="preamble.html">✦ Preamble</a><a href="../modes.html" hreflang="ru" title="Русская версия"><b>RU</b></a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Documents</h4>
+    <ul><li><a href="index.html">Overview</a></li><li><a href="preamble.html">Preamble</a></li><li><a href="how_it_works.html">How everything works</a></li><li><a href="modes.html" class=cur>Modes</a></li><li><a href="wiring.html">Wiring diagrams</a></li><li><a href="coil_test.html">Coil endurance test</a></li><li><a href="../toroid_field.html">Toroid field — calculator · RU</a></li><li><a href="spec.html">Bill of materials</a></li><li><a href="sensors.html">Sensors, phone, motors and coils</a></li><li><a href="static_watch.html">Static sensors: baseline and watching</a></li><li><a href="program.html">Experiment and program</a></li><li><a href="group_protocol.html">Group mode</a></li><li><a href="scatter.html">Absorption</a></li><li><a href="randomness.html">Where the randomness comes from</a></li><li><a href="thermal.html">Agent temperature</a></li></ul>
+    
+    <h4>On this page</h4><ul class="toc"><li class="l2"><a href="#states-of-the-rig">States of the rig</a></li><li class="l2"><a href="#emission-absorption-the-role-of-a-wheel">Emission / absorption: the role of a wheel</a></li><li class="l2"><a href="#absorption">Absorption</a></li><li class="l2"><a href="#cooperation-how-the-generators-look-for-primes">Cooperation: how the generators look for primes</a></li><li class="l2"><a href="#noise-where-the-number-comes-from">Noise: where the number comes from</a></li><li class="l2"><a href="#coil-field">Coil field</a></li><li class="l2"><a href="#wheel-rotation">Wheel rotation</a></li><li class="l2"><a href="#telemetry-how-much-the-agents-talk">Telemetry: how much the agents talk</a></li><li class="l2"><a href="#related">Related</a></li></ul>
+  </aside>
+  <main class="doc">
+
+<h1>Modes: what the rig does in each</h1>
+<p><i>English translation of <a href="../modes.html">docs/modes.md</a> — the Russian original is the source of truth. The screens are in Russian; the on-screen word is given in «guillemets» where it helps to find it.</i></p>
+<p>All modes of Wheel-2 in the words of the main screen: what happens, what to look at, typical figures (XIAO ESP32-S3, 256 bits, 240 MHz, limit 73 °C). A run's mode is made of independent parts — these are the run parameters of an experiment: <b>rotation</b> (speed, offset from weightlessness), <b>field</b>, <b>emission / absorption</b>, <b>cooperation</b>, <b>absorption</b>, <b>noise</b>. How an experiment is built from them — <a href="program.html">program.md</a>.</p>
+<p>The rig: <b>wheel 1</b> and <b>wheel 2</b> with six agents each (on a wheel — subgroups а–з, each counts as its own group in a run), <b>static sensors</b> between the wheels (accelerometer, phone), <b>coil agents</b> and the <b>motor agent</b>. Roles: ▶ generation, ▼ absorption, ◆ static, ⚙ motors / coil.</p>
+<h2 id="states-of-the-rig">States of the rig<a class="anc" href="#states-of-the-rig">#</a></h2>
+<div class="tw"><table><thead><tr><th>state</th><th>what the generators do</th><th>static sensors</th><th>when</th></tr></thead><tbody>
+<tr><td>⏸ <b>standing</b> («стоит»)</td><td>not computing, cooling down: 80 MHz, LED off</td><td>measure</td><td>between runs, noise baseline, the run "all standing"</td></tr>
+<tr><td>▶ <b>run in progress</b></td><td>each subgroup — by the run's mode</td><td>measure</td><td>a run</td></tr>
+<tr><td>⏸ <b>rest</b> («отдых»)</td><td>standing at 80 MHz until the temperature settles</td><td>measure</td><td>before a run, if rest is set</td></tr>
+<tr><td>≋ <b>quench from the console</b> («тушение»)</td><td>only scatter their own noise (placebo, background 50 frames/s) — not a single prime</td><td>measure</td><td>control "radio without numbers"</td></tr>
+</tbody></table></div>
+<h2 id="emission-absorption-the-role-of-a-wheel">Emission / absorption: the role of a wheel<a class="anc" href="#emission-absorption-the-role-of-a-wheel">#</a></h2>
+<p>In the experiment window — a 3 × 3 grid: row — wheel 1, column — wheel 2 (stands · generates · absorbs); ▼▼, ▼⏸, ⏸▼ are not available — there is nothing to absorb.</p>
+<div class="tw"><table><thead><tr><th>option</th><th>word on the screen</th><th>what to look at</th></tr></thead><tbody>
+<tr><td>▶ ▶</td><td>both generate — each wheel as its own group (or one group for both: «оба колеса одной группой»)</td><td>influence of the neighbour</td></tr>
+<tr><td>▶ ⏸ / ⏸ ▶</td><td>W1 only / W2 only</td><td>reference rate of one wheel, comparing the wheels</td></tr>
+<tr><td>▶ ▼ / ▼ ▶</td><td>W2 absorbs / W1 absorbs the other's primes</td><td>the main run "emission — absorption", symmetry</td></tr>
+<tr><td>⏸ ⏸</td><td>static only: nobody computes, rotation and field as in the run</td><td>what rotation and field do to the sensors by themselves</td></tr>
+</tbody></table></div>
+<h2 id="absorption">Absorption<a class="anc" href="#absorption">#</a></h2>
+<p>Its own card in the experiment, two rows, every combination is tried. Details — <a href="scatter.html">scatter.md</a>.</p>
+<div class="tw"><table><thead><tr><th>who takes whose</th><th>what</th></tr></thead><tbody>
+<tr><td>all with all</td><td>every absorber takes the primes of all generators</td></tr>
+<tr><td>pairs 1:1</td><td>each absorber has its own generator by number; generators without a pair are a control inside the run</td></tr>
+<tr><td>all — one</td><td>everyone absorbs the primes of the first generator; the rest are not absorbed</td></tr>
+<tr><td>each — to one</td><td>the generators are divided between the absorbers: every prime is absorbed exactly once</td></tr>
+<tr><td>half the wheel</td><td>the first half of the generators is absorbed by everyone, the second half by nobody</td></tr>
+</tbody></table></div>
+<div class="tw"><table><thead><tr><th>how</th><th>what</th></tr></thead><tbody>
+<tr><td>mix whole</td><td>each mixes the whole prime with its own noise and emits a frame</td></tr>
+<tr><td>in pieces</td><td>each mixes its own piece of the number: no frame carries the whole number</td></tr>
+<tr><td>relay</td><td>along a chain, the last one emits one frame</td></tr>
+<tr><td>placebo («пустышка»)</td><td>the same traffic, noise instead of the number — separates the effect of the number from the effect of the radio</td></tr>
+<tr><td>listen only</td><td>receive the primes, emit nothing — control without traffic</td></tr>
+</tbody></table></div>
+<p>In pieces and relay are always "all with all". The console and the live diagram also have <b>background</b> — the absorbers' own noise at a set rate.</p>
+<h2 id="cooperation-how-the-generators-look-for-primes">Cooperation: how the generators look for primes<a class="anc" href="#cooperation-how-the-generators-look-for-primes">#</a></h2>
+<div class="tw"><table><thead><tr><th>way</th><th>how it works</th><th>primes/s</th><th>what to look at</th></tr></thead><tbody>
+<tr><td><b>selfish</b></td><td>each gathers noise itself, builds a number, sieves, tests</td><td>~26 per agent, two cores ~45</td><td>yield against theory, sieve</td></tr>
+<tr><td><b>group · cascade</b></td><td>numbers from noise pieces of all agents of the subgroup, everyone tests at once, each its own</td><td>4 agents ~85–90, 6 — ~100–118</td><td>share of rounds from pieces of all (coherence), heat</td></tr>
+<tr><td>group · relay</td><td>a number from everyone's noise, one tests, the turn goes round</td><td>~37 per group, boards run cooler</td><td>turns shared evenly, "silent" members</td></tr>
+<tr><td>group · one number for all</td><td>one number from everyone's noise, everyone tests (bases divided), the answer by agreement</td><td>~8–11 per group</td><td>agreement of answers, cycles without failures; a run is better at 60 s</td></tr>
+<tr><td>group · identical numbers</td><td>everyone computes the same number</td><td>—</td><td>comes with a future firmware</td></tr>
+</tbody></table></div>
+<p>Details — <a href="group_protocol.html">group_protocol.md</a>.</p>
+<h2 id="noise-where-the-number-comes-from">Noise: where the number comes from<a class="anc" href="#noise-where-the-number-comes-from">#</a></h2>
+<div class="tw"><table><thead><tr><th>icon</th><th>noise</th><th>speed</th></tr></thead><tbody>
+<tr><td>⚄</td><td>the chip RNG — the hardware generator with Wi-Fi receiver noise</td><td>~45 k words/s — the main one</td></tr>
+<tr><td>Σ</td><td>all available: RNG + pulse CSI + ADC + RC jitter through SHA-256</td><td>as fast as the slowest</td></tr>
+<tr><td>≋</td><td>pulse CSI — the radio channel state from the neighbours' pulse frames</td><td>slow</td></tr>
+<tr><td>↯</td><td>router ping CSI — the same from the router's ping replies</td><td>slow, use with care</td></tr>
+<tr><td>⏚</td><td>ADC D0 — the floating input D0</td><td>slow</td></tr>
+<tr><td>⧖</td><td>RC jitter — the internal oscillator against the crystal</td><td>slow</td></tr>
+<tr><td>↺</td><td>reverse noise — frames of the other wheel's absorbers, a loop through the air</td><td>only when the other wheel absorbs</td></tr>
+<tr><td>↕ 🧲</td><td>rim accelerometer, magnetometer (agents with a sensor)</td><td>very slow</td></tr>
+</tbody></table></div>
+<p><b>Noise is a mixture of sources.</b> In the experiment window noise is assembled from icons; "Σ all" ticks the four main ones (RNG, CSI, ADC, RC). Those ticked together make one mixture. <b>How to vary</b> (several allowed):</p>
+<div class="tw"><table><thead><tr><th>variation</th><th>options</th><th>4 sources</th><th>6 (+ acc., mag.)</th></tr></thead><tbody>
+<tr><td>all together</td><td>all ticked — one mixture</td><td>1</td><td>1</td></tr>
+<tr><td>one at a time (inclusion)</td><td>each source alone — what each gives</td><td>4</td><td>6</td></tr>
+<tr><td>all but one (exclusion)</td><td>the mixture without each in turn — what is missing without it</td><td>4</td><td>6</td></tr>
+<tr><td>all three</td><td>the mixture, without each, each alone</td><td>9</td><td>13</td></tr>
+</tbody></table></div>
+<p>Without hashing (<code>raw</code>) the physics of the source is visible (the ADC gives 54–59 % ones), with von Neumann the bias is removed. How noises are taken, credited and mixed — <a href="randomness.html">randomness.md</a>.</p>
+<h2 id="coil-field">Coil field<a class="anc" href="#coil-field">#</a></h2>
+<p>Each coil is off, + or −: a 3 × 3 grid (row — the wheel 1 coil, column — wheel 2), 9 options; quick picks "off · same sign · opposite signs · one coil · all 9".</p>
+<div class="tw"><table><thead><tr><th>option</th><th>word on the screen</th></tr></thead><tbody>
+<tr><td>off off</td><td>both off</td></tr>
+<tr><td>+ + / − −</td><td>same sign</td></tr>
+<tr><td>+ − / − +</td><td>opposite signs</td></tr>
+<tr><td>+ off, − off / off +, off −</td><td>W1 only / W2 only</td></tr>
+</tbody></table></div>
+<p>"+" and "−" are the current direction (OUT1 → OUT2 or back); the field inside the tube is 1.20–1.26 mT at 0.85–0.98 A (measured, <a href="coil_test.html">coil_test.md</a>). The coil agents switch the field on at the start of a run; at rest, on pause, at the end of a program and on «■ Всё стоп» (all stop) — off. By hand — "off / + / −" under the wheel on the diagram. Wiring — <a href="wiring.html">wiring.md</a>.</p>
+<h2 id="wheel-rotation">Wheel rotation<a class="anc" href="#wheel-rotation">#</a></h2>
+<p>Each wheel stands (■), goes forward (⟳ — clockwise when looking at the shaft from the front) or backward (⟲): a 3 × 3 grid, 9 options.</p>
+<div class="tw"><table><thead><tr><th>option</th><th>word on the screen</th></tr></thead><tbody>
+<tr><td>■■</td><td>standing — motors off</td></tr>
+<tr><td>⟳⟳ / ⟲⟲</td><td>together / together backward</td></tr>
+<tr><td>⟳⟲ / ⟲⟳</td><td>towards each other</td></tr>
+<tr><td>⟳■ ⟲■ / ■⟳ ■⟲</td><td>W1 only / W2 only</td></tr>
+</tbody></table></div>
+<p><b>Speed:</b> rpm (PI control from the rim sensor), PWM (share of supply) or <b>weightlessness</b> — the rpm at which, at the top of the wheel, k = ω²r/g = 1 (r from the rim sensor; at 450 mm — 44.6 rpm). <b>Offset from weightlessness</b> — steps around the computed value: 0, ±1, ±2 steps, default step 3 % of rpm; k changes twice as much (+3 % — k ≈ 1.06). Speeding up and changing direction are smooth, through a stop and a 1 s pause; watchdog — no command for 5 s, the motors stop. The window «⟳ моторы вручную…» (motors by hand) spins the wheels outside an experiment. Details — <a href="sensors.html">sensors.md</a>.</p>
+<h2 id="telemetry-how-much-the-agents-talk">Telemetry: how much the agents talk<a class="anc" href="#telemetry-how-much-the-agents-talk">#</a></h2>
+<div class="tw"><table><thead><tr><th>mode</th><th>generators</th><th>static sensors</th><th>what is visible</th></tr></thead><tbody>
+<tr><td><b>normal</b></td><td>a packet once a second</td><td>send samples</td><td>everything in real time</td></tr>
+<tr><td><b>sparse</b></td><td>10 times less often</td><td>send samples</td><td>totals, no detail over time</td></tr>
+<tr><td><b>silence</b></td><td>nothing but command acknowledgements</td><td>send samples</td><td>static sensors only; totals — after the run</td></tr>
+</tbody></table></div>
+<p>Silence keeps the agents' own Wi-Fi frames from affecting the static sensors; in the experiment it is "telemetry silence during the run" (⑥ fine points, on by default), and it applies only to the measurement. The bus sensors are silent too: rim rpm and coil field are not visible during the measurement, the motor regulator holds the last PWM (in "weightlessness" — also the last rim radius), and the rpm and field in the run record are taken from the check (10 s before the silence) and the totals (after). "Wi-Fi off during the run" (with the run on the agent) removes the radio entirely — only for selfish computing without absorption and without noise from the air.</p>
+<h2 id="related">Related<a class="anc" href="#related">#</a></h2>
+<ul><li><b>Static sensors</b> — a motionless sensor measures 500 times a second, the server compares every 10 s with the noise baseline: ✓ continue · ⚠ check · ↻ repeat — <a href="static_watch.html">static_watch.md</a>.</li><li><b>Heat</b> — the regulator, rest before a run, sprint, agent rating — <a href="thermal.html">thermal.md</a>.</li></ul>
+  </main>
+</div>
+<footer>This page is built from docs/en/modes.md by tools/build_docs.py — edit the markdown. English translation; the Russian original is the source of truth. Links to the installation and the live diagram work when the documentation is opened from the server (http://&lt;server&gt;:8090/docs/en/).</footer>
+</body>
+</html>

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Where the randomness comes from · Wheel-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+.flowbox { margin:12px 0 18px; }
+.flowbox iframe { width:100%; height:min(82vh, 860px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.flowbox .small { font-size:13px; color:var(--mut); margin-top:4px; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.preamble { display:flex; flex-direction:column; gap:4px; margin:14px 0 18px; padding:12px 16px; border:1px solid var(--line);
+             border-left:4px solid var(--on); border-radius:8px; background:var(--soft); color:var(--ink); text-decoration:none; }
+.preamble b { color:var(--on); }
+.preamble q { font-style:italic; quotes:"«" "»"; }
+.preamble span { font-size:13px; color:var(--mut); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Wheel-2 · documentation</a>
+  <nav><a href="/" target="plan">▦ Installation</a><a href="/flow" target="flow">↻ How it works</a><a href="preamble.html">✦ Preamble</a><a href="../randomness.html" hreflang="ru" title="Русская версия"><b>RU</b></a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Documents</h4>
+    <ul><li><a href="index.html">Overview</a></li><li><a href="preamble.html">Preamble</a></li><li><a href="how_it_works.html">How everything works</a></li><li><a href="modes.html">Modes</a></li><li><a href="wiring.html">Wiring diagrams</a></li><li><a href="coil_test.html">Coil endurance test</a></li><li><a href="../toroid_field.html">Toroid field — calculator · RU</a></li><li><a href="spec.html">Bill of materials</a></li><li><a href="sensors.html">Sensors, phone, motors and coils</a></li><li><a href="static_watch.html">Static sensors: baseline and watching</a></li><li><a href="program.html">Experiment and program</a></li><li><a href="group_protocol.html">Group mode</a></li><li><a href="scatter.html">Absorption</a></li><li><a href="randomness.html" class=cur>Where the randomness comes from</a></li><li><a href="thermal.html">Agent temperature</a></li></ul>
+    
+    <h4>On this page</h4><ul class="toc"><li class="l2"><a href="#1-esp_random-and-wi-fi-noise">1. esp_random() and Wi-Fi noise</a></li><li class="l2"><a href="#2-sources">2. Sources</a></li><li class="l2"><a href="#3-how-they-are-mixed">3. How they are mixed</a></li><li class="l2"><a href="#4-what-is-seen-in-the-primes">4. What is seen in the primes</a></li><li class="l2"><a href="#5-the-primality-test">5. The primality test</a></li><li class="l2"><a href="#6-speed">6. Speed</a></li></ul>
+  </aside>
+  <main class="doc">
+<a class="live" href="/flow#solo">▶ watch it live on the animated diagram</a>
+<h1>Where the randomness comes from</h1>
+<p><i>English translation of <a href="../randomness.html">docs/randomness.md</a> — the Russian original is the source of truth. Labels inside the diagrams are in Russian.</i></p>
+<p>The noises from which the agents build numbers: how they are taken, how much we credit, how they are mixed, at what speed. On the main screen each noise has its own icon: ⚄ chip RNG, Σ all available, ≋ pulse CSI, ↯ router ping CSI, ⏚ ADC D0, ⧖ RC jitter, ↺ reverse noise, ↕ accelerometer, 🧲 magnetometer. How noise is chosen in an experiment — <a href="modes.html">modes.md</a>.</p>
+<p>Board XIAO ESP32-S3, Arduino-ESP32 core 3.3.7 (ESP-IDF 5.5). Raw measurement logs — <code>logs/probe*.log</code>, analysis — <code>tools/probe_report.py</code>, measurement firmware — <code>firmware/entropy_probe</code>.</p>
+<figure><a href="../img/noise_to_prime.svg"><img src="../img/noise_to_prime.svg" alt="Noise → number → prime: the sources, three mixing paths, the candidate and the test" loading="lazy"></a><figcaption>Noise → number → prime: the sources, three mixing paths, the candidate and the test</figcaption></figure>
+<h2 id="1-esp_random-and-wi-fi-noise">1. esp_random() and Wi-Fi noise<a class="anc" href="#1-esp_random-and-wi-fi-noise">#</a></h2>
+<p>According to Espressif's documentation, <code>esp_random()</code> returns true random numbers while Wi-Fi is on: the thermal noise of the radio receiver's ADC is continuously mixed into the hardware generator (2 bits per 80 MHz bus clock). In the compiled library (<code>libesp_hw_support.a</code>, examined with a disassembler):</p>
+<ul><li>the function reads the generator register <code>0x6003507C</code> (<code>WDEV_RND_REG</code>);</li><li>between words it waits <b>1778 bus clocks</b> (22.2 µs) and XORs together all reads during the wait; hence the limit of <b>~45,000 words/s</b> (measured: 44,800), the same in any Wi-Fi state;</li><li>the register itself, without waiting, reads at 10.5 million words/s.</li></ul>
+<p>To keep radio noise going into the generator all the time, the firmware keeps Wi-Fi on and <b>without sleep</b> (<code>WiFi.setSleep(false)</code>); the telemetry reports this with the field <code>rf=1</code>.</p>
+<p><b>What cannot be checked.</b> The numbers themselves do not show whether radio noise is in them: the generator has a second source — jitter of the internal RC_FAST oscillator (the <code>DIG_CLK8M_EN</code> bit is set, checked by reading the register). The generator output in four states (Wi-Fi off/on × RC_FAST off/on) was tested for linear complexity (Berlekamp–Massey, 4096 words): in all four it is n/2, as for a random sequence — there is no linear structure, but "with radio noise" cannot be told from "without" by the output. We accept the radio's participation from the documentation and the function code; Wi-Fi noise can be observed directly through CSI.</p>
+<h2 id="2-sources">2. Sources<a class="anc" href="#2-sources">#</a></h2>
+<div class="tw"><table><thead><tr><th>source</th><th>how we take it</th><th>raw per second</th><th>estimate (min-entropy)</th><th>we credit</th></tr></thead><tbody>
+<tr><td>⚄ chip RNG + radio noise</td><td><code>esp_random()</code></td><td>44,800 words</td><td>per Espressif — full 32 bits</td><td>32 bits per word</td></tr>
+<tr><td>≋ ↯ Wi-Fi CSI</td><td>the channel state (LLTF, 64 subcarriers) from pulse frames of neighbouring agents (ESP-NOW, 10 per second from each) or from the router's ping replies: 104 numbers per frame</td><td>with a 100 Hz ping ~95 frames</td><td>~1.5 bits per number, ~150 per frame</td><td>32 bits per frame</td></tr>
+<tr><td>⏚ ADC</td><td>pin D0 (GPIO1) with pull-up and pull-down — the middle of the supply; connect nothing to D0</td><td>21,000 samples</td><td>2.9 bits per sample, but neighbours are correlated (pickup)</td><td>¼ bit per sample</td></tr>
+<tr><td>⧖ RC jitter</td><td>crystal clocks over 8 periods of the internal 136 kHz RC (<code>rtc_clk_cal_ratio</code>)</td><td>16,000 samples</td><td>~1 bit per sample, slow drift</td><td>¼ bit per sample</td></tr>
+<tr><td>↕ rim accelerometer</td><td>low bytes of the ICM-42688 acceleration and gyro axes</td><td>200 samples</td><td>—</td><td>1 bit per byte</td></tr>
+<tr><td>🧲 rim magnetometer</td><td>low bytes of the MLX90393 axes</td><td>20 measurements</td><td>—</td><td>2 bits per byte</td></tr>
+<tr><td>↺ reverse noise</td><td>contents of the frames of the other wheel's absorbers (their noise with our primes mixed in) — a loop through the air; only with absorption</td><td>—</td><td>—</td><td>4 bits per byte</td></tr>
+</tbody></table></div>
+<p>An agent without a rim sensor uses the RNG instead of the sensor.</p>
+<p>Rejected: the <b>temperature sensor</b> (two values in 1 °C steps over 4096 reads), Wi-Fi **<code>noise_floor</code><b> (−97 dBm for all packets), </b>CSI without ping and pulse** (almost no packets addressed to us; in promiscuous mode — 16 packets/s from dozens of different devices).</p>
+<p><b>CSI and 802.11n.</b> When the agent is allowed 802.11n, the router replies with 802.11n packets, and the chip builds CSI only for some of them: 3–82 packets/s for ~95 ping replies (<code>tools/csi_watch.py</code>). With 802.11g CSI comes for every reply — 97–99 per second. That is why <code>prime_lab</code> allows only 802.11b/g (<code>esp_wifi_set_protocol</code>); 54 Mbit/s is more than enough for telemetry. The noise is the same: the low bit is one in 51 % of cases and matches the previous packet in 50 %.</p>
+<h2 id="3-how-they-are-mixed">3. How they are mixed<a class="anc" href="#3-how-they-are-mixed">#</a></h2>
+<ul><li><b>RNG only</b> — the <code>esp_random()</code> words go into the number as they are.</li><li><b>Any other set</b> — SHA-256 blocks (the chip's hardware block) of 32 bytes. Into each block <b>every</b> ticked source puts at least 256 credited bits — except the rim sensors: together with others they mix in whatever has accumulated since the previous block (computing does not wait for a slow sensor), and only a sensor alone, without others, waits for its 256 bits. The number stays random even if all sources but one are bad. The sources are gathered in turn and the times add up: for a 256-bit candidate CSI takes ~82 ms, ADC ~49 ms, jitter ~64 ms, RNG 0.17 ms — all four together ~195 ms (~5 candidates/s), 2.4 times slower than CSI alone.</li></ul>
+<p>**Noise without hashing (<code>raw</code>).** The hash gathers the scattered randomness of the raw data into a dense 256 bits, but at the same time it stirs away the structure of the source: biases, correlation of neighbouring samples, rhythms. Without the hash one can see whether the physics of the source shows through in the numbers:</p>
+<ul><li><code>raw</code> = 1 — the low bits of the raw data go into the number as they are: CSI — the low bit of each data-subcarrier measurement (2–26 and 38–63, 102 bits per packet; the zero, guard and first subcarriers, which the chip sometimes corrupts, are skipped); ADC and jitter — the low bit of a sample; rim sensors — the credited low bits of a byte; RNG — whole words; set B air — whole bytes;</li><li><code>raw</code> = 2 — the same with von Neumann debiasing: the pair 01 → 0, 10 → 1, 00 and 11 are dropped. It removes the bias between zeros and ones, but not the correlation of neighbouring samples; four times fewer bits;</li><li>several ticked sources are combined bitwise (XOR) — the structure of a source is visible when it is ticked alone.</li></ul>
+<p>Without the hash the slow sources are faster: on four boards the ADC gives 253 candidates/s (with the hash ~70), CSI about three times more, jitter four times more. The yield of primes without the hash may differ from theory simply because of the bias of the raw data — that is exactly what the mode shows; compare it with the same source with the hash (<code>tools/anomaly_run.py</code>).</p>
+<h2 id="4-what-is-seen-in-the-primes">4. What is seen in the primes<a class="anc" href="#4-what-is-seen-in-the-primes">#</a></h2>
+<p>The run <code>tools/anomaly_run.py 3</code> (four boards, 256 bits, 3 min per step, report <code>data/tests/anomaly_20261005_174844.json</code>), ~77 thousand primes in total:</p>
+<div class="tw"><table><thead><tr><th>step</th><th>primes</th><th>sieve, z</th><th>yield on tested, z</th><th>ones in the bits</th></tr></thead><tbody>
+<tr><td>each on its own, two cores, RNG with hash (reference)</td><td>25,644</td><td>+0.7</td><td>+0.7</td><td>50.03 %</td></tr>
+<tr><td>relay, two cores</td><td>6,744</td><td>−0.4</td><td>+1.1</td><td>50.02 %</td></tr>
+<tr><td>cascade, two cores, 20 ms deadline</td><td>11,546</td><td>−1.8</td><td>+0.3</td><td>49.97 %</td></tr>
+<tr><td>ADC without hash</td><td>584</td><td>+1.2</td><td>+1.1</td><td><b>54.43 % (+34 σ)</b></td></tr>
+<tr><td>ADC without hash, von Neumann</td><td>141</td><td>−2.2</td><td>−0.3</td><td>50.37 %</td></tr>
+<tr><td>jitter without hash</td><td>481</td><td>−0.2</td><td>+0.5</td><td>49.64 %</td></tr>
+<tr><td>CSI without hash</td><td>243</td><td>−0.3</td><td>−0.5</td><td>50.39 %</td></tr>
+<tr><td>ADC with hash</td><td>144</td><td>−0.2</td><td>+0.4</td><td>49.90 %</td></tr>
+<tr><td>RNG without hash, von Neumann</td><td>7,720</td><td>−0.1</td><td>0.0</td><td>49.91 %</td></tr>
+<tr><td>reference again</td><td>24,351</td><td>−0.6</td><td>+0.6</td><td>49.97 %</td></tr>
+</tbody></table></div>
+<ul><li>Not a single composite (the server checked each one), not a single repeat; the yield of primes in all modes is as theory predicts (|z| ≤ 1.1), there is no difference between modes.</li><li>The only real structure is <b>ADC without hash</b>: the low bit of a sample is 1 more often, and it shows directly in the primes (54 % ones, +34 σ). Von Neumann removes it; CSI and jitter without hash have almost no bias. A one-sided bias hardly affects the sieve and the yield.</li><li>Residues modulo 3, 5, 7, 11 are uniform; individual p ≈ 0.02–0.04 on hundreds of primes are the expected share for ~40 tests.</li><li>Gaps between primes in the two-core modes: the spread is smaller than Poisson (coefficient of variation ~0.8 — a prime needs at least one full test) and neighbouring gaps are correlated on the hottest boards (z 5–8) — the trace of the temperature regulator, which works in periods; on cool boards and with slow noise it is absent.</li><li>In the relay ~9 % of the candidates that survive the sieve go untested when the turn is handed over, so the yield is computed on the tested ones (on the survivors there would be an apparent "shortfall", z −6.8).</li></ul>
+<h2 id="5-the-primality-test">5. The primality test<a class="anc" href="#5-the-primality-test">#</a></h2>
+<p>A candidate of the required length (the top bit and oddness are set) → sieve by small divisors below the threshold <code>td</code> (default 1000) → Miller–Rabin on the first <code>nb</code> prime bases (default 8: 2, 3, 5, 7, 11 …). 32 bits — our own code, longer — <code>mbedtls_mpi</code> with the hardware accelerator. For 32 bits every prime found is also checked exactly (bases 2, 7, 61) — this is how "false primes" are counted. The server re-checks the primes it receives (up to 256 bits) with its own Miller–Rabin.</p>
+<p>Residues by small divisors are computed with our own code: <code>mbedtls_mpi_mod_int</code> gives a correct residue only for divisors below 2^16 (it divides by half-words); on products of primes up to 2^31 it would lose 84 % of the primes.</p>
+<h2 id="6-speed">6. Speed<a class="anc" href="#6-speed">#</a></h2>
+<p>One board (<code>tools/gen_sweep.py</code>); sieve by divisors below 1000, 8 bases, testing until the first "composite" unless stated otherwise.</p>
+<div class="tw"><table><thead><tr><th>setting</th><th>candidates/s</th><th>primes/s</th><th>time per prime</th><th>one test with a base</th></tr></thead><tbody>
+<tr><td>RNG, 32 bits, 1 base</td><td>32,000</td><td>3,000</td><td>0.3 ms</td><td>18 µs</td></tr>
+<tr><td>RNG, 32 bits, all 8 bases for each</td><td>19,400</td><td>1,770</td><td>0.6 ms</td><td>18 µs</td></tr>
+<tr><td>RNG, 256 bits</td><td>2,300</td><td>28</td><td>36 ms</td><td>1.05 ms</td></tr>
+<tr><td>RNG, 256 bits, all 8 bases for each</td><td>950</td><td>11</td><td>89 ms</td><td>1.06 ms</td></tr>
+<tr><td>CSI, 256 bits</td><td>9–10</td><td>0.07</td><td>7–8 s</td><td>—</td></tr>
+<tr><td>ADC, 256 bits</td><td>18</td><td>0.2</td><td>4.3 s</td><td>—</td></tr>
+<tr><td>jitter, 256 bits</td><td>15</td><td>0.3</td><td>3.4 s</td><td>—</td></tr>
+<tr><td>all four sources, 256 bits</td><td>1.9</td><td>—</td><td>~45 s (estimate)</td><td>—</td></tr>
+<tr><td>RNG, 1024 bits</td><td>185</td><td>0.4</td><td>2.4 s</td><td>25 ms</td></tr>
+<tr><td>RNG, 2048 bits</td><td>30</td><td>0.1</td><td>9 s (little data)</td><td>181 ms</td></tr>
+</tbody></table></div>
+<p>One prime falls on roughly ln(2^n)/2 odd candidates: for 256 bits — 88.57, taking into account that the numbers lie in [2²⁵⁵, 2²⁵⁶); the runs give 88.2–88.7. At 256 bits the time per candidate splits as: noise 166 µs (8 words of 22 µs), sieve 43 µs, Miller–Rabin 217 µs. A base test through mbedtls is noticeably slower than the accelerator's pure computation: each call spends time on locking, preparing R² and an interrupt; working with the accelerator directly is a speed reserve.</p>
+  </main>
+</div>
+<footer>This page is built from docs/en/randomness.md by tools/build_docs.py — edit the markdown. English translation; the Russian original is the source of truth. Links to the installation and the live diagram work when the documentation is opened from the server (http://&lt;server&gt;:8090/docs/en/).</footer>
+</body>
+</html>

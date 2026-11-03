@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bill of materials · Wheel-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+.flowbox { margin:12px 0 18px; }
+.flowbox iframe { width:100%; height:min(82vh, 860px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.flowbox .small { font-size:13px; color:var(--mut); margin-top:4px; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.preamble { display:flex; flex-direction:column; gap:4px; margin:14px 0 18px; padding:12px 16px; border:1px solid var(--line);
+             border-left:4px solid var(--on); border-radius:8px; background:var(--soft); color:var(--ink); text-decoration:none; }
+.preamble b { color:var(--on); }
+.preamble q { font-style:italic; quotes:"«" "»"; }
+.preamble span { font-size:13px; color:var(--mut); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Wheel-2 · documentation</a>
+  <nav><a href="/" target="plan">▦ Installation</a><a href="/flow" target="flow">↻ How it works</a><a href="preamble.html">✦ Preamble</a><a href="../spec.html" hreflang="ru" title="Русская версия"><b>RU</b></a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Documents</h4>
+    <ul><li><a href="index.html">Overview</a></li><li><a href="preamble.html">Preamble</a></li><li><a href="how_it_works.html">How everything works</a></li><li><a href="modes.html">Modes</a></li><li><a href="wiring.html">Wiring diagrams</a></li><li><a href="coil_test.html">Coil endurance test</a></li><li><a href="../toroid_field.html">Toroid field — calculator · RU</a></li><li><a href="spec.html" class=cur>Bill of materials</a></li><li><a href="sensors.html">Sensors, phone, motors and coils</a></li><li><a href="static_watch.html">Static sensors: baseline and watching</a></li><li><a href="program.html">Experiment and program</a></li><li><a href="group_protocol.html">Group mode</a></li><li><a href="scatter.html">Absorption</a></li><li><a href="randomness.html">Where the randomness comes from</a></li><li><a href="thermal.html">Agent temperature</a></li></ul>
+    
+    <h4>On this page</h4><ul class="toc"><li class="l2"><a href="#total">Total</a></li><li class="l2"><a href="#agents-and-sensors">Agents and sensors</a></li><li class="l2"><a href="#wheels-and-coils">Wheels and coils</a></li><li class="l2"><a href="#wheel-power">Wheel power</a></li><li class="l2"><a href="#frame-and-motors">Frame and motors</a></li><li class="l2"><a href="#experiment-network-wi-fi">Experiment network (Wi-Fi)</a></li><li class="l2"><a href="#mounting-and-heat">Mounting and heat</a></li><li class="l2"><a href="#tools-and-consumables">Tools and consumables</a></li></ul>
+  </aside>
+  <main class="doc">
+
+<h1>Bill of materials</h1>
+<p><i>English translation of <a href="../spec.html">docs/spec.md</a> — the Russian original is the source of truth.</i></p>
+<p>What the rig is built from and what it costs. Prices are in Kuwaiti dinars (KWD; 1 KWD ≈ 3.25 USD):</p>
+<ul><li><b>no mark</b> — as paid in AliExpress orders, shipping mostly free;</li><li><b>≈</b> — an estimate from an AliExpress search (2026-10-26): not in the orders — still to buy, or bought separately;</li><li><b>—</b> — bought locally or our own, no price.</li></ul>
+<p>The links go to product pages; prices and options there change. Where everything sits in the rig — the <a href="wiring.html">wiring diagrams</a>.</p>
+<h2 id="total">Total<a class="anc" href="#total">#</a></h2>
+<div class="tw"><table><thead><tr><th>section</th><th>bought, KWD</th><th>estimate, KWD</th><th>total, KWD</th></tr></thead><tbody>
+<tr><td>Agents and sensors</td><td>96.88</td><td>—</td><td>96.88</td></tr>
+<tr><td>Wheels and coils</td><td>29.64</td><td>≈ 32.01</td><td>61.65</td></tr>
+<tr><td>Wheel power</td><td>29.62</td><td>≈ 32.26</td><td>61.88</td></tr>
+<tr><td>Frame and motors</td><td>34.08</td><td>≈ 3.09</td><td>37.17</td></tr>
+<tr><td>Experiment network (Wi-Fi)</td><td>13.81</td><td>—</td><td>13.81</td></tr>
+<tr><td>Mounting and heat</td><td>4.95</td><td>—</td><td>4.95</td></tr>
+<tr><td>Tools and consumables</td><td>32.92</td><td>—</td><td>32.92</td></tr>
+<tr><td><b>rig without tools</b></td><td><b>208.98</b></td><td><b>≈ 67.36</b></td><td><b>276.34</b> (≈ 898 USD)</td></tr>
+<tr><td><b>everything including tools</b></td><td><b>241.90</b></td><td><b>≈ 67.36</b></td><td><b>309.26</b> (≈ 1,005 USD)</td></tr>
+</tbody></table></div>
+<p>The laptop (server) and the Samsung Galaxy A26 phone (static sensor №9) are our own and are not included.</p>
+<p>Still to buy: 18650 cells and their boxes, the missing heatsinks, DRV8833 — spare coil bridges. The copper wire and some of the heatsinks were bought separately, their price is unknown — the estimate uses AliExpress as a guide.</p>
+<h2 id="agents-and-sensors">Agents and sensors<a class="anc" href="#agents-and-sensors">#</a></h2>
+<p>Agent boards and sensors: generators and absorbers on the wheels, coil and motor agents, static sensors.</p>
+<div class="tw"><table><thead><tr><th>item</th><th>option, quantity</th><th>price</th><th>pcs</th><th>sum</th><th>link</th><th>note</th></tr></thead><tbody>
+<tr><td>Seeed XIAO ESP32-S3 — agent</td><td>pack of 10</td><td>22.19 and 23.58</td><td>2</td><td>45.77</td><td><a href="https://www.aliexpress.com/item/1005006987905528.html">AliExpress</a></td><td>20 boards: 12 on the wheels, coil, motors, static, spares</td></tr>
+<tr><td>ICM-42688 accelerometer-gyroscope (purple board)</td><td>rim sensor, static</td><td>5.69</td><td>2</td><td>11.38</td><td><a href="https://www.aliexpress.com/item/1005011642881650.html">AliExpress</a></td><td></td></tr>
+<tr><td>MLX90393 magnetometer</td><td>pack of 2</td><td>4.98</td><td>1</td><td>4.98</td><td><a href="https://www.aliexpress.com/item/1005012414990689.html">AliExpress</a></td><td>field in the wheel tube</td></tr>
+<tr><td>ADXL355 precision accelerometer</td><td>static at the centre of the axis</td><td>23.82</td><td>1</td><td>23.82</td><td><a href="https://www.aliexpress.com/item/1005009311859684.html">AliExpress</a></td><td>noise 25 µg/√Hz</td></tr>
+<tr><td>INA219 current meter</td><td>pack of 5</td><td>1.79</td><td>1</td><td>1.79</td><td><a href="https://www.aliexpress.com/item/1005004939456588.html">AliExpress</a></td><td>battery charge: one each for the bus and the coil of a wheel</td></tr>
+<tr><td>Seeed XIAO ESP32-C3</td><td>pack of 10</td><td>4.57</td><td>2</td><td>9.14</td><td><a href="https://www.aliexpress.com/item/1005008791937363.html">AliExpress</a></td><td>not used in the rig — spares</td></tr>
+</tbody></table></div>
+<p>Section: bought <b>96.88 KWD</b>.</p>
+<h2 id="wheels-and-coils">Wheels and coils<a class="anc" href="#wheels-and-coils">#</a></h2>
+<p>The rim is a silicone tube on an aluminium disc, the coil is wound on the tube; the coil bridge, agent heatsinks.</p>
+<div class="tw"><table><thead><tr><th>item</th><th>option, quantity</th><th>price</th><th>pcs</th><th>sum</th><th>link</th><th>note</th></tr></thead><tbody>
+<tr><td>Aluminium disc 6061 Ø300 × 3 mm</td><td>wheel base</td><td>10.38</td><td>2</td><td>20.76</td><td><a href="https://www.aliexpress.com/item/1005008038945720.html">AliExpress</a></td><td></td></tr>
+<tr><td>Food-grade silicone tube, ID 19 × OD 23 mm</td><td>rim — agents inside</td><td>6.56</td><td>1</td><td>6.56</td><td><a href="https://www.aliexpress.com/item/1005010025288570.html">AliExpress</a></td><td></td></tr>
+<tr><td>U-shaped PVC clips 25 mm</td><td>20 pcs</td><td>2.32</td><td>1</td><td>2.32</td><td><a href="https://www.aliexpress.com/item/1005009762220367.html">AliExpress</a></td><td>hold the tube to the disc</td></tr>
+<tr><td>Enamelled copper wire 0.67 mm</td><td>~200 m for two wheels (≈0.6 kg)</td><td>≈ 19.18</td><td>1</td><td>≈ 19.18</td><td><a href="https://www.aliexpress.com/item/1005003650119052.html">AliExpress</a></td><td>bought separately; guide — a 1 kg spool</td></tr>
+<tr><td>DRV8833 bridge — spare for the coils</td><td>2.7–10.8 V</td><td>≈ 0.76</td><td>2</td><td>≈ 1.52</td><td><a href="https://www.aliexpress.com/item/1005009044264044.html">AliExpress</a></td><td>the coils run on DRV8871 from 5.1 V (outside the rating); these are in case of failure</td></tr>
+<tr><td>Aluminium heatsink 10 × 10 × 10 mm</td><td>2 per agent: 24 pcs (3 packs of 10)</td><td>≈ 3.77</td><td>3</td><td>≈ 11.31</td><td><a href="https://www.aliexpress.com/item/1005004079109702.html">AliExpress</a></td><td>some are already on the agents — check how many there are</td></tr>
+</tbody></table></div>
+<p>Section: bought <b>29.64 KWD</b>, to buy or estimate <b>≈ 32.01 KWD</b>.</p>
+<h2 id="wheel-power">Wheel power<a class="anc" href="#wheel-power">#</a></h2>
+<p>Two 2×18650 packs per wheel (agent bus and coil), 5.1 V DC-DC, protection and wiring.</p>
+<div class="tw"><table><thead><tr><th>item</th><th>option, quantity</th><th>price</th><th>pcs</th><th>sum</th><th>link</th><th>note</th></tr></thead><tbody>
+<tr><td>18650 cell, 3400 mAh (LiitoKala NCR18650B)</td><td>8 in use + 2 spare</td><td>≈ 2.71</td><td>10</td><td>≈ 27.10</td><td><a href="https://www.aliexpress.com/item/1005010576713983.html">AliExpress</a></td><td>to buy; the current cells are weak — about 0.7 Ah per pair (<a href="coil_test.html">measurement</a>); not every seller ships lithium cells to Kuwait — check delivery</td></tr>
+<tr><td>2×18650 box with lid and switch</td><td>2 per wheel</td><td>≈ 1.29</td><td>4</td><td>≈ 5.16</td><td><a href="https://www.aliexpress.com/item/4001207701699.html">AliExpress</a></td><td>to buy</td></tr>
+<tr><td>LiitoKala Lii-402 charger</td><td>for 4 cells</td><td>3.96</td><td>1</td><td>3.96</td><td><a href="https://www.aliexpress.com/item/1005008078706966.html">AliExpress</a></td><td></td></tr>
+<tr><td>LM2596 DC-DC with voltmeter</td><td>3 pcs</td><td>1.40</td><td>3</td><td>4.20</td><td><a href="https://www.aliexpress.com/item/1005010587294093.html">AliExpress</a></td><td>5 in use: bus and coil of each wheel, motor agent</td></tr>
+<tr><td>LM2596 DC-DC with indicator</td><td>2 pcs</td><td>1.24</td><td>2</td><td>2.48</td><td><a href="https://www.aliexpress.com/item/1005006735114768.html">AliExpress</a></td><td></td></tr>
+<tr><td>1N5819 Schottky diodes</td><td>50 pcs</td><td>0.86</td><td>1</td><td>0.86</td><td><a href="https://www.aliexpress.com/item/1005001552094086.html">AliExpress</a></td><td>stripe towards the agent's 5V</td></tr>
+<tr><td>1N4007 diodes</td><td>50 pcs</td><td>0.76</td><td>1</td><td>0.76</td><td><a href="https://www.aliexpress.com/item/1005001552094086.html">AliExpress</a></td><td>spares</td></tr>
+<tr><td>Electrolytics 470 µF 25 V</td><td>20 pcs</td><td>0.85</td><td>1</td><td>0.85</td><td><a href="https://www.aliexpress.com/item/1005005945721276.html">AliExpress</a></td><td>C1–C3 on the bus, at the bridges</td></tr>
+<tr><td>Electrolytics, assortment</td><td>120 pcs</td><td>1.02</td><td>1</td><td>1.02</td><td><a href="https://www.aliexpress.com/item/1005006244064108.html">AliExpress</a></td><td></td></tr>
+<tr><td>Ceramic 104 (0.1 µF) 50 V</td><td>100 pcs</td><td>0.68</td><td>1</td><td>0.68</td><td><a href="https://www.aliexpress.com/item/1005008165798085.html">AliExpress</a></td><td>on the motor terminals</td></tr>
+<tr><td>Ceramics, assortment</td><td>300 pcs</td><td>1.15</td><td>1</td><td>1.15</td><td><a href="https://www.aliexpress.com/item/1005008244407175.html">AliExpress</a></td><td></td></tr>
+<tr><td>18AWG fuse holder with a 3 A fuse</td><td>2 pcs</td><td>0.73</td><td>2</td><td>1.46</td><td><a href="https://www.aliexpress.com/item/1005007369776673.html">AliExpress</a></td><td></td></tr>
+<tr><td>Wire 2 × 18 AWG (red-black)</td><td>10 m</td><td>3.22</td><td>1</td><td>3.22</td><td><a href="https://www.aliexpress.com/item/1005009014635843.html">AliExpress</a></td><td>buses</td></tr>
+<tr><td>Silicone wire 20 AWG</td><td>3 m</td><td>0.70</td><td>1</td><td>0.70</td><td><a href="https://www.aliexpress.com/item/1005009017260144.html">AliExpress</a></td><td></td></tr>
+<tr><td>Silicone wire 22 AWG</td><td>3 m</td><td>0.64</td><td>1</td><td>0.64</td><td><a href="https://www.aliexpress.com/item/1005009017260144.html">AliExpress</a></td><td></td></tr>
+<tr><td>T-tap wire connectors</td><td>20 pcs</td><td>2.24</td><td>1</td><td>2.24</td><td><a href="https://www.aliexpress.com/item/1005011893119817.html">AliExpress</a></td><td>taps from the bus to the agents</td></tr>
+<tr><td>H2 connectors, 2 pins</td><td>50 pcs</td><td>1.53</td><td>1</td><td>1.53</td><td><a href="https://www.aliexpress.com/item/1005008802959407.html">AliExpress</a></td><td></td></tr>
+<tr><td>Compact terminal blocks</td><td>5 pcs</td><td>0.57</td><td>4</td><td>2.28</td><td><a href="https://www.aliexpress.com/item/1005012488325489.html">AliExpress</a></td><td></td></tr>
+<tr><td>Heat shrink, assortment</td><td>127 pcs</td><td>0.89</td><td>1</td><td>0.89</td><td><a href="https://www.aliexpress.com/item/1005010440409440.html">AliExpress</a></td><td></td></tr>
+<tr><td>DC volt-ammeter 100 V 10 A</td><td>1 pc</td><td>0.70</td><td>1</td><td>0.70</td><td><a href="https://www.aliexpress.com/item/1005005631605113.html">AliExpress</a></td><td></td></tr>
+</tbody></table></div>
+<p>Section: bought <b>29.62 KWD</b>, to buy or estimate <b>≈ 32.26 KWD</b>.</p>
+<h2 id="frame-and-motors">Frame and motors<a class="anc" href="#frame-and-motors">#</a></h2>
+<p>Motors on the wheel axles, bridges, the motor agent on the frame; 12 V supply.</p>
+<div class="tw"><table><thead><tr><th>item</th><th>option, quantity</th><th>price</th><th>pcs</th><th>sum</th><th>link</th><th>note</th></tr></thead><tbody>
+<tr><td>36GP-555 gear motor, 12 V, 112 rpm</td><td>one per wheel</td><td>14.23</td><td>2</td><td>28.46</td><td><a href="https://www.aliexpress.com/item/1005012582421407.html">AliExpress</a></td><td></td></tr>
+<tr><td>DRV8871 bridge</td><td>pack of 5</td><td>3.86</td><td>1</td><td>3.86</td><td><a href="https://www.aliexpress.com/item/1005012157077217.html">AliExpress</a></td><td>motors — 2, wheel 1 coil — 1 (works from 5.1 V)</td></tr>
+<tr><td>Flanged shaft support, 8 mm</td><td>2 pcs</td><td>0.88</td><td>2</td><td>1.76</td><td><a href="https://www.aliexpress.com/item/1005011593372874.html">AliExpress</a></td><td></td></tr>
+<tr><td>12 V 5 A (60 W) power supply</td><td>motors and motor agent</td><td>≈ 3.09</td><td>1</td><td>≈ 3.09</td><td><a href="https://www.aliexpress.com/item/1005004110696893.html">AliExpress</a></td><td>not in the AliExpress orders — check which one is used</td></tr>
+<tr><td>12 mm plywood, stop bearings, couplings, fasteners</td><td>frame and stops</td><td>—</td><td>1</td><td>—</td><td>—</td><td>bought locally</td></tr>
+</tbody></table></div>
+<p>Section: bought <b>34.08 KWD</b>, to buy or estimate <b>≈ 3.09 KWD</b>.</p>
+<h2 id="experiment-network-wi-fi">Experiment network (Wi-Fi)<a class="anc" href="#experiment-network-wi-fi">#</a></h2>
+<p>A router of its own just for the agents; the laptop is connected to it by cable, internet over its own Wi-Fi.</p>
+<div class="tw"><table><thead><tr><th>item</th><th>option, quantity</th><th>price</th><th>pcs</th><th>sum</th><th>link</th><th>note</th></tr></thead><tbody>
+<tr><td>GL.iNet GL-MT300N-V2 router (Mango)</td><td>2.4 GHz, micro-USB 5 V power</td><td>8.60</td><td>1</td><td>8.60</td><td><a href="https://www.aliexpress.com/item/1005005454366776.html">AliExpress</a></td><td>settings — <a href="wiring.html#experiment-network-wi-fi">wiring, "Experiment network"</a></td></tr>
+<tr><td>UGREEN USB 3.0 → RJ45 adapter (ASIX AX88179)</td><td>laptop ↔ router LAN</td><td>3.30</td><td>1</td><td>3.30</td><td><a href="https://www.aliexpress.com/item/1005007088906526.html">AliExpress</a></td><td></td></tr>
+<tr><td>Cat6 cable</td><td>3 m</td><td>1.91</td><td>1</td><td>1.91</td><td><a href="https://www.aliexpress.com/item/1005009029087811.html">AliExpress</a></td><td></td></tr>
+<tr><td>Second router (home)</td><td>fallback network for the agents</td><td>—</td><td>1</td><td>—</td><td>—</td><td>our own</td></tr>
+</tbody></table></div>
+<p>Section: bought <b>13.81 KWD</b>.</p>
+<h2 id="mounting-and-heat">Mounting and heat<a class="anc" href="#mounting-and-heat">#</a></h2>
+<p>Fixing the heatsinks and boards, insulation under the winding.</p>
+<div class="tw"><table><thead><tr><th>item</th><th>option, quantity</th><th>price</th><th>pcs</th><th>sum</th><th>link</th><th>note</th></tr></thead><tbody>
+<tr><td>Double-sided thermal tape 10 mm</td><td>5 m</td><td>0.92</td><td>1</td><td>0.92</td><td><a href="https://www.aliexpress.com/item/1005005721222386.html">AliExpress</a></td><td>heatsinks onto the board</td></tr>
+<tr><td>Kapton tape 20 mm</td><td>33 m</td><td>1.65</td><td>1</td><td>1.65</td><td><a href="https://www.aliexpress.com/item/1005002708125522.html">AliExpress</a></td><td>heatsink edges under the wire</td></tr>
+<tr><td>AB glue for metal</td><td>50 ml</td><td>2.00</td><td>1</td><td>2.00</td><td><a href="https://www.aliexpress.com/item/1005008690859660.html">AliExpress</a></td><td></td></tr>
+<tr><td>Double-sided nano tape 20 mm</td><td>1 m</td><td>0.38</td><td>1</td><td>0.38</td><td><a href="https://www.aliexpress.com/item/1005010778627319.html">AliExpress</a></td><td></td></tr>
+</tbody></table></div>
+<p>Section: bought <b>4.95 KWD</b>.</p>
+<h2 id="tools-and-consumables">Tools and consumables<a class="anc" href="#tools-and-consumables">#</a></h2>
+<p>For assembly — not included in the cost of the rig itself.</p>
+<div class="tw"><table><thead><tr><th>item</th><th>option, quantity</th><th>price</th><th>pcs</th><th>sum</th><th>link</th><th>note</th></tr></thead><tbody>
+<tr><td>60 W soldering iron with control (S806), 7-in-1 kit</td><td></td><td>2.49</td><td>1</td><td>2.49</td><td><a href="https://www.aliexpress.com/item/1005007111909400.html">AliExpress</a></td><td></td></tr>
+<tr><td>"Third hand" with magnifier, 4 holders</td><td></td><td>2.17</td><td>1</td><td>2.17</td><td><a href="https://www.aliexpress.com/item/1005009212103647.html">AliExpress</a></td><td></td></tr>
+<tr><td>Silicone soldering mat</td><td></td><td>1.27</td><td>1</td><td>1.27</td><td><a href="https://www.aliexpress.com/item/1005005241808257.html">AliExpress</a></td><td></td></tr>
+<tr><td>Magnifier glasses</td><td></td><td>6.00</td><td>1</td><td>6.00</td><td><a href="https://www.aliexpress.com/item/1005005669666176.html">AliExpress</a></td><td></td></tr>
+<tr><td>7-in-1 screwdriver</td><td></td><td>1.21</td><td>1</td><td>1.21</td><td><a href="https://www.aliexpress.com/item/1005012615752371.html">AliExpress</a></td><td></td></tr>
+<tr><td>Stripper-crimper 10–26 AWG</td><td></td><td>2.61</td><td>1</td><td>2.61</td><td><a href="https://www.aliexpress.com/item/1005009138448458.html">AliExpress</a></td><td></td></tr>
+<tr><td>Knife set</td><td></td><td>0.70</td><td>1</td><td>0.70</td><td><a href="https://www.aliexpress.com/item/1005005733410013.html">AliExpress</a></td><td></td></tr>
+<tr><td>4" clamps</td><td>5 pcs</td><td>5.10</td><td>1</td><td>5.10</td><td><a href="https://www.aliexpress.com/item/1005007147995927.html">AliExpress</a></td><td></td></tr>
+<tr><td>3" spring clamps</td><td>6 pcs</td><td>1.66</td><td>2</td><td>3.32</td><td><a href="https://www.aliexpress.com/item/1005006441096614.html">AliExpress</a></td><td></td></tr>
+<tr><td>2" clamps</td><td>10 pcs</td><td>1.46</td><td>1</td><td>1.46</td><td><a href="https://www.aliexpress.com/item/1005008565541292.html">AliExpress</a></td><td></td></tr>
+<tr><td>Sn63/Pb37 rosin-core solder, 0.8 mm</td><td>50 g</td><td>1.37</td><td>1</td><td>1.37</td><td><a href="https://www.aliexpress.com/item/1005009113499721.html">AliExpress</a></td><td></td></tr>
+<tr><td>Flux pen 951</td><td></td><td>1.53</td><td>1</td><td>1.53</td><td><a href="https://www.aliexpress.com/item/1005009476418222.html">AliExpress</a></td><td></td></tr>
+<tr><td>Desoldering braid 2.5 mm</td><td>1.5 m</td><td>0.68</td><td>1</td><td>0.68</td><td><a href="https://www.aliexpress.com/item/1005012817073895.html">AliExpress</a></td><td></td></tr>
+<tr><td>Solder paste</td><td>15 g</td><td>1.03</td><td>1</td><td>1.03</td><td><a href="https://www.aliexpress.com/item/1005009377104599.html">AliExpress</a></td><td></td></tr>
+<tr><td>Stainless steel container</td><td>300 ml</td><td>1.34</td><td>1</td><td>1.34</td><td><a href="https://www.aliexpress.com/item/1005010588950996.html">AliExpress</a></td><td></td></tr>
+<tr><td>Type-C stand</td><td></td><td>0.64</td><td>1</td><td>0.64</td><td><a href="https://www.aliexpress.com/item/1005012357688054.html">AliExpress</a></td><td></td></tr>
+</tbody></table></div>
+<p>Section: bought <b>32.92 KWD</b>.</p>
+  </main>
+</div>
+<footer>This page is built from docs/en/spec.md by tools/build_docs.py — edit the markdown. English translation; the Russian original is the source of truth. Links to the installation and the live diagram work when the documentation is opened from the server (http://&lt;server&gt;:8090/docs/en/).</footer>
+</body>
+</html>

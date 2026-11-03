@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Group mode: the protocol and what we measure · Wheel-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+.flowbox { margin:12px 0 18px; }
+.flowbox iframe { width:100%; height:min(82vh, 860px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.flowbox .small { font-size:13px; color:var(--mut); margin-top:4px; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.preamble { display:flex; flex-direction:column; gap:4px; margin:14px 0 18px; padding:12px 16px; border:1px solid var(--line);
+             border-left:4px solid var(--on); border-radius:8px; background:var(--soft); color:var(--ink); text-decoration:none; }
+.preamble b { color:var(--on); }
+.preamble q { font-style:italic; quotes:"«" "»"; }
+.preamble span { font-size:13px; color:var(--mut); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Wheel-2 · documentation</a>
+  <nav><a href="/" target="plan">▦ Installation</a><a href="/flow" target="flow">↻ How it works</a><a href="preamble.html">✦ Preamble</a><a href="../group_protocol.html" hreflang="ru" title="Русская версия"><b>RU</b></a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Documents</h4>
+    <ul><li><a href="index.html">Overview</a></li><li><a href="preamble.html">Preamble</a></li><li><a href="how_it_works.html">How everything works</a></li><li><a href="modes.html">Modes</a></li><li><a href="wiring.html">Wiring diagrams</a></li><li><a href="coil_test.html">Coil endurance test</a></li><li><a href="../toroid_field.html">Toroid field — calculator · RU</a></li><li><a href="spec.html">Bill of materials</a></li><li><a href="sensors.html">Sensors, phone, motors and coils</a></li><li><a href="static_watch.html">Static sensors: baseline and watching</a></li><li><a href="program.html">Experiment and program</a></li><li><a href="group_protocol.html" class=cur>Group mode</a></li><li><a href="scatter.html">Absorption</a></li><li><a href="randomness.html">Where the randomness comes from</a></li><li><a href="thermal.html">Agent temperature</a></li></ul>
+    
+    <h4>On this page</h4><ul class="toc"><li class="l2"><a href="#1-numbers-from-everyone-s-noise-pieces">1. Numbers from everyone's noise pieces</a></li><li class="l2"><a href="#2-cascade-and-relay-gv-2-and-1">2. Cascade and relay (gv 2 and 1)</a></li><li class="l2"><a href="#3-one-number-for-all-gv-0">3. One number for all (gv 0)</a></li><li class="l2"><a href="#4-failures">4. Failures</a></li><li class="l2"><a href="#5-exchange">5. Exchange</a></li><li class="l2"><a href="#6-what-we-measure">6. What we measure</a></li><li class="l2"><a href="#7-measurements">7. Measurements</a></li></ul>
+  </aside>
+  <main class="doc">
+<a class="live" href="/flow#cascade">▶ watch it live on the animated diagram</a>
+<h1>Group mode: the protocol and what we measure</h1>
+<p><i>English translation of <a href="../group_protocol.html">docs/group_protocol.md</a> — the Russian original is the source of truth. Labels inside the diagrams are in Russian.</i></p>
+<p>The <code>prime_lab</code> firmware, module <code>group.cpp</code>: the protocol lives in its own task on the radio core, the compute core works on jobs. A group is a wheel subgroup (letter а–з on the main screen); the server sends the membership and the participants' addresses together with the settings — a new agent joins without reflashing the others. The way is set by <code>gv</code>, the icons are as on the main screen. When to choose which way — <a href="modes.html">modes.md</a>, "Cooperation"; the exchange step by step, slowed down, — the window «↻ Как работает» (how it works), section 2.</p>
+<div class="tw"><table><thead><tr><th>icon</th><th>way</th><th><code>gv</code></th><th>who tests</th><th>what goes over the air</th></tr></thead><tbody>
+<tr><td>●</td><td>selfish — not a group (<code>mode</code> 0), the reference</td><td>—</td><td>each its own numbers from its own noise</td><td>only the pulse</td></tr>
+<tr><td>⋈</td><td><b>cascade</b> — the main one</td><td>2</td><td>everyone at once, each its own numbers</td><td>pieces from all to all, primes for cross-checking</td></tr>
+<tr><td>⇢</td><td>relay</td><td>1</td><td>one, the turn goes round</td><td>pieces to the tester, the turn with a reserve of numbers</td></tr>
+<tr><td>①</td><td>one number for all</td><td>0</td><td>everyone the same number, the bases divided</td><td>the number and the verdict from the master, answers and pieces to it</td></tr>
+</tbody></table></div>
+<figure><a href="../img/group_modes.svg"><img src="../img/group_modes.svg" alt="Four ways: selfish — each has its own cell; cascade — a bus of pieces from all to all, everyone tests; relay — a ring, one holds the turn; one number for all — a shared number in the middle, the master" loading="lazy"></a><figcaption>Four ways: selfish — each has its own cell; cascade — a bus of pieces from all to all, everyone tests; relay — a ring, one holds the turn; one number for all — a shared number in the middle, the master</figcaption></figure>
+<h2 id="1-numbers-from-everyone-s-noise-pieces">1. Numbers from everyone's noise pieces<a class="anc" href="#1-numbers-from-everyone-s-noise-pieces">#</a></h2>
+<ul><li><b>A piece</b> — the length of the number divided by the number of agents, rounded up to 4 bytes (256 bits: two — 16 bytes, four — 8). Each agent takes the noise from <b>its own</b> sources (<a href="randomness.html">randomness.md</a>).</li><li><b>A set</b> — K pieces in one PCS frame, for K candidates. One number for all — K = <code>k</code> (default 24); relay and cascade — as many as fit in a frame, up to 64 (256 bits, four — 64).</li><li><b>A candidate</b> — one piece from each in random order (the order — from a fast xorshift128+ generator seeded by the RNG for every gathering), the top bit and oddness, sieving by divisors (<code>td</code>): with <code>td</code> 1000, out of 24 candidates about four survive on average.</li><li><b>Pieces in advance</b> (<code>pre</code>, only with the RNG alone): the set is ready before it is asked for. One number keeps one set, relay and cascade — up to four; slow sources (CSI, ADC, jitter) gather on request.</li><li><b>Two cores</b> (<code>dc</code> 1, relay and cascade): the noise for the pieces is gathered by a producer on the radio core. The relay also assembles and sieves there (16 candidates per pass), the compute core only tests; the cascade sieves on the compute core — the radio core is busy with noise for everyone's numbers.</li></ul>
+<h2 id="2-cascade-and-relay-gv-2-and-1">2. Cascade and relay (<code>gv</code> 2 and 1)<a class="anc" href="#2-cascade-and-relay-gv-2-and-1">#</a></h2>
+<p>The number is assembled from everyone's pieces, and one agent tests it — with all bases in a row. Splitting the test of one number does not pay: a composite is rejected by the very first base (≈ 1 ms at 256 bits), while a frame takes longer.</p>
+<ul><li><b>Cascade</b> — everyone tests at once, each its own numbers, and each also provides pieces for everyone else's numbers. A prime found goes to the next in order for cross-checking; the turn is not passed.</li><li><b>Relay</b> — one holds the turn, the others give it noise. Having found <code>rk</code> primes, it passes the turn and the rest of the reserve of numbers to the next in order (TURN, addressed); that one acknowledges, cross-checks the prime and at once tests its own. One computing stream for the whole group.</li></ul>
+<p>The tester's turn:</p>
+<ol><li><b>Gathering round.</b> The request for pieces — to everyone in one broadcast frame (REQ), repeats — addressed to those who did not send. Each replies with a set (PCS).</li><li><b>Numbers.</b> K candidates from everyone's pieces, sieving, the survivors go into the reserve. A new round — while the reserve is less than "survivors per round plus two in reserve"; the cascade keeps the reserve one round ahead (survivors of two rounds plus two).</li><li><b>Testing.</b> The compute core takes packets from the reserve (8 numbers at 256 bits) and tests with all bases until the first prime: a composite — one base, a prime — all of them.</li><li><b>Cross-check</b> — instead of the "one number" agreement. The receiver of the prime tests it with one base the tester did not use (the next after <code>nb</code>: with 8 bases — 23; with 12 there is no cross-check). If it finds a witness, the "prime" is composite: <code>split</code>.</li><li><b>Waiting for pieces</b> (<code>pw</code>). 0 — wait for everyone, re-asking up to 3 times; if a participant still has not sent, it is <b>silent</b> (§ 4). A deadline in ms — after it the missing pieces are replaced by sets of its own noise: the number is still random, it just has less foreign noise in it. If it does not have enough sets of its own for replacement, the agent accumulates them and gives them to its neighbours later. Rounds with replacement and the number of replacements — <code>tr</code> in the <code>grp</code> packet; on the main screen — "pieces from everyone, % of numbers".</li></ol>
+<h2 id="3-one-number-for-all-gv-0">3. One number for all (<code>gv</code> 0)<a class="anc" href="#3-one-number-for-all-gv-0">#</a></h2>
+<p>Every number is tested by everyone; the Miller–Rabin bases are divided round-robin (place in the group, place + N, …): with 8 bases and two agents the first tests 2, 5, 11, 17, the second — 3, 7, 13, 19. At an agent the test stops at the first base that says "composite". A cycle is two messages per agent: the verdict with the number, and the answer.</p>
+<ol><li><b>The number comes with the verdict of the previous cycle</b> (NXT). Everyone at once tests it with their bases and answers the master (RES): whether a witness was found, by which base, how much was computed.</li><li><b>Verdict</b> (NXT). If someone found one — the number is composite, the next master is the finder (if several found one — the choice by a seed from the SHA-256 of the number itself). If nobody found one — the number is prime: the master records it and hands mastership to the next in order. The same message carries the number of the next cycle, and to the new master — also the rest of the reserve (at 256 bits — up to 16 numbers).</li><li><b>Replenishing during testing.</b> When the reserve runs out, the verdict tells everyone "send pieces to the new master" (<code>want</code>): each gives a set at once and starts testing, the master assembles and sieves while everyone tests.</li><li><b>Without a number</b> (start of a session, a break): the master asks for pieces with a request (REQ), sieves and sends out the number itself (NUM).</li></ol>
+<p>A group also works with one agent: it is its own master, tests with all bases and sends no protocol frames.</p>
+<p><b>Agreement.</b> Answers about one number must agree: a random composite gives a witness to almost any base (strong pseudoprimes to the first bases do not occur among random 256-bit numbers), so in every cycle either everyone found one or nobody did. The master counts:</p>
+<ul><li><code>agr</code> — cycles where everyone's answers were compared;</li><li><code>split</code> — not everyone found one: a pseudoprime to someone's bases (the server will re-check) or an error in computing or transmission;</li><li><code>dis</code> — in agreement mode (<code>all</code> 1: all bases at each agent, the same order) the first witness bases differ between agents.</li></ul>
+<p>The number of the last disagreement and the agents' answers — <code>gls</code> in the <code>grp</code> packet; on the main screen — "agreement %" in the group popup. This is an integrity check of the whole path: there should be no disagreements at all.</p>
+<h2 id="4-failures">4. Failures<a class="anc" href="#4-failures">#</a></h2>
+<div class="tw"><table><thead><tr><th>what happened</th><th>what the protocol does</th><th>counter</th></tr></thead><tbody>
+<tr><td>one number: no answer about the test</td><td>the master repeats the number (NUM) to the silent one, up to 3 times, then a new cycle</td><td>re-asks; break: test</td></tr>
+<tr><td>one number: no pieces</td><td>the master repeats the request (REQ), up to 3 times, then gathering again</td><td>re-asks; break: gathering</td></tr>
+<tr><td>one number: the verdict did not reach the new master</td><td>answers and pieces are already coming to it — it keeps them and asks for the verdict again (ASK)</td><td>re-asks; "before the verdict"</td></tr>
+<tr><td>one number: the new master is silent for more than 4 cycles (at least 50 ms)</td><td>the previous master repeats the verdict to it, up to 3 times</td><td>re-asks; break: relay</td></tr>
+<tr><td>one number: a participant has not heard the master for 1.5 s or more</td><td>starts a cycle itself (the first in order — before the others)</td><td>mastership taken over</td></tr>
+<tr><td>one number: two masters at once</td><td>the one with the lower cycle number gives way (if equal — the higher agent number)</td><td>two masters</td></tr>
+<tr><td>relay, cascade: no pieces after three requests (<code>pw</code> 0)</td><td>the participant is silent: its pieces — own noise</td><td>break: gathering; <code>mute</code></td></tr>
+<tr><td>relay, cascade: the <code>pw</code> deadline passed</td><td>the missing pieces — own noise</td><td><code>tr</code></td></tr>
+<tr><td>relay: the next one did not acknowledge the turn</td><td>TURN up to 3 more times, then the turn goes to the one after it; the one that did not accept is silent</td><td>re-asks; break: relay; <code>mute</code></td></tr>
+<tr><td>relay: the tester has not been heard for 1.5 s or more</td><td>the next in order takes the turn, the others later, in turn</td><td>turn taken over</td></tr>
+<tr><td>relay: two testers at once</td><td>the one with the lower turn number gives way (if equal — the higher agent number)</td><td>two testers</td></tr>
+<tr><td>the radio does not transmit for 15 s or there is no Wi-Fi for 90 s</td><td>the board restarts itself, the server gives it its settings back, the group takes it back</td><td><code>rbt</code></td></tr>
+</tbody></table></div>
+<p>The board's other watchdogs (Wi-Fi "zombie", beacon silence) — <a href="how_it_works.html">how_it_works.md</a>, "Temperature and watchdogs".</p>
+<p><b>Waiting time.</b> Pieces and answers are waited for twice the usual time of the slowest participant plus 20 ms (usual — a moving average per participant): an agent throttled by temperature means a delay, not a loss. An answer carries a tag of the number (the low 4 bytes): an answer about another number is not counted.</p>
+<p><b>A silent participant</b> (relay, cascade). Whoever did not send pieces after three requests or did not accept the turn is silent for this agent: the round is assembled without it (its pieces — own noise), the next rounds do not wait for it, the turn and cross-checks bypass it. Any frame from it — and it is waited for again. In the <code>grp</code> packet — <code>mute</code>: [how many times members went silent, mask of the silent places, how many are silent]; on the main screen — "◇" in the group popup, the relay arc to it is dashed.</p>
+<p><b>Rest in turns</b> (relay, cascade; <a href="thermal.html">thermal.md</a>, "Rest in turns"). The server sends <code>REST s=…</code> to the hottest of those throttled by the regulator. The agent finishes its turn (relay — until the next one has accepted), tells every participant by address <code>M_REST</code> "resting" — they put it among the silent at once — sets 80 MHz and does not compute; it does not answer group frames, only the pulse goes into the air. After <code>s</code> seconds or on <code>BACK</code> — the frequency from the settings and <code>M_REST</code> "back in action": cascade — its own turns, relay — it waits for the turn (it learns the turn and tester numbers from the very first REQ). The settings number does not change. In the <code>grp</code> packet — <code>rest</code>: [1 resting / 2 will go once it finishes its turn; seconds left; rests in total].</p>
+<h2 id="5-exchange">5. Exchange<a class="anc" href="#5-exchange">#</a></h2>
+<ul><li>ESP-NOW on the router's channel, rate <code>nr</code>: 24 Mbit/s — normal; 6 Mbit/s — picks up a signal ~12 dB weaker; 1 Mbit/s — a frame hangs in the air 20 times longer, the transmitter heats the board, and the group waits for the one throttled by the regulator. A protocol frame is up to 600 bytes with the tag <code>W5</code>: frames of another version are not accepted.</li><li>Group frames are addressed: the radio acknowledges each one and repeats a lost one itself (broadcast frames without acknowledgement get lost). To everyone at once go only the first request for pieces in relay and cascade (a loss is covered by a repeat or the <code>pw</code> deadline), the pulse and absorption frames (<a href="scatter.html">scatter.md</a>). The participants' addresses come from the server's registry; the pulse reports a neighbour's address and signal even before the first protocol frame.</li><li>A frame goes out only after the radio has reported on the previous one: a continuous stream of frames jams the agent's ordinary Wi-Fi (commands, telemetry).</li><li>The settings number (<code>cid</code>) is the session number: frames of foreign settings are not accepted, so several groups at once do not disturb each other.</li></ul>
+<p><b>A bad transmitter slows everyone.</b> If a group is suddenly slow with many re-asks, look at the pairs (<code>fail_to</code>, <code>rssi_from</code> in the <code>grp</code> packet; the "pairs" row on the old panel <code>/old</code>): the culprit loses frames <b>from itself</b> to any neighbour (2–20 %), frames to it and between the others arrive at 100 %, its telemetry does not go out (<code>udpf</code>) and "not accepted by the radio" grows in <code>etx</code>. Such a board should be replaced (looks like the antenna connector).</p>
+<h2 id="6-what-we-measure">6. What we measure<a class="anc" href="#6-what-we-measure">#</a></h2>
+<p>The counters are in every agent's <code>grp</code> packet; the server combines them by group: the group popup on the main screen (hover over the bus, the ring or the shared number), in detail — the old panel <code>/old</code>.</p>
+<ul><li><b>Rate:</b> cycles (turns) and primes per second; the yield of primes against theory — at the testers, as for "each on its own".</li><li><b>Comparison with "each on its own":</b> the server remembers how many primes per second each agent gave alone at the same length, bases, sources and sieve, and shows how many times slower the group is.</li><li><b>Coherence:</b> the share of numbers from everyone's pieces (<code>tr</code>) and the series of consecutive cycles without a re-ask, a repeat or a break — current and best, in cycles and in time; all the time spent in clean series. For a group — the worst of the participants' series.</li><li><b>Cycle time by stage</b> (at the master): waited for pieces, waited for the sieve, testing and answers, verdict to the new master (measured by the previous master: from its verdict to the new one's verdict, minus the length of its cycle, halved); for each stage — how much of it is pure computing, the rest is synchronisation. Relay and cascade write into the same fields: the compute core waited for numbers, noise and sieving on the compute core, testing, passing the turn, the whole turn.</li><li><b>Reserve:</b> gathering rounds per cycle, candidates sieved and surviving, in how many cycles a number was waited for, how often the set of pieces was ready in advance.</li><li><b>Tests by base:</b> how much the agent tested with each base and how many times it found a witness.</li><li><b>Link:</b> delivered and not delivered per participant, the signal from each, the send queue.</li></ul>
+<h2 id="7-measurements">7. Measurements<a class="anc" href="#7-measurements">#</a></h2>
+<p>XIAO ESP32-S3 boards without heatsinks, 256 bits, RNG, 8 bases, sieve up to 1000, 24 Mbit/s, 240 MHz, 30–90 s per case; <code>tools/multi_test.py</code>, reports <code>data/tests/multi_*.json</code>. Primes per second for the whole group:</p>
+<div class="tw"><table><thead><tr><th>way</th><th>1 agent</th><th>2</th><th>3</th><th>4</th><th>6</th></tr></thead><tbody>
+<tr><td>selfish · two cores (total)</td><td>25 · 45</td><td>—</td><td>—</td><td>103 · 186</td><td>—</td></tr>
+<tr><td>one number for all</td><td>24.5</td><td>16–17</td><td>10.5</td><td>7.7–10.6</td><td>—</td></tr>
+<tr><td>relay, two cores</td><td>—</td><td>—</td><td>—</td><td>37</td><td>—</td></tr>
+<tr><td>cascade, two cores</td><td>—</td><td>—</td><td>—</td><td>80–92</td><td>118 (<code>pw</code> deadline 20 ms)</td></tr>
+</tbody></table></div>
+<ul><li>All checks agree: the yield of primes against theory is within |z| ≤ 2, cross-checks of neighbours' primes — not a single disagreement, the server confirmed every prime in the log, no breaks and no two testers.</li><li><b>The cascade</b> is limited by the radio core (noise for the pieces is needed for every candidate, and the RNG gives a word in ~21 µs) and by heat: in 30 s the hottest boards reach 70 °C, the regulator cuts their work to 18–47 %. Without a deadline (<code>pw</code> 0) everyone waits for the throttled board's pieces, with a deadline — not.</li><li><b>A cascade of six</b> (90 s): with a 20 ms deadline 60–73 % of the neighbours' pieces are replaced by own noise (for three — 18 %, for a relay of six — 2 %), with 50 ms — 9–13 %, ~100 primes/s. Six plus six absorbers — 104 primes/s; two groups of three at once — 75.</li><li><b>The relay</b> shares the turns evenly; a turn takes 27 ms, of which waiting is 17.6 %; 1024 bits — 0.55 primes/s. A participant restarted over USB in the middle of computing drops out within a second (three — ~20 primes/s instead of 38–40) and comes back with its settings after 7 s.</li><li><b>Two groups at once</b> do not disturb each other: relays 2 + 2 — 32.9 and 30.3 primes/s; one number 2 + 2 — 216 cycles/s each and 16–17 primes/s, 1 + 3 — 330 and 161 cycles/s.</li></ul>
+<p><b>One number for all by group size</b> (4 boards, 30 s per case):</p>
+<div class="tw"><table><thead><tr><th>in the group</th><th>cycles/s</th><th>primes/s</th><th>cycle, ms</th><th>synchronisation</th><th>re-asks / breaks per 30 s</th></tr></thead><tbody>
+<tr><td>1</td><td>330</td><td>24.5</td><td>2.95</td><td>4 %</td><td>0 / 0</td></tr>
+<tr><td>2</td><td>216</td><td>16–17</td><td>4.3</td><td>58 %</td><td>0–11 / 0</td></tr>
+<tr><td>3</td><td>161</td><td>10.5</td><td>6.2</td><td>70 %</td><td>2 / 0</td></tr>
+<tr><td>4</td><td>127</td><td>7.7</td><td>8.2</td><td>78 %</td><td>32 / 0</td></tr>
+</tbody></table></div>
+<p>The more agents, the longer the master collects the answers for each number: individually the four boards give 105.8 primes/s, together two are 3.1 times slower, three — 7.4, four — 13.7. Mastership and base witnesses are shared evenly. With silent telemetry (<code>tl</code> 2) four give 136 cycles/s, 8.5 primes/s.</p>
+<p><b>One number for all, four agents — what each parameter gives</b> (30–120 s per case, <code>tools/multi_test.py 30 sweep_*</code>):</p>
+<div class="tw"><table><thead><tr><th>what was changed</th><th>cycles/s</th><th>primes/s</th><th>cycle, ms</th><th>synchronisation</th></tr></thead><tbody>
+<tr><td>normal: 256 bits, RNG, K = 24, pieces in advance, 24 Mbit/s, 20 dBm, 240 MHz</td><td>127</td><td>7.7</td><td>8.2</td><td>78 %</td></tr>
+<tr><td>512 bits</td><td>85</td><td>3.2</td><td>11.2</td><td>52 %</td></tr>
+<tr><td>1024 bits</td><td>30</td><td>0.57</td><td>33</td><td>18 %</td></tr>
+<tr><td>CSI noise only (pieces gathered on request — seconds)</td><td>8</td><td>0.50</td><td>122</td><td>40 %</td></tr>
+<tr><td>ADC noise only</td><td>11</td><td>0.82</td><td>92</td><td>8 %</td></tr>
+<tr><td>jitter noise only</td><td>8</td><td>0.65</td><td>119</td><td>7 %</td></tr>
+<tr><td>K = 4 (more gatherings per cycle)</td><td>78</td><td>5.2</td><td>13.1</td><td>86 %</td></tr>
+<tr><td>no pieces in advance</td><td>87</td><td>6.2</td><td>12.0</td><td>84 %</td></tr>
+<tr><td>6 Mbit/s</td><td>71</td><td>5.1</td><td>14.8</td><td>88 %</td></tr>
+<tr><td>transmitter 2 dBm (boards close — no power needed)</td><td>106</td><td>7.5</td><td>9.8</td><td>81 %</td></tr>
+<tr><td>CPU 80 MHz</td><td>87</td><td>5.9</td><td>11.8</td><td>69 %</td></tr>
+<tr><td>no sieving by divisors (everything tested in a row)</td><td>98</td><td>1.2</td><td>10.8</td><td>86 %</td></tr>
+</tbody></table></div>
+<p><b>Large groups — an estimate from the live diagram's model</b> (window «↻ Как работает»; the model reproduces "one number" on 1–4 boards and takes the shared air into account — every frame occupies it for its transmission time; there is no heat in the model). 256 bits, RNG, primes per second per group; "each on its own" — 25 per board, with two cores 45:</p>
+<div class="tw"><table><thead><tr><th>agents</th><th>one number</th><th>relay</th><th>relay, two cores</th><th>cascade</th><th>cascade, two cores</th><th>air (cascade, two cores)</th></tr></thead><tbody>
+<tr><td>1</td><td>24.9</td><td>25</td><td>43</td><td>23</td><td>42</td><td>3 %</td></tr>
+<tr><td>2</td><td>14.6</td><td>28</td><td>37</td><td>43</td><td>82</td><td>10 %</td></tr>
+<tr><td>4</td><td>8.7</td><td>32</td><td>38</td><td>89</td><td>160</td><td>26 %</td></tr>
+<tr><td>8</td><td>~6</td><td>32</td><td>33</td><td>falls apart</td><td>260</td><td>65 %</td></tr>
+<tr><td>16</td><td>~3.7</td><td>27</td><td>32</td><td>air overloaded</td><td>air overloaded</td><td>—</td></tr>
+</tbody></table></div>
+<ul><li>The relay keeps the rate of one to one and a half boards at any size and hardly occupies the air (5–20 %).</li><li>In the cascade all the noise of the numbers (32 bytes per candidate at 256 bits) goes through the air. With eight — 65 % of the air, and without two cores the compute core cannot keep up both gathering noise for seven neighbours and testing. With sixteen the air does not let a full cascade through; with a <code>pw</code> deadline of 20 ms it works, but 92 % of the rounds are assembled without foreign pieces — in effect each on its own.</li><li>There is one air for all the wheels of the rig: the loads of several cascades add up.</li></ul>
+  </main>
+</div>
+<footer>This page is built from docs/en/group_protocol.md by tools/build_docs.py — edit the markdown. English translation; the Russian original is the source of truth. Links to the installation and the live diagram work when the documentation is opened from the server (http://&lt;server&gt;:8090/docs/en/).</footer>
+</body>
+</html>

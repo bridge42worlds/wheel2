@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wheel-2 ("Колесо-2"): how everything works · Wheel-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+.flowbox { margin:12px 0 18px; }
+.flowbox iframe { width:100%; height:min(82vh, 860px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.flowbox .small { font-size:13px; color:var(--mut); margin-top:4px; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.preamble { display:flex; flex-direction:column; gap:4px; margin:14px 0 18px; padding:12px 16px; border:1px solid var(--line);
+             border-left:4px solid var(--on); border-radius:8px; background:var(--soft); color:var(--ink); text-decoration:none; }
+.preamble b { color:var(--on); }
+.preamble q { font-style:italic; quotes:"«" "»"; }
+.preamble span { font-size:13px; color:var(--mut); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Wheel-2 · documentation</a>
+  <nav><a href="/" target="plan">▦ Installation</a><a href="/flow" target="flow">↻ How it works</a><a href="preamble.html">✦ Preamble</a><a href="../how_it_works.html" hreflang="ru" title="Русская версия"><b>RU</b></a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Documents</h4>
+    <ul><li><a href="index.html">Overview</a></li><li><a href="preamble.html">Preamble</a></li><li><a href="how_it_works.html" class=cur>How everything works</a></li><li><a href="modes.html">Modes</a></li><li><a href="wiring.html">Wiring diagrams</a></li><li><a href="coil_test.html">Coil endurance test</a></li><li><a href="../toroid_field.html">Toroid field — calculator · RU</a></li><li><a href="spec.html">Bill of materials</a></li><li><a href="sensors.html">Sensors, phone, motors and coils</a></li><li><a href="static_watch.html">Static sensors: baseline and watching</a></li><li><a href="program.html">Experiment and program</a></li><li><a href="group_protocol.html">Group mode</a></li><li><a href="scatter.html">Absorption</a></li><li><a href="randomness.html">Where the randomness comes from</a></li><li><a href="thermal.html">Agent temperature</a></li></ul>
+    
+    <h4>On this page</h4><ul class="toc"><li class="l2"><a href="#1-the-rig">1. The rig</a></li><li class="l2"><a href="#2-life-of-an-agent">2. Life of an agent</a></li><li class="l2"><a href="#3-where-the-randomness-comes-from">3. Where the randomness comes from</a></li><li class="l2"><a href="#4-how-a-prime-is-found">4. How a prime is found</a></li><li class="l2"><a href="#5-group-mode">5. Group mode</a></li><li class="l2"><a href="#6-absorption">6. Absorption</a></li><li class="l2"><a href="#7-rotation-field-and-wheel-calibration">7. Rotation, field and wheel calibration</a></li><li class="l2"><a href="#8-temperature-and-watchdogs">8. Temperature and watchdogs</a></li><li class="l2"><a href="#9-the-main-screen-установка">9. The main screen "Установка"</a></li><li class="l2"><a href="#10-experiment-and-program">10. Experiment and program</a></li><li class="l2"><a href="#11-agent-parameters">11. Agent parameters</a></li><li class="l2"><a href="#12-telemetry-and-data">12. Telemetry and data</a></li><li class="l2"><a href="#13-new-agent-and-firmware">13. New agent and firmware</a></li><li class="l2"><a href="#14-measurements">14. Measurements</a></li><li class="l2"><a href="#15-tools">15. Tools</a></li><li class="l2"><a href="#16-limitations-and-what-next">16. Limitations and what next</a></li></ul>
+  </aside>
+  <main class="doc">
+
+<h1>Wheel-2 ("Колесо-2"): how everything works</h1>
+<p>*English translation of <a href="../how_it_works.html">docs/how_it_works.md</a> — the Russian original is the source of truth. Every document in <code>docs/</code> has an English translation in <code>docs/en/</code>; labels inside the diagrams in <code>docs/img/</code> and the screens of the rig are in Russian.*</p>
+<p>The whole rig: what it consists of, what each agent does, how the server and the main screen work, which parameters exist. Each topic has its own page: <a href="wiring.html">wiring</a>, <a href="sensors.html">sensors, phone, motors and coils</a>, <a href="modes.html">modes</a>, <a href="program.html">experiment and program</a>, <a href="static_watch.html">static sensors</a>, <a href="group_protocol.html">group mode</a>, <a href="scatter.html">absorption</a>, <a href="randomness.html">noise</a>, <a href="thermal.html">temperature</a>, <a href="spec.html">bill of materials</a>, <a href="coil_test.html">coil endurance test</a>, the <a href="../toroid_field.html">toroid field calculator</a> (Russian). Why the rig exists — the <a href="preamble.html">preamble</a>.</p>
+<hr>
+<h2 id="1-the-rig">1. The rig<a class="anc" href="#1-the-rig">#</a></h2>
+<figure><a href="../img/system_overview.svg"><img src="../img/system_overview.svg" alt="How the rig works: two wheels with agents on the rims, a coil agent, a motor agent and static sensors between the wheels; the experiment network; the monitor.py server and the main screen in a browser; flows — telemetry UDP 5005, commands UDP 5007, beacon UDP 5006, firmware and the screen over HTTP 8090" loading="lazy"></a><figcaption>How the rig works: two wheels with agents on the rims, a coil agent, a motor agent and static sensors between the wheels; the experiment network; the monitor.py server and the main screen in a browser; flows — telemetry UDP 5005, commands UDP 5007, beacon UDP 5006, firmware and the screen over HTTP 8090</figcaption></figure>
+<ul><li><b>Wheels</b> — two, facing each other. Each rim is a tube wound with a coil; on the rim, six <b>agents</b> run on a 5.1 V bus from their own batteries. Wheel 1: #3, #5, #6 (rim sensor ICM-42688), #11, #12, #20 (magnetometer MLX90393); wheel 2: #14–#19.</li><li><b>Coil</b> of a wheel — its own batteries, a DRV8871 bridge and a <b>coil agent</b>: field "+", "−" or off. Wheel 1 has #13; wheel 2 has no coil agent yet. The coil agent is not part of the wheel's groups.</li><li><b>Frame</b>: 36GP-555 motors on the wheel axles, two DRV8871 bridges, a 12 V supply and the <b>motor agent</b> #10.</li><li><b>Static sensors</b> between the wheels: #8 (precision accelerometer ADXL355) at the centre of the axis and a <b>phone</b> #9 that measures and sends over Wi-Fi on its own.</li><li><b>Experiment network</b> — its own GL.iNet Mango router (2.4 GHz, channel 6): agents and the phone over Wi-Fi, the laptop by cable.</li><li><b>Server</b> — <code>server/monitor.py</code> on the laptop: receives telemetry, checks primes, analyses the static sensors, runs experiments, drives motors and coils, writes everything to disk. Python 3 standard library; numpy for the static sensors. Start: <code>tools/monitor.cmd</code>.</li><li><b>Main screen "Установка" (Installation)</b> — <code>http://&lt;server&gt;:8090/</code> in a browser on a tablet, phone or laptop (§ 9).</li><li><b>Registry</b> — <code>registry/devices.csv</code>: number, MAC and label of every board.</li></ul>
+<p>An agent is a Seeed XIAO ESP32-S3 with the <code>firmware/prime_lab</code> firmware. Its role is set by the server:</p>
+<div class="tw"><table><thead><tr><th>role</th><th>what it does</th></tr></thead><tbody>
+<tr><td>▶ generation (A)</td><td>searches for primes in physical noise — on its own or in a group</td></tr>
+<tr><td>▼ absorption (B)</td><td>receives the primes of the other wheel's generators and scatters them into the air, mixed with its own noise</td></tr>
+<tr><td>◆ static (S)</td><td>only measures acceleration (500 Hz) and sends the axes; the server does the analysis</td></tr>
+<tr><td>⚙ motors / coil (M)</td><td>turns the wheels through the bridges or switches the coil field on server commands</td></tr>
+</tbody></table></div>
+<p>Ports: 5005 — telemetry (UDP), 5006 — server beacon (UDP), 5007 — commands (UDP), 8090 — HTTP (screen, <code>/api</code>, phone uplink <code>/api/ingest</code>, firmware image <code>/fw/prime_lab.bin</code>).</p>
+<p>On the server the same picture is <b>live</b> (menu "↻ Как работает", <code>/flow</code>): who is online, the prime rate; a silent branch is dashed.</p>
+<hr>
+<h2 id="2-life-of-an-agent">2. Life of an agent<a class="anc" href="#2-life-of-an-agent">#</a></h2>
+<ol><li><b>Power-up.</b> LED intro: 5 fast blinks, the last 4 hex digits of the MAC in Morse code, 5 fast, the registry number, 5 slow.</li><li><b>Wi-Fi.</b> Network from <code>secrets/wifi.ini</code>, 802.11b/g only — so CSI arrives with every packet; radio sleep off — receiver noise flows into the generator continuously. There is a <b>fallback network</b> (<code>ssid2</code>/<code>password2</code>): if the main one refuses for 40 s, the board moves to the fallback and retries the main one after 2 min, then every 10 min while idle; telemetry <code>net</code> (0 main, 1 fallback).</li><li><b>Finding the server.</b> Every 2 s the server broadcasts the beacon <code>W2SRV 5005</code> on UDP 5006.</li><li><b>Self-test.</b> Miller–Rabin on known primes and pseudoprimes (up to 2048 bits).</li><li><b>Idle.</b> After power-up the agent <b>stands</b>: it does not compute, it sends telemetry once a second.</li><li><b>Work.</b> On a server command it computes; the LED flashes with each telemetry packet.</li><li><b>Stop.</b> Counting stops, counters freeze — the server collects the totals.</li><li><b>Over-the-air update</b> (§ 13): image into the free partition, MD5 check, reboot; the new firmware is provisional until the agent has been online for a minute; not online within 10 minutes, or a crash — the bootloader rolls back.</li></ol>
+<p>If an agent reboots, the server gives it its last settings back.</p>
+<hr>
+<h2 id="3-where-the-randomness-comes-from">3. Where the randomness comes from<a class="anc" href="#3-where-the-randomness-comes-from">#</a></h2>
+<div class="tw"><table><thead><tr><th>noise</th><th>what it is</th><th>speed</th></tr></thead><tbody>
+<tr><td>⚄ chip RNG</td><td>the ESP32-S3 hardware generator (<code>esp_random</code>), mixed with Wi-Fi receiver noise</td><td>~45 k words/s — the main one</td></tr>
+<tr><td>Σ all available</td><td>RNG + CSI from heartbeats + ADC + jitter through SHA-256</td><td>as the slowest of them</td></tr>
+<tr><td>≋ CSI from heartbeats</td><td>the radio-channel "fingerprint" in neighbours' heartbeat frames (ESP-NOW)</td><td>slow</td></tr>
+<tr><td>↯ CSI from router ping</td><td>the same from router replies to a ping</td><td>slow, use with care (§ 8)</td></tr>
+<tr><td>⏚ ADC D0</td><td>floating pin D0: pick-up and resistor noise, ¼ bit per sample</td><td>slow</td></tr>
+<tr><td>⧖ RC jitter</td><td>internal 136 kHz RC against the 40 MHz crystal, ¼ bit per sample</td><td>slow</td></tr>
+<tr><td>↺ back noise</td><td>the absorbers' frames — a loop through the air (mixed in, or alone)</td><td>as much as they scatter</td></tr>
+<tr><td>↕ accelerometer, 🧲 magnetometer</td><td>low bytes of the rim sensors' axes — alone or added</td><td>very slow</td></tr>
+</tbody></table></div>
+<ul><li>A single RNG: its words go straight into the number. Any other set: <b>SHA-256</b> blocks of 256 bits, each enabled source contributes at least 256 credited bits per block — the number is random even if only one source is good.</li><li><b>Without hashing</b> (<code>raw</code>): low bits of the raw samples go straight into the number — the physics of the source shows; with von Neumann debiasing the 0/1 skew is removed.</li><li>Never connect anything to D0 — the ADC noise is taken from it.</li></ul>
+<hr>
+<h2 id="4-how-a-prime-is-found">4. How a prime is found<a class="anc" href="#4-how-a-prime-is-found">#</a></h2>
+<figure><a href="../img/prime_pipeline.svg"><img src="../img/prime_pipeline.svg" alt="The pipeline on an agent: noise → candidate of exactly N bits, odd → trial division → Miller–Rabin with nb bases → probably prime; a rejection means the next candidate; the server re-checks what was found" loading="lazy"></a><figcaption>The pipeline on an agent: noise → candidate of exactly N bits, odd → trial division → Miller–Rabin with nb bases → probably prime; a rejection means the next candidate; the server re-checks what was found</figcaption></figure>
+<ul><li><b>Miller–Rabin</b> with base <i>a</i> either proves the number composite (<i>a</i> is a "witness") or says "probably prime"; more bases, smaller chance of error. Defaults: 256 bits, 8 bases, trial division up to 1000.</li><li><b>Two cores</b> (<code>dc</code> = 1) — a pipeline through a queue: the communication core gathers noise and sieves, the compute core only tests; faster, but runs hotter.</li><li>The server re-checks reported primes with its own Miller–Rabin (prime log, <code>pl</code>); 32-bit ones are also checked exactly — that is how <b>false primes</b> are counted. Rates — § 14.</li></ul>
+<hr>
+<h2 id="5-group-mode">5. Group mode<a class="anc" href="#5-group-mode">#</a></h2>
+<p>The agents of a wheel compute together over ESP-NOW (addressed frames, 24 Mbit/s, every frame acknowledged by the radio). The server sends the group membership and addresses along with the settings — a new agent joins without reflashing the others. Three variants (<code>gv</code>):</p>
+<ul><li><b>cascade</b> (<code>gv</code> 2) — the main one: numbers are assembled from noise pieces of all agents, everybody tests at once, each its own numbers; the next agent cross-checks a found prime; other agents' pieces are awaited for at most <code>pw</code> ms, missing ones are replaced by own noise. Six agents on two cores — ~100–118 primes/s.</li><li><b>relay</b> (<code>gv</code> 1) — a number from everybody's noise, one agent tests, the turn goes round; the rate of one to one and a half boards at any size, barely uses the air.</li><li><b>one number for all</b> (<code>gv</code> 0) — every number is tested by everybody, bases split round robin, whoever finds a witness becomes the next master; slow, but the answers must agree — an integrity check (<b>agreement</b>).</li></ul>
+<p><b>Coherence</b> — the share of rounds assembled from everybody's pieces and runs without faults. A <b>silent</b> participant (no pieces after three requests) does not hold the group up; any frame from it and it is awaited again.</p>
+<hr>
+<h2 id="6-absorption">6. Absorption<a class="anc" href="#6-absorption">#</a></h2>
+<p>A generator that finds a prime announces it with one frame; the <b>absorbers</b> on the other wheel hear it and scatter it — mix it with their own noise and send it back: all with all (each the whole number), spray (each its own piece), relay, silence. A <b>dummy</b> sends the same traffic without the number (control), <b>background</b> — own noise at a set rate. <b>Back noise</b>: generators take the absorbers' frames into their noise — a loop through the air.</p>
+<hr>
+<h2 id="7-rotation-field-and-wheel-calibration">7. Rotation, field and wheel calibration<a class="anc" href="#7-rotation-field-and-wheel-calibration">#</a></h2>
+<ul><li><b>Motors</b> (menu "⟳ Моторы вручную…" or a program run): wheels separately, together, towards each other or only one; mode — stand, PWM, rpm or <b>weightlessness</b>: the rpm at which k = ω²r/g = 1 at the top (at r = 450 mm — 44.6 rpm). In rpm and weightlessness modes — PI on the rim sensor's rpm. The server sends the motor agent <code>MOT</code> once a second; if commands stop arriving, the agent ramps the motors down by itself.</li><li><b>Coil field</b> — off, "+" or "−": buttons on the diagram or a program run; the coil agent gets the same <code>MOT</code> command, no command for 5 s — the bridge switches off. The wheel's magnetometer shows whether the field is there and which way: "✓" — the sensor sees what was set, "◐" — something else.</li><li><b>Wheel calibration</b> (menu "⊙ Калибровка колёс…"). The gyro scale of the rim sensor calibrates itself from the gravity phase on steady revolutions. The sensor radius and the accelerometer zero offset come from the slope of acceleration against ω² over several speeds (rpm spread at least ±15 %); the radius from the slope is used for weightlessness when ticked. An optical tachometer on a reflective mark gives check points — a single scale factor, also applied by a tick. The radius of <b>each agent</b> is measured with a ruler from the axle to the chip and stored with the rig: every agent has its own k = ω²r/g, shown in the agent window and recorded in every run.</li></ul>
+<hr>
+<h2 id="8-temperature-and-watchdogs">8. Temperature and watchdogs<a class="anc" href="#8-temperature-and-watchdogs">#</a></h2>
+<ul><li><b>Regulator</b>: once a second picks the compute core's work fraction (5–100 %) to keep the chip one degree below the limit (default <b>73 °C</b>, 75 at most). At minimum fraction and 3 °C above the limit for 20 s the radio sleeps between beacons; 8 °C above for 3 s — emergency stop until 3 °C below. The regulator ignores the sensor for the first 12 s after a reboot.</li><li><b>Radio watchdog</b>: ESP-NOW frames go out but the radio reports nothing for 15 s — or no Wi-Fi for 90 s — the board reboots; the server restores its settings and the group takes it back.</li><li><b>Wi-Fi watchdog ("zombie")</b>: "connected" but no packet leaves for 10 s — reconnect (<code>wrst</code>); or no server beacon for 45 s — reconnect; three in a row — reboot (<code>rbt</code> 3). Telemetry: <code>udpe</code>, <code>bcn</code>, <code>heapmin</code>, <code>cmd</code>.</li><li><b>Heartbeat</b>: every agent broadcasts "alive" over ESP-NOW once a second (computing?, °C); each keeps a neighbour table (who it hears and how loud), sent to the server every 5 s as <code>nbr</code>.</li><li><b>Take CSI from heartbeats</b> (<code>hb</code> 5–20, <code>ping</code> 0): a frequent router ping overflows the transmit buffers and causes "zombies"; the ping is only a separate noise source, at most 20/s, in short runs.</li></ul>
+<hr>
+<h2 id="9-the-main-screen-установка">9. The main screen "Установка"<a class="anc" href="#9-the-main-screen-установка">#</a></h2>
+<figure><a href="../img/main_screen.svg"><img src="../img/main_screen.svg" alt="The main screen: header with the menu and run controls, the rig diagram with the mini-card, two wheels, static sensors and motors between them, coils in the bottom corners; the right column — static sensors, runs, experiment" loading="lazy"></a><figcaption>The main screen: header with the menu and run controls, the rig diagram with the mini-card, two wheels, static sensors and motors between them, coils in the bottom corners; the right column — static sensors, runs, experiment</figcaption></figure>
+<p><code>http://&lt;server&gt;:8090/</code> — a single window without scrolling (1280×800 and larger). Colour is never the only cue: every state has an icon and a word (Okabe–Ito palette); noise sources also differ by glyph, dash pattern and lane position.</p>
+<ul><li><b>Header</b>: "☰ Колесо-2" — the menu (windows below; at the bottom — <b>view</b>: translucent / solid, motion as in the system / full / calm / none), link state ("● 11 of 13 online"), chips for modes that change what a tap does, "♨ at the limit", ❗ static alarm, 🔔 sound, clock. On the right — "✎ Experiment…", "▶ Run N runs · ≈ time" (or "↻ Continue #…"), while running "⏸ Pause" / "▶ Continue", "⏹ Stop after run" and always <b>"■ Stop all"</b> — program, all counting, motors and coils at once.</li><li><b>Mini-card</b> (over the diagram, top left): the program, "run N of M", the phase in words with a countdown, the phase strip (⚙ start › ⟳ preparation › ✓ check › ▶ execution › ⇪ results › ⏸ rest), one line per wheel — the mode in words and as a pictogram with noise shares ("live", "step" or "plan"), rpm, field, temperatures.</li><li><b>Diagram</b> — live from telemetry. <b>Inside the rim — where the noise comes from</b>: source lanes run inward to the agents, width — share of credited bits, dots run at the source's pace; a struck glyph — no sensor. The wheel centre: Σ primes and the rate, rpm, coil field, |B|. <b>Outside — where it goes</b>, by way (table below). Agent: number, activity icon, temperature (the arc — from 40 °C to the limit); a flash and "+N" — primes found, "▼+N" — an absorber received. With the field on the rim is blue with arrows along the field; a running dashed ring — the wheel turns. <b>The arc on top</b> — primes from the generators to the other wheel's absorbers, <b>below</b> — back noise. Between the wheels — static sensors, "↔ … mm" (tap to set the distance), the motor agent; bottom corners — coil agents, field buttons and batteries (INA219, %); at the bottom — free boards.</li><li><b>Hover cards</b> on everything; hovering "К1", a noise source or a way highlights its agents. On a tablet the first tap shows the card, the second acts. Keyboard: Tab through agents, Enter — window, Esc — close. "Motion: none" or "reduce motion" in the system — no animation.</li><li><b>The right column</b> (⇥ collapses it): <b>static</b> — the verdict large (✓ as reference · ⚠ check · ↻ interference or instrument · ◌ no reference · ○ no data), sensors (static, phone) one under another, each always with three small live 10 s charts — Gauss, spectrum, oscillations — on the chosen axis, the reference and its recording 1 / 3 / 5 min; <b>runs</b> — a table of icons (hover says everything in words); the <b>experiment</b> line.</li><li><b>❗ Static alarm</b> — verdict "⚠ check": three beeps, a blinking "❗" and a line in the footer at the bottom of the screen — time, run, reason, "↻ repeat" and "details". No window pops up by itself: each deviation is a line in the list; "details" opens the window with all reasons on a tap.</li><li><b>ⓘ</b> next to important things explains them; "ⓘ как читать" explains the diagram's symbols. Messages pop up over the diagram and fade after 12 s.</li></ul>
+<div class="tw"><table><thead><tr><th>way</th><th>on the diagram, outside the rim</th></tr></thead><tbody>
+<tr><td>● selfish</td><td>each agent has its own closed cell, a dashed ring "not linked" outside</td></tr>
+<tr><td>⋈ cascade</td><td>a two-way bus, ✓ at the checker; a found prime goes as a dot to the neighbour for a check</td></tr>
+<tr><td>⇢ relay</td><td>a ring with chevrons in ID order and a baton — the lap pace, shown slowed down</td></tr>
+<tr><td>① one number for all</td><td>spokes to the shared number in the centre; agreement %</td></tr>
+<tr><td>▼ absorption</td><td>waves at the absorber: whole — solid, by pieces — dashed, dummy — dots, relay — a chain, "listen only" — no waves</td></tr>
+</tbody></table></div>
+<p><b>Windows</b> (menu "☰"; while a window is open the diagram does not move):</p>
+<div class="tw"><table><thead><tr><th>window</th><th>contents</th></tr></thead><tbody>
+<tr><td>agent (tap an agent)</td><td>activity, rate, noise by source, neighbours, memory; "∿ live" (oscillations, Gaussian, spectrum per axis, up to 15 min), "🧲 field live", sensor noise and accuracy, ruler radius and k, place</td></tr>
+<tr><td>✎ Эксперимент… (Experiment)</td><td>what varies and in which order → the list of runs, start (§ 10)</td></tr>
+<tr><td>⚙ Состав и назначения (boards and roles)</td><td>every board by place: link (the server remembers when it was last seen), firmware ("⇪" — flash over Wi-Fi), °C; ✎ move (a role change restarts the board, ≈ 15 s), ⤓ take off, ◉ ×10 blink, ✓ check by role, ✕ remove (role <code>retired</code> in the registry; "↺" brings it back), ＋ add a board over USB (§ 13)</td></tr>
+<tr><td>⟳ Моторы вручную… (motors by hand)</td><td>rotation outside the experiment (§ 7)</td></tr>
+<tr><td>⊙ Калибровка колёс… (wheel calibration)</td><td>gyro by gravity, radius and offset by slope, tachometer, agent radii by ruler (§ 7)</td></tr>
+<tr><td>⚙ Настройка установки (rig setup)</td><td>place the boards: tap a board, then a place; on the right — steps "from zero to a run", each with ✓ / ◐ / ✗ / ○ and a button</td></tr>
+<tr><td>◉ Найти плату (find a board)</td><td>tap an agent — its LED blinks for 20 s</td></tr>
+<tr><td>☰ Разбор результатов (results)</td><td>what matters other things being equal, pivot, run protocol, CSV (§ 10)</td></tr>
+<tr><td>◆ Статика подробно (static in depth)</td><td>spectra against the reference corridor, events, reference recording</td></tr>
+<tr><td>✚ Диагностика (diagnostics)</td><td>each wheel computes as a cascade from the RNG, then a per-agent table: link, who it hears, rate against the group median, temperature, memory, sensors, verdict ✓ / ◐ / ✗</td></tr>
+<tr><td>↻ Как работает (how it works)</td><td>the live rig diagram and the group protocol step by step, slowed down</td></tr>
+<tr><td>? Документы</td><td>this documentation</td></tr>
+</tbody></table></div>
+<p>"✓ check" by role: a generator computes for 30 s; a coil — off → "+" → off → "−", 4 s each (current by INA219, field by the magnetometer); motors — each wheel 3 s at 30 % PWM; a measurer — 10 s of samples.</p>
+<p>For debugging, by address: <code>/pult</code> (console: logical groups and presets, per-agent parameters, "≋ Quench"), <code>/watch</code> (static sensors and the prime stream in large type), <code>/old</code> (old panel: all counters, charts, sessions).</p>
+<hr>
+<h2 id="10-experiment-and-program">10. Experiment and program<a class="anc" href="#10-experiment-and-program">#</a></h2>
+<p>An <b>experiment</b> is a list of runs, gone through "repeats" times; a <b>run</b> is one set of parameters:</p>
+<div class="tw"><table><thead><tr><th>parameter</th><th>values</th></tr></thead><tbody>
+<tr><td>⟳ wheel rotation</td><td>each wheel stands, forward or backward — a 3 × 3 table (⟳⟲ towards each other, ⟳⟳ together, ⟳■ only one)</td></tr>
+<tr><td>⏲ speed</td><td>rpm, PWM or weightlessness; not varied for standing wheels</td></tr>
+<tr><td>± offset from weightlessness</td><td>steps around the computed weightlessness: 0 and ± one step, optionally ± two steps; the step is % of rpm, 3 by default (k changes twice as much: +3 % — k ≈ 1.06); only with speed "weightlessness"</td></tr>
+<tr><td>⇉ coil field</td><td>each coil off / + / −, also 3 × 3</td></tr>
+<tr><td>⇄ emission / absorption</td><td>each wheel stands / generates / absorbs; ⏸⏸ — static only (nobody computes, rotation and field run); ▼▼, ▼⏸, ⏸▼ are not allowed</td></tr>
+<tr><td>⋈ cooperation</td><td>selfish, cascade, one number for all, relay</td></tr>
+<tr><td>▼ absorption</td><td>who absorbs whose (all with all · pairs 1:1 · all — one · each — one · half the wheel) and how (whole · by pieces · relay · dummy · listen only)</td></tr>
+<tr><td>∿ noise</td><td>sources; all together, all but one, one by one — all three give 2N + 1 variants</td></tr>
+</tbody></table></div>
+<p>The offset from weightlessness is needed because the system is imprecise: the agents on a wheel sit at different radii, the rim sensor and the regulator err — the steps catch weightlessness for each agent.</p>
+<ul><li><b>"✎ Experiment…" window</b>: parameters on the left, <b>the order of the cards is the loop nesting</b> (the top one changes least often; rotation on top — fewer spin-ups); the list of runs on the right at once. "⚙ Сформировать список" turns the ticks into a list that can be edited by hand (⧉ duplicate, ↑ ↓, ✕). Above the list — time, the hottest agent's temperature, whether the batteries last; below — run length (<b>30 s</b>: settling + measurement), settling (rotation 15 s, role / way / noise 8 s, field only 5 s), repeats and order, rest, a pause between repeats. While the plan's program runs or after it, the same table shows <b>what came out</b>.</li><li><b>Control</b> — wheels standing, field off; every run with rotation or field is compared with its own control — the same mode and noise.</li><li><b>▣ Placebo wheel</b> — two boards with no motor and no field ("wheel 3" in the composition) run in every experiment in the same mode as the wheels; in absorption runs they work as a pair with each other. They are tested by the same criterion; an "anomaly" of theirs is a false alarm of the detector, and a wheel anomaly that coincides with one is not caused by rotation. In the "listeners" runs (the wheels count from these boards' frames) and the "bridge" run (a board as a link in a wheel's cascade) the boards are participants, not a placebo.</li><li><b>Program</b> — the list of runs on "▶ Run": noise reference first, repeats, rest, comparison with control under a criterion named in advance, pairwise re-checks of an anomaly, repeats of spoiled runs and runs with a static deviation.</li><li><b>Pause and continue</b>: "⏸ Pause" — after the current run everything stands (coils off, wheels stopped, agents cool down), "▶ Continue" goes on from the same place. The program pauses by itself when the batteries are low (INA219) or the run's agents are silent for more than 30 s. A spoiled run is repeated; a stopped or interrupted program can be continued from the first run not done — results go into the same record.</li><li><b>Results</b> ("☰ Разбор результатов"): <b>what matters</b> — each parameter other things being equal, Δ ± error and a verdict ✓ no difference / ◐ possible (2–3 σ) / ❗ difference (over 3 σ); a pivot of any two parameters; the run protocol; CSV.</li><li><b>Distance between the wheels</b> is set by hand ("↔ … mm" on the diagram); the server keeps it in <code>data/rig.json</code> and records it in every run.</li></ul>
+<hr>
+<h2 id="11-agent-parameters">11. Agent parameters<a class="anc" href="#11-agent-parameters">#</a></h2>
+<p>Sent to agents as a <code>CFG …</code> line on UDP 5007; the agent confirms them with the config number (<code>cid</code>) in telemetry, the server repeats every 2 s until it matches. The main screen sets them itself from the runs; by hand — in the console and the old panel. Kinds: <b>common</b> (same within a group), <b>own</b> per agent, <b>on the fly</b> (change without a new number, counting continues). Main ones:</p>
+<div class="tw"><table><thead><tr><th>parameter</th><th>meaning</th><th>values</th><th>default</th></tr></thead><tbody>
+<tr><td><code>role</code></td><td>0 — generation, 1 — absorption, 2 — static, 3 — motors or coil</td><td>0–3</td><td>0</td></tr>
+<tr><td><code>mode</code>, <code>gv</code></td><td>0 — selfish, 1 — group; group variant: 0 — one number, 1 — relay, 2 — cascade</td><td></td><td>0, 0</td></tr>
+<tr><td><code>rk</code>, <code>pw</code></td><td>relay and cascade: primes per turn; wait for pieces at most, ms (0 — wait for all)</td><td>1–16; 0–5000</td><td>1; 0</td></tr>
+<tr><td><code>nr</code></td><td>ESP-NOW rate: 1 — 24 Mbit/s, 2 — 6 Mbit/s, 0 — 1 Mbit/s</td><td>0–2</td><td>1</td></tr>
+<tr><td><code>bits</code>, <code>nb</code>, <code>all</code>, <code>td</code></td><td>prime length; number of Miller–Rabin bases; all bases for every candidate; trial division bound</td><td>32–2048; 1–12; 0, 1; 0–20000</td><td>256; 8; 0; 1000</td></tr>
+<tr><td><code>k</code>, <code>pre</code></td><td>one number for all: candidates per round; group: gather noise pieces in advance</td><td>4–64; 0, 1</td><td>24; 1</td></tr>
+<tr><td><code>dc</code>, <code>tp</code></td><td>two cores; telemetry period, ms</td><td>0, 1; 500–5000</td><td>0; 1000</td></tr>
+<tr><td><code>src</code></td><td>noise mask: 1 RNG, 2 CSI, 4 ADC, 8 jitter, 16 back noise, 32 rim accelerometer, 64 rim magnetometer</td><td>1–127</td><td>1</td></tr>
+<tr><td><code>raw</code></td><td>0 — SHA-256 blocks; 1 — no hash; 2 — no hash with von Neumann</td><td>0–2</td><td>0</td></tr>
+<tr><td><code>ping</code>, <code>hb</code>, <code>cf</code></td><td>router pings per second for CSI; heartbeat frames per second; where CSI comes from</td><td>0, 10–200; 1–20; 0–3</td><td>100; 1; 0</td></tr>
+<tr><td><code>tmax</code>, <code>txp</code>, <code>cpu</code>, <code>led</code></td><td>chip temperature limit, °C; transmit power, dBm; CPU MHz; LED flash</td><td>40–75; 2–20; 80–240; 0, 1</td><td>73; 20; 240; 1</td></tr>
+<tr><td><code>sm</code>, <code>ba</code>, <code>sh</code>, <code>bgr</code>, <code>sf</code></td><td>absorption mode; whose primes to absorb; dummy; absorbers' background frames/s; scattering function</td><td></td><td>1; all; 0; 0; 0</td></tr>
+<tr><td><code>tl</code>, <code>tq</code></td><td>telemetry: normal / sparse / silence; how long to stay silent, s</td><td>0–2; 0–65535</td><td>0; 0</td></tr>
+<tr><td><code>dur</code>, <code>ro</code></td><td>step on the agent: stops by itself after N s and reports; Wi-Fi off for the step</td><td>0–7200; 0, 1</td><td>0; 0</td></tr>
+<tr><td><code>pl</code></td><td>prime log: every prime goes to the server as <code>prm</code> packets</td><td>0, 1</td><td>0</td></tr>
+<tr><td><code>rmm</code></td><td>rim sensor radius, mm</td><td>50–2000</td><td>450</td></tr>
+<tr><td><code>afs</code>, <code>avg</code></td><td>static sensor: range ±g; averaging over 1000 Hz samples</td><td>2–16; 1–8</td><td>2; 2</td></tr>
+<tr><td><code>run</code></td><td>1 — compute, 0 — stand</td><td>0, 1</td><td>0</td></tr>
+</tbody></table></div>
+<p>A new config number (anything changed except on-the-fly parameters, a start, a reset) zeroes the counters; within a group the number is common. Stopping does not zero — the totals freeze.</p>
+<p><b>Built into the firmware</b>: the temperature regulator (4 % per second per degree); group protocol timeouts (twice the usual + 20 ms, 3 retries, turn takeover after 1.5 s); noise estimates (CSI — 32 bits per packet, ADC and jitter — ¼ bit per sample); Wi-Fi b/g only without radio sleep; ADC pin D0; ports 5005–5007.</p>
+<hr>
+<h2 id="12-telemetry-and-data">12. Telemetry and data<a class="anc" href="#12-telemetry-and-data">#</a></h2>
+<ul><li>Once a second an agent sends <code>tel</code> (≤1460 bytes), in a group also <code>grp</code>, every 5 s <code>nbr</code> (neighbours); static sensors — <code>acc</code> (sample batches), rim sensors — <code>imu</code>, <code>mag</code>; the phone posts the same packets as lines to <code>POST /api/ingest</code>. Counters are cumulative from the start of the config: a lost packet loses nothing.</li><li>Every packet is written as is to <code>data/raw/&lt;date&gt;.jsonl</code>; on restart the server re-reads the tail of the day (last two hours). Static samples — <code>data/accel/&lt;date&gt;/</code> (int16 in a row + index).</li><li>Primes from the agents' logs are re-checked by helper processes (<code>server/primecheck.py</code>, up to 6) in batches: the receiver never waits.</li><li><code>data/control.json</code> — settings and compositions; <code>data/programs/</code> — programs with steps and results; <code>data/primes/&lt;date&gt;/&lt;mac&gt;.txt</code> — prime logs; <code>data/static/baselines/</code> — static references; <code>data/rig.json</code> — wheel distance and agent radii; <code>data/fleet.json</code> — when each board was online and with which firmware; <code>data/commands.jsonl</code> — command log.</li><li><code>/api/health</code> — server self-check: tasks alive, packet age, check queue, disk.</li></ul>
+<hr>
+<h2 id="13-new-agent-and-firmware">13. New agent and firmware<a class="anc" href="#13-new-agent-and-firmware">#</a></h2>
+<p>A new board is flashed <b>over USB once</b> — that puts in prime_lab with over-the-air updates, network data and the signing key; afterwards it is updated over Wi-Fi with all the others.</p>
+<ol><li>Connect the board with a data cable to the server computer.</li><li>Menu "☰" → "⚙ Состав и назначения" → "＋ add a board": the board shows as "★ new", "⇪ flash" (or double-click <code>tools/new_board.cmd</code>).</li><li>The board gets the next registry number and comes online in ~40 s among the free boards; ✎ puts it in its place.</li></ol>
+<p>The server recognises a board by its USB serial number (on the ESP32-S3 it is the MAC). Board not visible — hold BOOT, replug the cable, release. By hand: <code>tools/build.sh prime_lab COM&lt;N&gt;</code>.</p>
+<p><b>Update installed boards over Wi-Fi</b>: build (<code>tools/build.sh prime_lab</code>) and "flash everyone online over Wi-Fi" (or <code>python tools/ota.py all</code>). The server serves the image (<code>/fw/prime_lab.bin</code>) and sends an <code>OTA …</code> command signed with <code>secrets/ota.key</code> (HMAC-SHA256, never committed). The agent downloads into the free partition, checks length and MD5, reboots; not confirmed within 10 minutes — rollback.</p>
+<hr>
+<h2 id="14-measurements">14. Measurements<a class="anc" href="#14-measurements">#</a></h2>
+<p>One board, 256 bits, unless stated otherwise.</p>
+<div class="tw"><table><thead><tr><th>what</th><th>result</th></tr></thead><tbody>
+<tr><td>RNG</td><td>2300 candidates/s, ~27 primes/s, 36 ms per prime</td></tr>
+<tr><td>CSI / ADC / jitter</td><td>12 / 18 / 15 candidates/s</td></tr>
+<tr><td>1024 / 2048 bits, RNG</td><td>185 / 30 candidates/s; one base test 25 / 181 ms</td></tr>
+<tr><td>four boards, selfish</td><td>100–106 primes/s (25–27 each)</td></tr>
+<tr><td>four boards, selfish, two cores</td><td>179.6 primes/s (41–47 each); at a 70 °C limit the regulator trims to ~155</td></tr>
+<tr><td>one number for all, 1 / 2 / 3 / 4 boards</td><td>24.5 / 16.5 / 10.5 / 7.7 primes/s</td></tr>
+<tr><td>relay, two cores, 4 boards</td><td>37.1 primes/s</td></tr>
+<tr><td>cascade, two cores: 4 / 6 boards</td><td>80–92 / 118 primes/s</td></tr>
+<tr><td>two groups at once</td><td>do not disturb each other</td></tr>
+</tbody></table></div>
+<hr>
+<h2 id="15-tools">15. Tools<a class="anc" href="#15-tools">#</a></h2>
+<p><code>tools/monitor.cmd</code> (start the server), <code>tools/build.sh</code> (build with the git version, registry, flash), <code>tools/new_board.py</code> (first flashing over USB), <code>tools/ota.py</code> (over-the-air update), <code>tools/build_docs.py</code> (HTML documentation; <code>--static</code> — a self-contained set), <code>tools/publish.py</code> (public copy on GitHub with a leak check), <code>tools/multi_test.py</code>, <code>tools/anomaly_run.py</code>, <code>tools/prime_stats.py</code>, <code>tools/nightly.py</code>, <code>tools/soak.py</code>, <code>tools/sprint.py</code>, <code>tools/coil_soak.py</code> (coil endurance test), <code>tools/imu_noise.py</code>, simulators <code>tools/sim_gen.py</code> and <code>tools/sim_agents.py</code>, checks <code>tools/test_analysis.py</code> and <code>tools/test_static_watch.py</code>, the toroid field calculator <code>docs/calc/toroid_field.html</code> with <code>tools/toroid/</code>, <code>tools/demo_capture.py</code> (snapshot for the published demo), <code>tools/video.py</code> (videos).</p>
+<p>Without boards: <code>python server/monitor.py --http 8092 --udp 5016 --data data/test/gen --no-beacon</code> and <code>python tools/sim_gen.py 6 --port 5016</code>, then <code>http://localhost:8092/</code>.</p>
+<hr>
+<h2 id="16-limitations-and-what-next">16. Limitations and what next<a class="anc" href="#16-limitations-and-what-next">#</a></h2>
+<ul><li>In a group several agents test each number — "one number for all" is slower than selfish; a cascade of up to six is close to selfish but hits heat and the shared air (one air for all wheels).</li><li>A base test through mbedtls (~1 ms at 256 bits) is the bottleneck of the two-core pipeline; the ceiling is set by the RNG: 45,000 words/s — 5600 candidates of 256 bits per second, 4100 reached.</li><li>Temperature sensors of different boards differ by a few degrees.</li><li>Ahead: a coil agent for wheel 2, "identical numbers for all" and one-to-one absorption in the firmware, CSI from the whole air; a Geiger counter, camera and microphone as external sources.</li></ul>
+  </main>
+</div>
+<footer>This page is built from docs/en/how_it_works.md by tools/build_docs.py — edit the markdown. English translation; the Russian original is the source of truth. Links to the installation and the live diagram work when the documentation is opened from the server (http://&lt;server&gt;:8090/docs/en/).</footer>
+</body>
+</html>

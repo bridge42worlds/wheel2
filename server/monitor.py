@@ -3171,6 +3171,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_file(os.path.join(STATIC, "flow.html"), "text/html; charset=utf-8")
         if u.path in ("/docs", "/docs/"):                # документация в HTML (tools/build_docs.py)
             return self.send_file(os.path.join(DOCS_HTML, "index.html"), "text/html; charset=utf-8")
+        if u.path in ("/docs/en", "/docs/en/"):          # английская версия документации
+            return self.send_file(os.path.join(DOCS_HTML, "en", "index.html"), "text/html; charset=utf-8")
+        if u.path.startswith("/docs/en/") and u.path.endswith(".html"):
+            return self.send_file(os.path.join(DOCS_HTML, "en", os.path.basename(u.path)), "text/html; charset=utf-8")
         if u.path.startswith("/docs/") and u.path.endswith(".html"):
             return self.send_file(os.path.join(DOCS_HTML, os.path.basename(u.path)), "text/html; charset=utf-8")
         if u.path.startswith("/docs/img/") and u.path.endswith(".svg"):    # схемы в документации

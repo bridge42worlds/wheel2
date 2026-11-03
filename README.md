@@ -29,7 +29,7 @@ null programs are clean, and 511,000 primes in the run of 2026-10-07 are within 
 | `server/` | `monitor.py` — server on the Python 3 standard library (numpy for the static sensors): telemetry, commands, experiments (programs), statistics, motors and coils, web pages; `static/` — the pages |
 | `phone/` | Android app that turns a phone into a static sensor (accelerometer ~500 Hz, magnetometer), runs as a foreground service |
 | `tools/` | build and flashing, OTA, simulators, test runs, statistics of the prime stream, documentation |
-| `docs/` | documentation (Russian) with wiring diagrams; in English: [overview](docs/en/how_it_works.md), [preamble](docs/en/preamble.md) |
+| `docs/` | documentation in Russian with wiring diagrams; the English translation of every document — `docs/en/`, starting from the [overview](docs/en/how_it_works.md) and the [preamble](docs/en/preamble.md) |
 | `registry/devices.csv` | board numbers and MACs |
 
 The server's main screen is `http://<server>:8090/` ("Installation"): a large live diagram of the rig —
@@ -37,7 +37,7 @@ agents on both wheels with what each does and its temperature, flashes when prim
 and direction, coil field and |B|, batteries, primes flowing to the absorbers — the static sensors with
 live Gaussian/spectrum, the experiment (parameters of a run in nested loops → the list of runs) and the
 run controls; everything detailed opens as windows on top (experiment, static sensors in depth, results
-"what matters", console, live view, the animated model "how it works", the old panel). Documentation in HTML — `/docs/`.
+"what matters", console, live view, the animated model "how it works", the old panel). Documentation in HTML — `/docs/`, in English — `/docs/en/`.
 
 **Quick start**
 
@@ -53,7 +53,7 @@ run controls; everything detailed opens as windows on top (experiment, static se
    `python server/monitor.py --http 8092 --udp 5016 --data data/test/gen --no-beacon` and
    `python tools/sim_gen.py 6 --port 5016`, then `http://localhost:8092/`.
 
-**Wiring notes** ([docs/wiring.md](docs/wiring.md)). Leave pin D0 unconnected — it is the ADC noise
+**Wiring notes** ([docs/en/wiring.md](docs/en/wiring.md)). Leave pin D0 unconnected — it is the ADC noise
 source. Rim sensors go on I²C (D4 SDA, D5 SCL). On a common 5 V bus put a Schottky diode (1N5819)
 in series with +5 V of every board (stripe towards the board): the XIAO's 5V pin is tied to USB VBUS.
 The coil is driven by a DRV8871 bridge from 5.1 V (below its 6.5 V rating, but our modules work; a DRV8833
@@ -68,7 +68,7 @@ cable, the WAN port is empty. A fallback network (`ssid2`) keeps a board reachab
 space-time, the order of knowing, the lesson of the first wheel, the criterion. Written by bridge42worlds,
 Λura13 (DeepSeek) and Ostov (Claude).
 
-**Bill of materials** ([docs/spec.md](docs/spec.md), Russian): every part with AliExpress links and prices —
+**Bill of materials** ([docs/en/spec.md](docs/en/spec.md); Russian original — [docs/spec.md](docs/spec.md)): every part with AliExpress links and prices —
 about 277 KWD (≈ 900 USD) for the whole rig without tools.
 
 Licence: MIT ([LICENSE](LICENSE)).
@@ -116,6 +116,8 @@ Licence: MIT ([LICENSE](LICENSE)).
   программа](docs/program.md) · [Групповой режим](docs/group_protocol.md) · [Поглощение](docs/scatter.md) ·
   [Откуда берётся случайность](docs/randomness.md) · [Температура агентов](docs/thermal.md) ·
   [Спецификация и смета](docs/spec.md).
+* По-английски — перевод каждого документа в `docs/en/`; в HTML — переключатель RU / EN на каждой странице
+  (`/docs/en/`). Источник правды — русский: правите документ — поправьте и перевод.
 
 Новая плата: подключить по USB — на основном экране «⋯ ещё → ⇪ прошивка» → «прошить по USB» (или
 двойной щелчок по `tools/new_board.cmd`); прошивается по USB один раз, дальше — по Wi-Fi.

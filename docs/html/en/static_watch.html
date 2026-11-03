@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Static sensors: noise baseline and watching · Wheel-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+.flowbox { margin:12px 0 18px; }
+.flowbox iframe { width:100%; height:min(82vh, 860px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.flowbox .small { font-size:13px; color:var(--mut); margin-top:4px; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.preamble { display:flex; flex-direction:column; gap:4px; margin:14px 0 18px; padding:12px 16px; border:1px solid var(--line);
+             border-left:4px solid var(--on); border-radius:8px; background:var(--soft); color:var(--ink); text-decoration:none; }
+.preamble b { color:var(--on); }
+.preamble q { font-style:italic; quotes:"«" "»"; }
+.preamble span { font-size:13px; color:var(--mut); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Wheel-2 · documentation</a>
+  <nav><a href="/" target="plan">▦ Installation</a><a href="/flow" target="flow">↻ How it works</a><a href="preamble.html">✦ Preamble</a><a href="../static_watch.html" hreflang="ru" title="Русская версия"><b>RU</b></a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Documents</h4>
+    <ul><li><a href="index.html">Overview</a></li><li><a href="preamble.html">Preamble</a></li><li><a href="how_it_works.html">How everything works</a></li><li><a href="modes.html">Modes</a></li><li><a href="wiring.html">Wiring diagrams</a></li><li><a href="coil_test.html">Coil endurance test</a></li><li><a href="../toroid_field.html">Toroid field — calculator · RU</a></li><li><a href="spec.html">Bill of materials</a></li><li><a href="sensors.html">Sensors, phone, motors and coils</a></li><li><a href="static_watch.html" class=cur>Static sensors: baseline and watching</a></li><li><a href="program.html">Experiment and program</a></li><li><a href="group_protocol.html">Group mode</a></li><li><a href="scatter.html">Absorption</a></li><li><a href="randomness.html">Where the randomness comes from</a></li><li><a href="thermal.html">Agent temperature</a></li></ul>
+    
+    <h4>On this page</h4><ul class="toc"><li class="l2"><a href="#what-comes-from-the-sensor">What comes from the sensor</a></li><li class="l2"><a href="#axes-by-gravity-the-sensor-s-orientation-does-not-matter">Axes by gravity — the sensor's orientation does not matter</a></li><li class="l2"><a href="#the-window-what-is-computed">The window: what is computed</a></li><li class="l2"><a href="#the-baseline">The baseline</a></li><li class="l2"><a href="#watching-each-window-against-the-baseline">Watching: each window against the baseline</a></li><li class="l2"><a href="#the-verdict-continue-repeat-check">The verdict: continue, repeat, check</a></li><li class="l2"><a href="#where-to-look">Where to look</a></li><li class="l2"><a href="#testing-without-boards">Testing without boards</a></li></ul>
+  </aside>
+  <main class="doc">
+
+<h1>Static sensors: noise baseline and watching</h1>
+<p><i>English translation of <a href="../static_watch.html">docs/static_watch.md</a> — the Russian original is the source of truth. Labels inside the diagrams are in Russian.</i></p>
+<p>A static sensor is an agent with role <b>S</b> in the common firmware: it only measures and sends its axes, generates nothing, takes no part in groups, does not talk over ESP-NOW and does not ping for CSI. The spectrum, the baseline, alarms and the verdict "continue / repeat / check" are computed by the server (<code>server/static_watch.py</code>, numpy is needed — without it the server runs but does not process the static sensors). There can be any number of static sensors; the phone sends the same packets and is also a static sensor for the server. Sensors — <a href="sensors.html">sensors.md</a>, wiring — <a href="wiring.html">wiring.md</a>.</p>
+<figure><a href="../img/static_watch_flow.svg"><img src="../img/static_watch_flow.svg" alt="Static sensors: the sensor, a 10 s window, the metrics, the baseline, the comparison and the verdict" loading="lazy"></a><figcaption>Static sensors: the sensor, a 10 s window, the metrics, the baseline, the comparison and the verdict</figcaption></figure>
+<h2 id="what-comes-from-the-sensor">What comes from the sensor<a class="anc" href="#what-comes-from-the-sensor">#</a></h2>
+<ul><li><b>500 samples a second</b> on three axes: ICM-42688 — 1000 Hz, low-noise mode, acceleration only, averaged over <code>avg</code> samples (1, 2, 4, 8; default 2), the sensor's filter below half the output rate so the spectrum does not fold; ADXL355 — directly 1000/avg Hz with its own filter. Range ±2 g (4, 8, 16 possible): for the ICM-42688 one unit is 61 µg against a noise of about 1.1 mg — quantisation is far below the noise.</li><li><b>No losses:</b> the sensor FIFO holds 256 samples, the agent collects them every 10 ms; overflow is counted and visible. <code>acc</code> packets of 140 samples (x y z, int16, base64) with the number of the first sample and a timestamp; the numbers are continuous — the server sees a gap at once.</li><li><b>Silence</b> (<code>tl</code> = 2): samples accumulate in a ring buffer (about 25 s at 500 Hz) and are sent afterwards; longer — the old ones are overwritten, the server sees a gap. In runs with silence the static sensors are not silent — the generators are.</li><li>The sensor registers (mode, FIFO, filter) are read back and go into the telemetry.</li><li><b>Role S</b> — in the agent window on the main screen («→ в измерители (статика)», to measurers (static)); the agent remembers it (NVS), restarts and starts measuring at once, even without the server. Back — «→ в генераторы» (to generators). If an agent started as static and the server has no role set for it, the server accepts role S.</li></ul>
+<p>The samples are stored as they are: <code>data/accel/&lt;date&gt;/&lt;mac&gt;.bin</code> (int16 x y z in a row) and <code>&lt;mac&gt;.idx.jsonl</code> (a line per packet: number of the first sample, count, rate, timestamp); they are not written into the common log.</p>
+<h2 id="axes-by-gravity-the-sensor-s-orientation-does-not-matter">Axes by gravity — the sensor's orientation does not matter<a class="anc" href="#axes-by-gravity-the-sensor-s-orientation-does-not-matter">#</a></h2>
+<p>The server computes not along the sensor's axes but along gravity: <b>vertical</b> — along the mean acceleration, <b>horizontal</b> — the two axes across it together (power — the mean of the two, noise shape — over both). So the sensor can be placed any way: the baseline is valid in any orientation, floor vibration stays on the vertical wherever the z axis is. The orientation is set from the first window. If gravity turned by more than <b>2°</b> (<code>PLACE_DEG</code>), the sensor was placed differently: one window «⤾ новое положение» (new position — interference, the run will be repeated), then new axes and the same baseline. How the sensor lies (which of its axes looks up, and the tilt) is on the card in «◆ статика подробно» (static sensors in depth). Quantisation, clipping and freezing are checked along the sensor's own axes x, y, z: these are properties of the instrument. "Live" shows v, h1, h2 and |a|.</p>
+<h2 id="the-window-what-is-computed">The window: what is computed<a class="anc" href="#the-window-what-is-computed">#</a></h2>
+<p>A window is <b>10 s</b> (<code>WIN_S</code>). For each window, for the vertical and the horizontal:</p>
+<div class="tw"><table><thead><tr><th>metric</th><th>how</th></tr></thead><tbody>
+<tr><td>spectrum</td><td>Welch: segments of 1024 samples (2 s, frequency step 0.49 Hz), Hann window, half overlap — 8 segments per window</td></tr>
+<tr><td>bands</td><td>power in octaves 1–2, 2–4 … 128–250 Hz (up to half the sample rate), dB</td></tr>
+<tr><td>noise shape</td><td>skewness and kurtosis after subtracting the mean of each second; for Gaussian noise both are near zero</td></tr>
+<tr><td>quantisation</td><td>along the sensor axes: the shares of values divisible by 2, 4 … 256: for live noise ½, ¼ …; a "comb" — all values divisible by one step</td></tr>
+<tr><td>mean</td><td>along the vertical and the two horizontal axes (the horizontal is the tilt); clipping; gaps</td></tr>
+<tr><td>per second</td><td>mean, spread, extreme values — plots and knocks</td></tr>
+</tbody></table></div>
+<h2 id="the-baseline">The baseline<a class="anc" href="#the-baseline">#</a></h2>
+<p>The <b>baseline</b> is the same metrics over 1–120 minutes <b>while the main groups are standing</b>. Recording — «◆ эталон 1 / 3 / 5 мин» (baseline 1 / 3 / 5 min) on the static card of the main screen, in the window «◆ статика подробно» or at the start of a program (<code>baseline_min</code>). Only clean windows are taken, without knocks and gaps, at least 6 (a minute). The recording runs one window (10 s) longer than ordered: windows follow a grid, and the first one after the start is incomplete — this way "1 min" also collects 6 whole windows. Stored: the mean and spread over windows <b>in every bin</b> of the spectrum (and the spread smoothed over neighbouring bins), the baseline lines (bins 6 dB above their neighbours), band levels and spreads, noise shape, shares of multiples, the mean, the usual spread of a second.</p>
+<p>The server rates the baseline at once: noise in µg/√Hz over 10–100 Hz (per datasheet ICM-42688 — 70, ADXL355 — 25); whether the noise is Gaussian (|kurtosis| &lt; 0.2, |skewness| &lt; 0.1); whether the background is steady (bands from 4 Hz in the two halves of the recording differ by no more than 1 dB or 4 of their spreads — whichever is larger); whether the quantisation is fine; whether the main groups were standing — if anyone was computing, the baseline is "not clean".</p>
+<p>The baseline is tied to the sensor mode (range, averaging): if the mode is changed, the baseline must be rewritten, and the card says so. The baseline does not depend on the sensor's orientation. Baselines recorded along the sensor axes (before axes by gravity) do not fit — the card asks to rewrite them once. Stored in <code>data/static/baselines/&lt;mac&gt;.json</code> (and a dated copy).</p>
+<h2 id="watching-each-window-against-the-baseline">Watching: each window against the baseline<a class="anc" href="#watching-each-window-against-the-baseline">#</a></h2>
+<div class="tw"><table><thead><tr><th>kind</th><th>when</th><th>class</th></tr></thead><tbody>
+<tr><td>⚠ <b>line</b></td><td>a spectrum bin is more than <b>6</b> spreads above the baseline (<code>Z_LINE</code>); not searched below 1 Hz</td><td>deviation</td></tr>
+<tr><td>◐ line gone</td><td>a baseline line is 6 spreads below itself</td><td>deviation</td></tr>
+<tr><td>⚠ <b>band</b></td><td>broadband noise of an octave moved by <b>5</b> spreads (<code>Z_BAND</code>); frequencies of known and found lines (±2 bins) are not counted — one line does not alarm twice</td><td>deviation</td></tr>
+<tr><td>⚠ <b>noise shape</b></td><td>kurtosis or skewness moved by <b>5</b> (<code>Z_GAUSS</code>)</td><td>deviation</td></tr>
+<tr><td>⚠ quantisation</td><td>shares of multiples moved by 6 (<code>Z_QUANT</code>), all values are multiples of a coarse step, or do not change</td><td>instrument</td></tr>
+<tr><td>⚠ gap, clipping, change of sensor mode</td><td>—</td><td>instrument</td></tr>
+<tr><td>↻ <b>knock</b></td><td>the spread of a second is <b>4</b> times above usual (<code>KNOCK_X</code>) or an outlier of 8 usual spreads (<code>KNOCK_PEAK</code>)</td><td>interference</td></tr>
+<tr><td>↻ outliers</td><td>knocks almost every second — impulse interference (pickup, spark, motor)</td><td>interference</td></tr>
+<tr><td>↻ <b>shift</b></td><td>the mean moved from the median of the three previous windows by more than <b>5 mg</b> (<code>MOVED_UG</code>; heat gives less); then — from the new mean</td><td>interference</td></tr>
+<tr><td>↻ new position</td><td>gravity turned by more than 2° — the sensor was placed differently; one window</td><td>interference</td></tr>
+</tbody></table></div>
+<p>The spread of each frequency is taken from the baseline, smoothed over neighbouring frequencies and is never below 0.9 of the theoretical value for Welch (4.34/√8 dB): with few windows the spread of an individual frequency may be small by chance. In a window with a knock, the spectrum and noise shape are not compared — they come from the knock.</p>
+<p><b>Known sources.</b> A line near a known frequency is marked and does not count as an alarm: mains 50 Hz and harmonics, router beacons (102.4 ms), the CSI ping of working agents, telemetry, sample packets, wheel rpm. Frequencies above half the sample rate are taken into account with folding.</p>
+<p><b>Over the whole segment.</b> Besides windows, the whole segment (a run, a session) is compared with the baseline using the window means: a weak line invisible in one window is √n times better visible over n windows. On synthetic data a 120 µg line (+1.3 dB above the noise) is almost invisible in single windows, over 3 minutes — z 8.6.</p>
+<h2 id="the-verdict-continue-repeat-check">The verdict: continue, repeat, check<a class="anc" href="#the-verdict-continue-repeat-check">#</a></h2>
+<p>For a segment — a program run, a session or the last 2 minutes:</p>
+<ul><li><b>↻ repeat</b> — interference or an instrument fault in the segment: the data are spoiled. In a program the run is marked spoiled, does not go into the comparison and is repeated at once (up to <code>redo</code> times).</li><li><b>⚠ check</b> — a deviation without a known cause persists for <b>2 windows in a row</b> (<code>PERSIST</code>) or is visible over the whole segment. In a program — ❗ alarm and, optionally, a repeat of the run (<a href="program.html">program.md</a>).</li><li><b>✓ continue</b> — everything is as in the baseline.</li><li><b>◌ no baseline</b> — nothing to compare with; knocks, gaps and quantisation are visible even without a baseline.</li></ul>
+<p>A knock at two or more sensors at once (within 1.5 s) is interference from outside: footsteps, a door, the building; this is written into the verdict note. The largest deviation without a known cause over the segment is <code>zmax</code>.</p>
+<p><b>Live sensor state:</b> ✓ as the baseline · ◐ one-off deviation — we look at the next window · ◐ as the baseline, except known sources · ⚠ deviation (persists) · ↻ interference · ↻ instrument · ◌ no baseline or a baseline for another mode · ✗ sensor silent. Deviations are written to <code>data/static/events.jsonl</code>.</p>
+<h2 id="where-to-look">Where to look<a class="anc" href="#where-to-look">#</a></h2>
+<ul><li><b>The static card</b> on the main screen: the verdict in large type and over which segment, each sensor with its reasons; live Gaussian, spectrum and oscillations of the selected sensor and axis over 10 s (every 3 s, <code>/api/static/live</code>) — a histogram of deviations against a Gaussian of the same spread, the shape in words (Gaussian / tails — knocks, outliers / stepped), RMS, skewness, kurtosis; baseline recording. Clicking the plots opens the window «∿ вживую» (live): all axes and the magnitude, windows of 10 s, 1, 5, 15 min, «⟲ сброс» (reset), oscillations by second.</li><li><b>«◆ статика подробно»</b> (<code>/acc</code>): the baseline and its quality; for each sensor the spectrum of the last minute against the baseline corridor (±3 spreads), the lines found, spread, mean, shape, quantisation, the band farthest from the baseline, the sensor registers; plots over time; the deviation log.</li><li><b>Watch view</b> (<code>/watch</code>) — the static sensors in large type, readable from a distance.</li></ul>
+<h2 id="testing-without-boards">Testing without boards<a class="anc" href="#testing-without-boards">#</a></h2>
+<ul><li><code>python tools/test_static_watch.py</code> — synthetic data: a baseline, clean noise (not a single alarm), a 37 Hz line, a weak 23 Hz line, 50 Hz mains (known), a knock, values divisible by 256, outliers, a gap, a sensor without a baseline.</li><li><code>python tools/sim_agents.py 900 --port 5015</code> with a separate server <code>python server/monitor.py --http 8091 --udp 5015 --data data/test/sim --no-beacon</code> — three static sensors on a schedule: the first 3 minutes are clean (record the baseline), from second 180 a knock at all of them every 75 s, 300–420 s a 37 Hz line at the first, 480–540 s the third's values are divisible by 256; the second always has 50 Hz mains.</li></ul>
+  </main>
+</div>
+<footer>This page is built from docs/en/static_watch.md by tools/build_docs.py — edit the markdown. English translation; the Russian original is the source of truth. Links to the installation and the live diagram work when the documentation is opened from the server (http://&lt;server&gt;:8090/docs/en/).</footer>
+</body>
+</html>

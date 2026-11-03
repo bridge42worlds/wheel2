@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Experiment and program · Wheel-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+.flowbox { margin:12px 0 18px; }
+.flowbox iframe { width:100%; height:min(82vh, 860px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.flowbox .small { font-size:13px; color:var(--mut); margin-top:4px; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.preamble { display:flex; flex-direction:column; gap:4px; margin:14px 0 18px; padding:12px 16px; border:1px solid var(--line);
+             border-left:4px solid var(--on); border-radius:8px; background:var(--soft); color:var(--ink); text-decoration:none; }
+.preamble b { color:var(--on); }
+.preamble q { font-style:italic; quotes:"«" "»"; }
+.preamble span { font-size:13px; color:var(--mut); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Wheel-2 · documentation</a>
+  <nav><a href="/" target="plan">▦ Installation</a><a href="/flow" target="flow">↻ How it works</a><a href="preamble.html">✦ Preamble</a><a href="../program.html" hreflang="ru" title="Русская версия"><b>RU</b></a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Documents</h4>
+    <ul><li><a href="index.html">Overview</a></li><li><a href="preamble.html">Preamble</a></li><li><a href="how_it_works.html">How everything works</a></li><li><a href="modes.html">Modes</a></li><li><a href="wiring.html">Wiring diagrams</a></li><li><a href="coil_test.html">Coil endurance test</a></li><li><a href="../toroid_field.html">Toroid field — calculator · RU</a></li><li><a href="spec.html">Bill of materials</a></li><li><a href="sensors.html">Sensors, phone, motors and coils</a></li><li><a href="static_watch.html">Static sensors: baseline and watching</a></li><li><a href="program.html" class=cur>Experiment and program</a></li><li><a href="group_protocol.html">Group mode</a></li><li><a href="scatter.html">Absorption</a></li><li><a href="randomness.html">Where the randomness comes from</a></li><li><a href="thermal.html">Agent temperature</a></li></ul>
+    
+    <h4>On this page</h4><ul class="toc"><li class="l2"><a href="#run-parameters">Run parameters</a></li><li class="l2"><a href="#the-list-of-runs">The list of runs</a></li><li class="l2"><a href="#window-settings">Window settings</a></li><li class="l2"><a href="#how-a-run-goes">How a run goes</a></li><li class="l2"><a href="#anomaly-and-check">Anomaly and check</a></li><li class="l2"><a href="#pause-stop-continue">Pause, stop, continue</a></li><li class="l2"><a href="#results">Results</a></li><li class="l2"><a href="#a-program-by-hand-json">A program by hand (JSON)</a></li><li class="l2"><a href="#where-it-is-stored">Where it is stored</a></li></ul>
+  </aside>
+  <main class="doc">
+
+<h1>Experiment and program</h1>
+<p>*English translation of <a href="../program.html">docs/program.md</a> — the Russian original is the source of truth. Labels inside the diagrams are in Russian; key names in code (<code>gen:все</code> and the like) are real identifiers and stay as they are.*</p>
+<p>An <b>experiment</b> is a list of runs gone through a given number of repeats; a <b>run</b> is one set of parameters. The experiment is put together in the window «✎ Эксперимент…» (experiment) on the main screen and on «▶ Запустить» (start) goes to the server as a <b>program</b> (<code>POST /api/program/start</code>). The server (<code>server/program.py</code>) carries out the runs in turn, repeats the spoiled ones, compares runs with the controls and, on an anomaly, adds a check by itself. How the static sensors decide "continue / repeat / check" — <a href="static_watch.html">static_watch.md</a>; what each mode means — <a href="modes.html">modes.md</a>.</p>
+<figure><a href="../img/program_flow.svg"><img src="../img/program_flow.svg" alt="The experiment: parameters, the list of runs, the phases of a run, the record, a spoiled run, comparison with the control and the check" loading="lazy"></a><figcaption>The experiment: parameters, the list of runs, the phases of a run, the record, a spoiled run, comparison with the control and the check</figcaption></figure>
+<h2 id="run-parameters">Run parameters<a class="anc" href="#run-parameters">#</a></h2>
+<p>In the window, values are ticked for each parameter. The order of the cards is the nesting of the loops: the top one changes least often, the bottom one from run to run (drag by ⠿ or ▲ ▼). Rotation is the most expensive to switch (the wheels need to speed up) — it makes sense to keep it at the top. One value — the parameter is constant.</p>
+<div class="tw"><table><thead><tr><th>parameter</th><th>key <code>set</code></th><th>values</th></tr></thead><tbody>
+<tr><td>⟳ wheel rotation</td><td><code>rot</code></td><td>two characters — wheel 1 and 2: <code>0</code> standing, <code>r</code> forward ⟳, <code>l</code> backward ⟲ (<code>rl</code> — towards each other, <code>rr</code> — together, <code>r0</code> — wheel 1 only); a 3 × 3 grid</td></tr>
+<tr><td>⏲ speed</td><td><code>speed</code></td><td><code>rpm:30</code> — rpm, <code>pwm:30</code> — PWM %, <code>zerog</code> — weightlessness at the top of the wheel; by default the list has 15, 30, 45, 60 rpm and weightlessness, your own can be added</td></tr>
+<tr><td>± offset from weightlessness</td><td><code>zgo</code></td><td>0, ±1, ±2 steps of <code>zgStep</code> % of rpm (the step is settable, default 3 %); in <code>set</code> — percent (<code>-3</code>, <code>0</code>, <code>3</code> …), in the step — <code>mot.zg</code>; only with <code>zerog</code>, otherwise <code>null</code></td></tr>
+<tr><td>⇉ coil field</td><td><code>field</code></td><td>two characters — coil 1 and 2: <code>0</code> off, <code>p</code> +, <code>m</code> − (<code>p0</code> — coil 1 only, +); a 3 × 3 grid</td></tr>
+<tr><td>⇄ emission / absorption</td><td><code>roles</code></td><td>two characters — wheel 1 and 2: <code>g</code> generates, <code>a</code> absorbs, <code>0</code> standing: <code>gg</code>, <code>g0</code>, <code>0g</code>, <code>ga</code>, <code>ag</code>, <code>00</code> (static sensors only); <code>aa</code>, <code>a0</code>, <code>0a</code> are not allowed — there is nothing to absorb</td></tr>
+<tr><td>⋈ cooperation</td><td><code>team</code></td><td><code>solo</code>, <code>cascade</code>, <code>one</code>, <code>relay</code>; if nobody generates — <code>null</code></td></tr>
+<tr><td>▼ absorption</td><td><code>absorb</code></td><td><code>who/how</code>: who — <code>all</code>, <code>pair</code>, <code>one</code>, <code>split</code>, <code>half</code>; how — <code>mix</code>, <code>pieces</code>, <code>chain</code>, <code>sham</code>, <code>silent</code> (<code>pieces</code> and <code>chain</code> — always <code>all</code>); if nobody absorbs — <code>null</code></td></tr>
+<tr><td>∿ noise</td><td><code>noise</code></td><td>a mixture of sources <code>m:rng+csi+adc</code> …; variation — all together, all but one, one at a time</td></tr>
+</tbody></table></div>
+<p>The values in words — <a href="modes.html">modes.md</a>. Weightlessness is the rpm at which, at the top of the wheel, k = ω²r/g = 1 (r — the radius from the rim sensor, with no measurement — from the settings; at 450 mm — 44.6 rpm). The whole system is imprecise, so a run puts steps around the computed value: +3 % rpm — k ≈ 1.06 (k changes twice as much as the rpm).</p>
+<h2 id="the-list-of-runs">The list of runs<a class="anc" href="#the-list-of-runs">#</a></h2>
+<ul><li><b>All combinations</b> of the ticked values, no duplicates: for standing wheels speed and offset are not varied; the offset — only with weightlessness; if nobody generates — the way and noise do not matter; if nobody absorbs — absorption does not matter; reverse noise — only when the other wheel absorbs. An unwanted run is removed by unticking it; the generated list can be edited (⧉ copy, ↑ ↓, ✕).</li><li><b>Control</b> — a run without influence (wheels standing, field off), if rotation or field change in the experiment. The other runs have <code>control_for</code> — the control of the same mode (roles, way, absorption, noise).</li><li><b>"All standing"</b> — optionally first (yes by default): the agents do not compute, only the static sensors measure.</li><li><b>Order</b> — by nesting or random in every repeat (<code>shuffle</code>; the seed <code>seed</code> is written into the program, and with it the order repeats exactly).</li></ul>
+<h2 id="window-settings">Window settings<a class="anc" href="#window-settings">#</a></h2>
+<div class="tw"><table><thead><tr><th>setting</th><th>default</th><th>what</th></tr></thead><tbody>
+<tr><td>duration</td><td>30 s</td><td>the measurement of a run. The static sensors give a verdict over 10 s windows, "⚠ check" — from 2 windows in a row: 30 s gives 3 windows, shorter than 20 s is too little for the static sensors. Primes per run N ≈ rate × duration, the rate is known to ±1/√N</td></tr>
+<tr><td>settling</td><td>15 / 8 / 5 s</td><td>after a change of rotation, speed or offset · role, way, absorption, noise · field only; not measured</td></tr>
+<tr><td>between the wheels</td><td>—</td><td>rim-to-rim distance, mm; set by hand, see below</td></tr>
+<tr><td>repeats</td><td>2</td><td>how many times to go through the list; order — by nesting or random</td></tr>
+<tr><td>rest</td><td>none</td><td>none · on a change of the top parameter · before every run. How: this many minutes · until the temperature stabilises (default) · until they cool to … °C; no longer than 6 min</td></tr>
+<tr><td>heat up to</td><td>73 °C</td><td>the agents' limit; the regulator holds 1 °C below (<a href="thermal.html">thermal.md</a>)</td></tr>
+<tr><td>batteries</td><td>2 × 18650, 2500 mAh</td><td>capacity for the summary; "pause between repeats" — replace them and «▶ Продолжить» (continue)</td></tr>
+<tr><td>controls and checks</td><td>—</td><td>"all standing" first; static noise baseline before the start (0 min — take the recorded one); check pairs on an anomaly (0); ❗ static deviation — repeat the run (no); alarm sound; link lost for more than 30 s — pause (yes)</td></tr>
+<tr><td>run fine points</td><td>off, silence — on</td><td>both wheels as one group; run on the agent (it stops by itself and hands in its totals); Wi-Fi off during the run (only with the run on the agent); telemetry silence during the measurement (on by default)</td></tr>
+</tbody></table></div>
+<p>Anomaly threshold <code>z</code> = 4, repeats of a spoiled run <code>redo</code> = 2, anomaly metrics <code>metrics</code> = primes/s and candidates/s — the main screen sets them itself.</p>
+<p><b>The distance between the wheels</b> is a rig setting, not a parameter: «↔ … см» between the wheels on the diagram, the "between the wheels" field in the window, <code>POST /api/rig {gap_cm}</code>. It is stored in <code>rig.json</code> with history and written into the program (<code>rig</code>), into every run (<code>runs[].rig</code>) and into the results (the run layer, a CSV column).</p>
+<p><b>Summary before the start:</b> runs (controls, removed), repeats, total time and by parts (measurement · settling · rest · baseline), when it will end; per pass — wheel spin-ups, field changes, rests.</p>
+<ul><li><b>Heat</b> of the hottest agent from the measurement in the tube with heatsinks: the "floor" at 80 MHz ≈ 57 °C, under computing — floor + heating of the mode (selfish and cascade +10 °C, the others +8), heating with a time constant of ≈ 85 s, cooling ≈ 30 s. The summary shows how many degrees it will reach and the margin to the limit; it warns where the regulator will cut work (the rate will be distorted there) or where a rest "down to … °C" below the floor will never finish.</li><li><b>Batteries</b> per circuit: the wheel bus (an agent computing ≈ 1.3 W, standing ≈ 0.5 W) and the coil (field ≈ 4.5 W + agent 0.5 W); DC-DC and diode ≈ 80 %, an 18650 pair gives ≈ 85 % of its rating. How many passes one pair can last and how many replacements are needed — then switch on the pause between repeats.</li></ul>
+<p>The coefficients are <code>THERM</code> and <code>POWER</code> in <code>server/static/plan.html</code>.</p>
+<h2 id="how-a-run-goes">How a run goes<a class="anc" href="#how-a-run-goes">#</a></h2>
+<p>Every run has a <b>new settings number</b>, so the agents' counters count exactly that run; the totals are the difference of the counters over the measurement window, settling does not enter the rate. The basis of the runs is the agents' common and own parameters at the moment of the start; after the program the agents go back to them but stand (run = 0), the coil field is switched off, and the wheels, if the program was turning them, stop.</p>
+<p><b>Phases</b> (<code>now.phase</code>; <code>ph_t</code> — start of the phase, <code>ph_dur</code> — its length, <code>phases</code> — when each one began):</p>
+<div class="tw"><table><thead><tr><th>phase</th><th>what</th></tr></thead><tbody>
+<tr><td><code>rest</code></td><td>rest before the run, if set: generators at 80 MHz, coils off (<a href="thermal.html">thermal.md</a> § 4.5)</td></tr>
+<tr><td><code>start</code></td><td>settings to the agents, coil field, rotation</td></tr>
+<tr><td><code>prep</code></td><td>settling (<code>settle_s</code>): the wheels speed up, the field comes up; not measured</td></tr>
+<tr><td><code>test</code></td><td>10 s with telemetry: is computing going? (<code>test</code>: <code>pr_s</code>, <code>idle</code> — who did not compute, <code>ok</code>); a run on the agent and "all standing" have no test</td></tr>
+<tr><td><code>run</code></td><td>the measurement; telemetry silence — only here, the static sensors always measure and send. The bus sensors (rim, magnetometer) are silent too: the regulator holds the last PWM (in "weightlessness" — also the last rim radius), the rpm and field in the run record come from the test and the totals (<code>sense_win</code>)</td></tr>
+<tr><td><code>upload</code></td><td>telemetry returns, the totals of the agents and the static sensors are collected</td></tr>
+<tr><td><code>pause</code></td><td>a pause (below)</td></tr>
+</tbody></table></div>
+<p><b>The run record</b> (<code>runs[]</code>):</p>
+<ul><li><code>gen</code> — generation for each agent (<code>gen:№…</code>) and all together (<code>gen:все</code>): primes/s (<code>pr_s</code>), candidates/s (<code>cand_s</code>), Miller–Rabin time per candidate (<code>mr_us</code>), group cycles (<code>cycles_s</code>), scattering frames (<code>stx_s</code>); temperature and work share are <b>covariates</b>: they lie alongside and are not counted as anomalies (the modes obviously heat differently);</li><li><code>static</code> — for each static sensor over the measurement window, for the vertical and the horizontal (<a href="static_watch.html">axes by gravity</a>): octave power (<code>p0_v</code>, <code>p0_h</code> …, dB), spread (<code>sd_v</code>, <code>sd_h</code>), kurtosis, skewness; the mean — <code>mean_v</code>, <code>mean_h1</code>, <code>mean_h2</code>, µg; <code>watch</code> — the static verdict for the run;</li><li><code>field</code> — the magnetometers over the run (x, y, z, |B|); <code>coil_sense</code> — the coil field from the wheel magnetometer;</li><li><code>rpm</code> — the mean wheel rpm from the rim sensor, <code>radius</code> and <code>k</code> — the agents' radii and k at this rpm; <code>rig</code> — the distance between the wheels; <code>bat</code> — the circuit batteries at the end of the run; <code>mem</code> — the agents' free memory;</li><li><code>set</code>, <code>mot</code>, <code>coil</code>, <code>layers</code> — the run parameters; <code>test</code>, <code>rest</code> — the test and the rest.</li></ul>
+<p><b>A spoiled run</b> does not go into the comparison and is repeated at once (up to <code>redo</code> times; one cut short by a stop — always). The reason is in <code>spoiled_why</code>:</p>
+<ul><li>static sensors: "↻ repeat" — a knock, a shift, an instrument fault;</li><li>someone did not confirm the settings within 20 s — the run is marked at once, without waiting for its duration;</li><li>went silent in the middle of the run — no packet for more than 6 s with normal telemetry, 25 s with sparse (the batteries ran down, power was lost);</li><li>run on the agent: did not hand in its totals within the time + 60 s; silence: did not come back on air within 15 s after the run (the "talk" setting is repeated every 2 s);</li><li>the run was cut short by «■ Всё стоп» (all stop).</li></ul>
+<p>If an agent has not come back on air within 30 s, the program pauses with «нет связи с №…: проверьте питание» (no link with №…: check the power; <code>pause_lost</code>), and after «▶ Продолжить» the spoiled run is repeated. The program's participants are the agents that were on air at its start. A program and a session of the old panel do not run at the same time: both control the same agents.</p>
+<h2 id="anomaly-and-check">Anomaly and check<a class="anc" href="#anomaly-and-check">#</a></h2>
+<p>An <b>anomaly</b> is when a run's metric differs from its control runs by more than the spread of the controls can explain. The metrics are the generation of each agent and of all together and the static readings of each sensor; from the main screen primes/s and candidates/s are checked (<code>metrics</code>), the static sensors are guarded by their own verdict (below, "Static alarm").</p>
+<p>The criterion. There are few control runs, so a deviation in units of their spread follows Student's distribution, not the normal one: with three controls |z| ≥ 4 happens in 7 % of cases, not in 0.006 %. There are from two to dozens of metrics per run, and a random outlier would almost always turn up somewhere. Therefore for each metric:</p>
+<ul><li>t = (x − m) / (s · √(1 + 1/n)) — x is the run's value, m and s the mean and spread of n controls (the prediction interval of a new observation);</li><li>p — by Student with n − 1 degrees of freedom, multiplied by the number of metrics of the run M (Bonferroni correction);</li><li>an anomaly — if p · M is no greater than the probability of |Z| ≥ z for a normal variable; z = 4 — a false alarm less often than 1 in 16,000 runs.</li></ul>
+<p>n ≥ 3 controls of the same mode are needed (<code>control_for</code>; without it — all control runs): with one control per repeat — at least three repeats. The required |t| is in the table in the figure: few controls — little sensitivity, that is honest. That is why the main metrics are named <b>before the start</b> (<code>metrics</code>: exact names or prefixes — <code>pr_s</code>, <code>band</code>): only they are checked, and the correction is milder; without <code>metrics</code> everything is checked — that is exploration. Every non-control run gets a <code>scan</code> — the three metrics with the smallest probability (t, n, p): one can see what is close to the threshold. The rule is set before the start and does not change along the way.</p>
+<p><b>Check.</b> When an anomaly is found, right after this run <code>confirm</code> pairs "the same run — control" are added (the control — its <code>control_for</code>, otherwise a random control run), the order in each pair is random. A run is checked once; an anomaly inside a check does not trigger a new check.</p>
+<p><b>Verdict.</b> <b>❗ Confirmed</b> — if in at least two thirds of the check repeats the same metric of the same agent deviated from the same controls in the same direction by at least z/2. Otherwise — <b>◐ not confirmed</b>, a random outlier.</p>
+<p><b>▣ The placebo wheel — a check of the detector itself.</b> Two boards without sensors lie next to the wheels, with their own power from a USB supply (not from the bus). In the composition this is "wheel 3" without a motor and coil: on the main screen diagram, in the settings, to the right of the "free" ones there is a place «▣ колесо‑пустышка» (placebo wheel). In the program its agents are listed in <code>dummy</code>. In every run the placebo wheel works as its own group in the same mode as the wheels: cascade, the same noise, "each on its own". In runs with absorption the two boards work as a pair with each other: one generates, the other absorbs in the same way (mix or placebo), with reverse noise it absorbs and returns frames; this is a motionless reference for absorption. Its generation (<code>gen:№…</code> for each board and <code>gen:колесо-пустышка</code> as a sum) is checked with the same criterion and in the same family of comparisons as the wheels, but it is not part of <code>gen:все</code>. A board counts as placebo only in a run where its group consists solely of placebo wheel boards. If it is put into a wheel's group, it becomes a participant, and its deviation may be real. Two runs of the first program are built this way (<code>tools/first_program.py</code>, block 5):</p>
+<ul><li><b>eavesdroppers</b> — both wheels as one group compute only from the frames of the placebo wheel boards (reverse noise, <code>src 16</code>), and those absorb the primes of both wheels; the control is a placebo absorber (<code>sh 1</code>). Switched off with <code>--no-listen</code>;</li><li><b>bridge</b> — the first board joins the wheel 1 cascade as a link, motionless among the rotating ones, the second computes alone (it remains the placebo); the wheels turn towards each other, the control is the same standing. Switched off with <code>--no-bridge</code>.</li></ul>
+<p>The placebo wheel has no rotation and no field, so any "anomaly" of it is a false alarm of the detector: drift, the air, temperature or an error in the analysis itself. Such findings go not into <code>anomalies</code> but into <code>placebo</code>: <code>anomalies</code>, <code>verdicts</code> (their check by the same pairs), <code>tested</code> (how many runs were compared), <code>hits</code>, <code>confirmed</code> and <code>shared</code> (runs where a wheel anomaly coincided with a placebo wheel alarm — so it is not from rotation). In the report, in the run list and on the main screen — the line «▣ колесо‑пустышка: ложных тревог нет» (placebo wheel: no false alarms) or their number. If a false alarm is <b>confirmed</b>, the detector is wrong, and the wheel anomalies of that program cannot be trusted until the cause is found.</p>
+<p><b>❗ Static alarm.</b> The static verdict for a run is "⚠ check" — a deviation from the baseline persists for at least 2 windows in a row or is visible over the whole run and is not explained by known sources. The program records an alarm (<code>alerts</code>, <code>alert</code> on the run; «❗» in the run list and the report) and, with <code>again</code> &gt; 0, at once schedules the same run again (<code>why: "отклонение статики"</code>), up to <code>again</code> times in a row. The main screen rings (three short beeps; the browser allows sound after the first click on the page), «❗ отклонение статики» (static deviation) blinks in the header, the window shows the reason by sensor, «↻ повторить опыт N ещё раз» (repeat run N once more; <code>POST /api/program/again {n}</code>) and «повторять сам: нет / 1 / 2 / 3» (repeat by itself: no / 1 / 2 / 3; <code>{auto}</code>). Outside a program it rings on the live verdict (no more than once a minute) and offers to repeat the last run with the same settings. A knock does not hide a persistent deviation: if it persists at a sensor for 2 windows in a row (<code>held</code>), the alarm rings even if the run is spoiled. An instrument fault and a sensor shift do not raise an alarm: the deviation then comes from the instrument or from the new position — a new baseline is needed.</p>
+<h2 id="pause-stop-continue">Pause, stop, continue<a class="anc" href="#pause-stop-continue">#</a></h2>
+<ul><li><b>Pause</b> — before the next run: coils off, wheels standing, agents resting (80 MHz); it waits for «▶ Продолжить» (<code>POST /api/program/resume</code>) as long as needed. It is set by the «⏸ Пауза» button (<code>POST /api/program/pause</code>; while a run is going the request can be withdrawn) and by itself: before a repeat (<code>pause_repeat</code>), batteries ran down (INA219 below 6.5 V), no link for more than 30 s (<code>pause_lost</code>). The reason is in the "now" badge and in <code>pauses</code> (when, how long, why).</li><li><b>Stop after the run</b> (<code>POST /api/program/stop</code>) — the run finishes, then the program stops; the request can be withdrawn (<code>{cancel: true}</code>). <b>All stop</b> (<code>{now: true}</code>) — at once: the run is cut short, marked "interrupted" and goes first on continuing.</li><li><b>Continue</b> a stopped, interrupted or crashed program (<code>POST /api/program/continue {id}</code>) — from the first unfinished run: the same plan and seed, the baseline is not recorded again, the totals go into the same record (<code>continued</code>). A program that was running when the server restarted is marked "interrupted" — it can be continued too. On the main screen — «↻ Продолжить №… · ещё N опытов» (continue №… · N more runs).</li></ul>
+<h2 id="results">Results<a class="anc" href="#results">#</a></h2>
+<p>«☰ результаты» (results, <code>/report</code>):</p>
+<ul><li><b>What matters, all else being equal.</b> For a parameter P and a value v each run with P = v is compared with the runs where P is the reference (the first value: wheels standing, field off, the first ticked option) and the other parameters are the same. Rates — as a ratio to the mean of the references, temperature, |B| and the share of runs with a static deviation — as a difference. Δ is the mean over pairs, ± its error; the verdict by Student with the number of pairs: ❗ different (p ≤ 0.0027, like 3 σ), ◐ possibly (p ≤ 0.05), ✓ no difference; fewer than three pairs — "repeats needed". There are many comparisons — one or two "◐" happen by chance, they are checked by a repeat.</li><li><b>Pivot</b> — the mean of a metric over two parameters (rows × columns) or the difference from the first column.</li><li><b>Run log</b> — for each run: parameters (name, time, duration, distance between the wheels), outcome (✗ spoiled — why · ❗ anomaly confirmed · ◐ not confirmed or being checked · ⚠ static deviation · ✓ control · ✓ like the control), the static readings of each sensor (noise over the run, mg; difference from its controls, %; max z; verdict), anomaly (metric, t) or the largest exploratory |t|; primes, rate, temperature, |B|; per agent — in a separate table.</li><li><b>CSV</b> — all of this, with the run parameters as separate columns in words.</li></ul>
+<h2 id="a-program-by-hand-json">A program by hand (JSON)<a class="anc" href="#a-program-by-hand-json">#</a></h2>
+<p>An experiment from the main screen is a special case; a program can also be handed over by hand:</p>
+<pre><code>{
+ "name": "scattering against placebo and silence",
+ "baseline_min": 5, "repeat": 4, "shuffle": true, "settle_s": 10, "rest": "stable", "z": 4, "confirm": 3, "redo": 2,
+ "targets": "all",
+ "steps": [
+  {"name": "scattering: each on its own", "minutes": 3, "cfg": {"sm": 1, "sh": 0}, "control_for": "placebo"},
+  {"name": "placebo", "minutes": 3, "cfg": {"sm": 1, "sh": 1}, "control": true},
+  {"name": "silence", "minutes": 3, "cfg": {"sm": 0}, "control": true}
+ ]
+}</code></pre>
+<div class="tw"><table><thead><tr><th>program field</th><th>default</th><th>what</th></tr></thead><tbody>
+<tr><td><code>baseline_min</code></td><td>0</td><td>first record the static noise baseline, min (the main groups stand); 0 — take the recorded one</td></tr>
+<tr><td><code>repeat</code>, <code>shuffle</code>, <code>seed</code></td><td>1, yes, random</td><td>repeats; random order in every repeat; the order seed</td></tr>
+<tr><td><code>settle_s</code></td><td>10</td><td>default settling, s</td></tr>
+<tr><td><code>rest</code></td><td>0</td><td>rest before a run: <code>"stable"</code> — until over <code>rest_window_s</code> (90 s) the temperature dropped by no more than <code>rest_tol</code> (0.5 °C), from <code>rest_min_s</code> (60 s) to <code>rest_max_s</code> (360 s); <code>"below"</code> — until everyone cools to <code>rest_below</code> (20–80 °C); a number — seconds; 0 — no rest</td></tr>
+<tr><td><code>z</code>, <code>metrics</code></td><td>4, all</td><td>the anomaly threshold; the metrics named before the start (names or prefixes)</td></tr>
+<tr><td><code>confirm</code></td><td>3</td><td>check pairs on an anomaly; at least one control step is needed</td></tr>
+<tr><td><code>redo</code>, <code>again</code></td><td>2, 0</td><td>repeats of a spoiled run; repeats on a static alarm</td></tr>
+<tr><td><code>pause_repeat</code>, <code>pause_lost</code></td><td>no, yes</td><td>a pause before every repeat; a pause if the link is lost</td></tr>
+<tr><td><code>targets</code>, <code>axes</code></td><td><code>"all"</code>, —</td><td>who takes part (<code>"all"</code> or a list of MACs); a dictionary of the experiment's parameters for the report</td></tr>
+<tr><td><code>dummy</code></td><td>—</td><td>the placebo wheel agents (MACs, from <code>targets</code>): their findings are false alarms (<code>placebo</code>), not part of <code>gen:все</code></td></tr>
+</tbody></table></div>
+<div class="tw"><table><thead><tr><th>step field</th><th>what</th></tr></thead><tbody>
+<tr><td><code>name</code>, <code>minutes</code></td><td>the name (by it a run finds its control) and the length of the measurement</td></tr>
+<tr><td><code>cfg</code>, <code>own</code>, <code>groups</code></td><td>common parameters (keys — as in the parameter table), the agents' own (none — as on the panel); or several groups, each with its own <code>targets</code>, <code>cfg</code>, <code>own</code> (those not engaged in the step stand)</td></tr>
+<tr><td><code>control</code>, <code>control_for</code></td><td>a control step; the name of the control to compare this one with (without it — with all)</td></tr>
+<tr><td><code>settle_s</code>, <code>rest</code></td><td>its own settling; <code>false</code> — no rest before the step</td></tr>
+<tr><td><code>quiet</code></td><td>telemetry silence of the generators during the measurement; not set — they are silent (<code>false</code> — they send all the time)</td></tr>
+<tr><td><code>agent</code></td><td>a step on the agent: the duration goes to the agents (<code>dur</code> = step + settling), each stops by itself and hands in its totals; only here may <code>cfg</code> have <code>ro: 1</code> — Wi-Fi off during the step</td></tr>
+<tr><td><code>mot</code></td><td>rotation <code>{pair: free/same/opposite/only1/only2, mode: off/pwm/rpm/zerog, dir, rpm, pwm, zg}</code>; the wheels speed up during settling</td></tr>
+<tr><td><code>coil</code></td><td>the coil field: <code>{"1": "+", "2": "выкл"}</code> ("выкл" — off)</td></tr>
+<tr><td><code>set</code>, <code>layers</code></td><td>the run parameters as keys (used by "what matters"); the layers in words for the run list</td></tr>
+</tbody></table></div>
+<h2 id="where-it-is-stored">Where it is stored<a class="anc" href="#where-it-is-stored">#</a></h2>
+<p><code>data/programs/&lt;number&gt;.json</code> — the program, the plan (with the added checks and repeats), every run with its totals, the anomalies (<code>anomalies</code>), the check verdicts (<code>verdicts</code>), the placebo wheel false alarms (<code>placebo</code>), alarms, pauses. API: <code>GET /api/programs</code>, <code>GET /api/program?id=</code>, <code>POST /api/program/start {"program": …}</code>, <code>/stop</code>, <code>/pause</code>, <code>/resume</code>, <code>/continue</code>, <code>/again</code>; <code>POST /api/rig</code>.</p>
+  </main>
+</div>
+<footer>This page is built from docs/en/program.md by tools/build_docs.py — edit the markdown. English translation; the Russian original is the source of truth. Links to the installation and the live diagram work when the documentation is opened from the server (http://&lt;server&gt;:8090/docs/en/).</footer>
+</body>
+</html>

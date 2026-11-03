@@ -1,13 +1,16 @@
 # Wheel-2 ("Колесо-2"): how everything works
 
 *English translation of [docs/how_it_works.md](../how_it_works.md) — the Russian original is the source
-of truth. The other documents in `docs/` are in Russian; labels inside the diagrams in `docs/img/` are in
-Russian.*
+of truth. Every document in `docs/` has an English translation in `docs/en/`; labels inside the diagrams in
+`docs/img/` and the screens of the rig are in Russian.*
 
 The whole rig: what it consists of, what each agent does, how the server and the main screen work, which
-parameters exist. Each topic has its own page (Russian): wiring, sensors/phone/motors/coils, modes,
-experiments and programs, static sensors, group mode, absorption, noise, temperature, bill of materials,
-coil endurance test, toroid field calculator. Why the rig exists — the [preamble](preamble.md).
+parameters exist. Each topic has its own page: [wiring](wiring.md), [sensors, phone, motors and
+coils](sensors.md), [modes](modes.md), [experiment and program](program.md), [static
+sensors](static_watch.md), [group mode](group_protocol.md), [absorption](scatter.md),
+[noise](randomness.md), [temperature](thermal.md), [bill of materials](spec.md), [coil endurance
+test](coil_test.md), the [toroid field calculator](../toroid_field.html) (Russian). Why the rig exists — the
+[preamble](preamble.md).
 
 ---
 

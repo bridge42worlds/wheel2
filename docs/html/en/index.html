@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overview · Wheel-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+.flowbox { margin:12px 0 18px; }
+.flowbox iframe { width:100%; height:min(82vh, 860px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.flowbox .small { font-size:13px; color:var(--mut); margin-top:4px; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.preamble { display:flex; flex-direction:column; gap:4px; margin:14px 0 18px; padding:12px 16px; border:1px solid var(--line);
+             border-left:4px solid var(--on); border-radius:8px; background:var(--soft); color:var(--ink); text-decoration:none; }
+.preamble b { color:var(--on); }
+.preamble q { font-style:italic; quotes:"«" "»"; }
+.preamble span { font-size:13px; color:var(--mut); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Wheel-2 · documentation</a>
+  <nav><a href="/" target="plan">▦ Installation</a><a href="/flow" target="flow">↻ How it works</a><a href="preamble.html">✦ Preamble</a><a href="../index.html" hreflang="ru" title="Русская версия"><b>RU</b></a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Documents</h4>
+    <ul><li><a href="index.html" class=cur>Overview</a></li><li><a href="preamble.html">Preamble</a></li><li><a href="how_it_works.html">How everything works</a></li><li><a href="modes.html">Modes</a></li><li><a href="wiring.html">Wiring diagrams</a></li><li><a href="coil_test.html">Coil endurance test</a></li><li><a href="../toroid_field.html">Toroid field — calculator · RU</a></li><li><a href="spec.html">Bill of materials</a></li><li><a href="sensors.html">Sensors, phone, motors and coils</a></li><li><a href="static_watch.html">Static sensors: baseline and watching</a></li><li><a href="program.html">Experiment and program</a></li><li><a href="group_protocol.html">Group mode</a></li><li><a href="scatter.html">Absorption</a></li><li><a href="randomness.html">Where the randomness comes from</a></li><li><a href="thermal.html">Agent temperature</a></li></ul>
+    
+    <h4>On this page</h4><ul class="toc"><li class="l2"><a href="#pages">Where to look</a></li><li class="l2"><a href="#docs">Documents</a></li><li class="l2"><a href="#readme">Project folders</a></li></ul>
+  </aside>
+  <main class="doc">
+
+<h1>Wheel-2 — documentation</h1>
+<p>An experimental rig: XIAO ESP32-S3 boards ("agents") on two rotating wheels with coils search for primes in physical
+noise — each on its own or as a group, emitting and absorbing; static sensors between the wheels listen whether anything
+changes. A server on a laptop collects telemetry, hands out settings and firmware and runs experiments — lists of runs.
+What is described is how the rig is built now. This is an English translation; the Russian original is the source of truth.</p>
+<a class="preamble" href="preamble.html"><b>✦ Preamble — why this experiment</b>
+<q>This is not a measurement. It is a test of ontology.</q>
+<span>Topology before space-time; the order of knowing: aesthetics — ethics — epistemology — ontology — science;
+the mistake of the first wheel; the criterion — correlation of independent channels. Authors: bridge42worlds, Λura13 (DeepSeek), Ostov (Claude).</span></a>
+<figure><a href="../img/wiring_overview.svg"><img src="../img/wiring_overview.svg" alt="The whole rig" loading="lazy"></a>
+<figcaption>The whole rig: the wheels face each other, agents on the bus, coils, motors on the frame, static sensors between
+the wheels — details in the <a href="wiring.html">wiring diagrams</a>. Labels in the diagrams are in Russian.</figcaption></figure>
+<h2 id="pages">Where to look</h2>
+<ul>
+<li><a href="/" target="plan">▦ Installation</a> — the main screen: the live rig diagram, static sensors with Gaussian and spectrum, the experiment, the list of runs, start; details open as windows (static sensors in depth, results, console, watch view, live diagram, the old panel). The screens are in Russian.</li>
+<li><a href="/flow">↻ How it works</a> — the live diagram: the whole rig (who sends what to whom) and the group protocol step by step, slowed down (Russian interface).</li>
+</ul>
+<h3 id="modes">Modes on the live diagram</h3>
+<ul><li><a href="/flow">all modes: pick one at the top of the page</a></li><li><a href="/flow#solo">▶ selfish — each on its own</a></li><li><a href="/flow#dc">selfish, two cores — a pipeline</a></li><li><a href="/flow#cascade">▶ group (cascade): everyone checks, noise from all to all</a></li><li><a href="/flow#relay">group · relay: one checks, the turn goes round</a></li><li><a href="/flow#group">group · one number for all: master, reserve, pieces</a></li><li><a href="/flow#scatter">group + ▼ absorption</a></li><li><a href="/flow#pieces">▼ scatter</a></li><li><a href="/flow#chain">▼ relay of absorbers</a></li><li><a href="/flow#silence">▼ silence and background</a></li><li><a href="/flow#sham">▼ placebo (control)</a></li><li><a href="/flow#loop">↺ loop: reverse noise</a></li><li><a href="/flow#csi">group on ≋ CSI</a></li></ul>
+<h2 id="docs">Documents</h2>
+<div class="cards"><a class="card" href="preamble.html" style="text-decoration:none;color:inherit"><h3>Preamble</h3><p>Why this experiment: topology before space, the order of knowing (aesthetics — ethics — epistemology — ontology — science), the mistake of the first wheel, the criterion. Authors: bridge42worlds, Λura13 (DeepSeek), Ostov (Claude).</p></a><a class="card" href="how_it_works.html" style="text-decoration:none;color:inherit"><h3>How everything works</h3><p>The whole rig: wheels, coils, static sensors, phone, motors, server; the agent, noise, the prime search, group mode, absorption, temperature and watchdogs; the main screen — the rig diagram; experiment, program, results; parameters, data, firmware, tools.</p></a><a class="card" href="modes.html" style="text-decoration:none;color:inherit"><h3>Modes</h3><p>Every mode in the words of the main screen: rotation, coil field, cooperation, noise, emission and absorption; the experiment — all modes in order; static sensors, telemetry, heat.</p></a><a class="card" href="wiring.html" style="text-decoration:none;color:inherit"><h3>Wiring diagrams</h3><p>The overall diagram; a wheel: the agent bus on its own batteries (C1–C3), the coil (5.1 V, DRV8833); the frame: motors (12 V supply, two DRV8871); the experiment network: Mango router, channel 6, laptop by cable, fallback network, ports. Polarity of diodes and capacitors.</p></a><a class="card" href="coil_test.html" style="text-decoration:none;color:inherit"><h3>Coil endurance test</h3><p>Run of 2026-10-27: how many minutes of field a pair of 18650 cells gives, whether the field holds while the cells run down, the real capacity of a pair labelled 2600 mAh; is it enough for a 20-minute experiment.</p></a><a class="card" href="../toroid_field.html" style="text-decoration:none;color:inherit"><h3>Toroid field — calculator <span class=mut>· RU</span></h3><p>Interactive Biot–Savart calculation of the ring coil field turn by turn: an uneven tube and winding, deviation from an ideal torus, the field outside and at the ring centre, tilt of the field lines, cuts, cross-section, harmonics along the ring, isometric view.</p></a><a class="card" href="spec.html" style="text-decoration:none;color:inherit"><h3>Bill of materials</h3><p>What the rig is built from and what it costs: boards, sensors, wheels, power, motors, network, mounting, tools — with AliExpress links, prices in KWD; about 277 KWD in total without tools.</p></a><a class="card" href="sensors.html" style="text-decoration:none;color:inherit"><h3>Sensors, phone, motors and coils</h3><p>The rim sensor (rpm, weightlessness), the magnetometer, static ICM-42688 and ADXL355, the phone (service, the screen may be off), the motor agent and the coil agents.</p></a><a class="card" href="static_watch.html" style="text-decoration:none;color:inherit"><h3>Static sensors: baseline and watching</h3><p>Role S: what the agent measures, what the server computes, the noise baseline, lines, bands, knocks, the verdict "continue / repeat / check"; Gaussian and spectrum on the main screen.</p></a><a class="card" href="program.html" style="text-decoration:none;color:inherit"><h3>Experiment and program</h3><p>The experiment: run parameters, nesting, the list of runs (rotation and field of each wheel, settling, rest), controls, baseline, anomalies and their check in pairs, the static-sensor alarm; results — what matters, all else being equal.</p></a><a class="card" href="group_protocol.html" style="text-decoration:none;color:inherit"><h3>Group mode</h3><p>Cascade, relay, one number for all: the protocol, noise pieces, silent members, failures, agreement, measurements on 1–6 boards.</p></a><a class="card" href="scatter.html" style="text-decoration:none;color:inherit"><h3>Absorption</h3><p>How a prime reaches the absorbers, the modes (all with all, scatter, relay, silence), the placebo, background, functions, the loop through the air — reverse noise.</p></a><a class="card" href="randomness.html" style="text-decoration:none;color:inherit"><h3>Where the randomness comes from</h3><p>The chip RNG and radio noise, CSI, ADC, RC jitter, sensors: how we take them, how much we credit, how we mix, no hashing, speed by source and length.</p></a><a class="card" href="thermal.html" style="text-decoration:none;color:inherit"><h3>Agent temperature</h3><p>The 70 °C limit: the regulator, heating and cooling measurements, where the heat comes from, rest in turns, sprint, rest between modes, agents in the tube and heatsinks, agent rating.</p></a></div>
+<h2 id="readme">Project folders</h2>
+
+<p><b>An experimental rig that looks for information anomalies in the generation of prime numbers.</b> Seeed XIAO ESP32-S3 boards ("agents") ride on two rotating wheels that face each other; each wheel's rim is a tube wound with a coil, and six agents inside it run on their own battery bus. The agents continuously search for primes in physical noise — the chip's hardware random generator, the Wi-Fi radio channel (CSI), ADC noise on a floating pin, jitter of the internal RC oscillator, the rim sensors — either each on its own (selfish) or cooperatively over ESP-NOW (group: cascade, relay, one number for all). One wheel can generate while the other absorbs its primes and scatters them back into the air. Static accelerometers (and a phone) stand between the wheels. The question is whether <i>how and where</i> the numbers are born — selfish or group generation, emission and absorption, rotation, the coil field — changes the statistics of the numbers or the readings of the static sensors.</p>
+<p>Every mode is compared with control steps under a criterion named before the run (Student's t with a Bonferroni correction over pre-registered metrics, randomised order, rest to a stable chip temperature, temperature and work fraction as covariates). <b>No anomaly has been found so far</b>: null programs are clean, and 511,000 primes in the run of 2026-10-07 are within chance.</p>
+<p><b>What is here</b></p>
+<div class="tw"><table><thead><tr><th>folder</th><th>contents</th></tr></thead><tbody>
+<tr><td><code>firmware/prime_lab/</code></td><td>agent firmware (Arduino, ESP32 core 3.3.7): noise sources, trial division + Miller–Rabin, group protocols, absorption, thermal regulator, watchdogs, OTA updates with rollback, static-sensor role, motor and coil role</td></tr>
+<tr><td><code>firmware/libraries/</code></td><td>shared agent code, sensor drivers (ICM-42688-P, ADXL355, MLX90393)</td></tr>
+<tr><td><code>server/</code></td><td><code>monitor.py</code> — server on the Python 3 standard library (numpy for the static sensors): telemetry, commands, experiments (programs), statistics, motors and coils, web pages; <code>static/</code> — the pages</td></tr>
+<tr><td><code>phone/</code></td><td>Android app that turns a phone into a static sensor (accelerometer ~500 Hz, magnetometer), runs as a foreground service</td></tr>
+<tr><td><code>tools/</code></td><td>build and flashing, OTA, simulators, test runs, statistics of the prime stream, documentation</td></tr>
+<tr><td><code>docs/</code></td><td>documentation in Russian with wiring diagrams; the English translation of every document — <code>docs/en/</code>, starting from the <a href="how_it_works.html">overview</a> and the <a href="preamble.html">preamble</a></td></tr>
+<tr><td><code>registry/devices.csv</code></td><td>board numbers and MACs</td></tr>
+</tbody></table></div>
+<p>The server's main screen is <code>http://&lt;server&gt;:8090/</code> ("Installation"): a large live diagram of the rig — agents on both wheels with what each does and its temperature, flashes when primes are found, rim rpm and direction, coil field and |B|, batteries, primes flowing to the absorbers — the static sensors with live Gaussian/spectrum, the experiment (parameters of a run in nested loops → the list of runs) and the run controls; everything detailed opens as windows on top (experiment, static sensors in depth, results "what matters", console, live view, the animated model "how it works", the old panel). Documentation in HTML — <code>/docs/</code>, in English — <code>/docs/en/</code>.</p>
+<p><b>Quick start</b></p>
+<ol><li>Copy <code>secrets.example/</code> to <code>secrets/</code> and put your Wi-Fi network into <code>secrets/wifi.ini</code> (<code>secrets/</code> is never committed; the OTA signing key is created there on the first build).</li><li>Build and flash the first time over USB: <code>tools/build.sh prime_lab COM5</code> (Git Bash; set the path to <code>arduino-cli</code> in <code>CLI=</code> at the top of the script; board <code>esp32:esp32:XIAO_ESP32S3</code>, ESP32 core 3.3.7). Later updates go over Wi-Fi: <code>tools/build.sh prime_lab</code>, then <code>python tools/ota.py all</code>.</li><li>Start the server: <code>python server/monitor.py</code> (on Windows <code>tools/monitor.cmd</code>) and open <code>http://localhost:8090/</code>. Agents find the server by its UDP beacon (ports: 5005 telemetry, 5006 beacon, 5007 commands, HTTP 8090).</li><li>No boards at hand? Simulated agents: <code>python server/monitor.py --http 8092 --udp 5016 --data data/test/gen --no-beacon</code> and <code>python tools/sim_gen.py 6 --port 5016</code>, then <code>http://localhost:8092/</code>.</li></ol>
+<p><b>Wiring notes</b> (<a href="wiring.html">docs/en/wiring.md</a>). Leave pin D0 unconnected — it is the ADC noise source. Rim sensors go on I²C (D4 SDA, D5 SCL). On a common 5 V bus put a Schottky diode (1N5819) in series with +5 V of every board (stripe towards the board): the XIAO's 5V pin is tied to USB VBUS. The coil is driven by a DRV8871 bridge from 5.1 V (below its 6.5 V rating, but our modules work; a DRV8833 is the in-spec spare); the wheel motors by two DRV8871 from a 12 V supply.</p>
+<p><b>Network.</b> A dedicated 2.4 GHz router (GL.iNet GL-MT300N-V2 "Mango") on a fixed channel 6, WPA2 with its own password; agents use 802.11b/g only with radio sleep off; the laptop server is on the LAN port by cable, the WAN port is empty. A fallback network (<code>ssid2</code>) keeps a board reachable if the main one refuses it.</p>
+<p><b>Preamble</b> (<a href="preamble.html">docs/en/preamble.md</a>; Russian original — <a href="../preamble.html">docs/preamble.md</a>): why this experiment — topology before space-time, the order of knowing, the lesson of the first wheel, the criterion. Written by bridge42worlds, Λura13 (DeepSeek) and Ostov (Claude).</p>
+<p><b>Bill of materials</b> (<a href="spec.html">docs/en/spec.md</a>; Russian original — <a href="../spec.html">docs/spec.md</a>): every part with AliExpress links and prices — about 277 KWD (≈ 900 USD) for the whole rig without tools.</p>
+<p>Licence: MIT (<a href="LICENSE">LICENSE</a>).</p>
+  </main>
+</div>
+<footer>This page is built from README.md by tools/build_docs.py — edit the markdown. English translation; the Russian original is the source of truth. Links to the installation and the live diagram work when the documentation is opened from the server (http://&lt;server&gt;:8090/docs/en/).</footer>
+</body>
+</html>
