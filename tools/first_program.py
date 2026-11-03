@@ -309,7 +309,7 @@ PROG = {"name": "первый эксперимент: невесомость н�
         "baseline_min": A.base_min if A.base == "still" else 0, "repeat": 1, "shuffle": False, "settle_s": 8,
         "rest": A.rest, "z": 4, "confirm": 1, "redo": 1, "again": 0, "pause_lost": True,
         "metrics": ["pr_s", "cand_s"], "targets": W["1"] + W["2"] + D, "steps": STEPS,
-        **({"dummy": D} if D else {})}
+        **({"dummy": D, "dummy_tmax": 75} if D else {})}   # опора без радиаторов: частота та же, потолок 75 °C
 
 # ---------- план словами ----------
 nm = lambda ms: " ".join(f"№{ID[m]}" for m in ms)
@@ -320,6 +320,8 @@ for w, macs in (("1", W["1"]), ("2", W["2"]), ("3", D)):
         print(f"  у каждого свой шум, {DL if w == '3' else 'колесо ' + w}: " + ", ".join(f"№{ID[m]} {OWN[w][m][1]}" for m in macs))
 if D:
     print(f"  блок 5: подслушивающие {'да' if A.listen else 'выкл (--no-listen)'} · мост {'да' if A.bridge else 'выкл (--no-bridge)'}")
+if D:
+    print("  колесо-пустышка — опора: колёса к нему на агента (gen:все/опора) в каждом опыте; потолок 75 °C, частота как у колёс")
 if len(D) >= 2:
     print(f"  поглощение у колеса-пустышки — между собой: К1 → К2 ~ №{ID[D[0]]} → №{ID[D[1]]}, К2 → К1 ~ №{ID[D[1]]} → №{ID[D[0]]}")
 T = 0.0

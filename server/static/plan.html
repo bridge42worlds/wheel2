@@ -436,6 +436,8 @@ const TIPS = {
   setup: ["Настройка установки", "Нажмите плату — она выделится синим кольцом, места подсветятся. Нажмите место: колесо 1 или 2 (генератор), катушку под колесом или моторы посередине внизу (агент роли M), измерители посередине (статика), «свободные» внизу (снять с колеса). Если роль меняется (генератор · моторы и катушки · измеритель), плата перезапустится ≈ 15 с — спросим. «◉ мигнуть» — найти выбранную плату по светодиоду. Новые платы — «⇪ прошить по USB» в шагах справа; после прошивки они появляются в «свободных». Справа — шаги с нуля до запуска с кнопками."],
   roles: ["Излучение / поглощение", "Что делает каждое колесо в опыте: строка — колесо 1, столбец — колесо 2. ▶ генерирует — агенты ищут простые из шума. ▼ поглощает — получает простые генераторов другого колеса и выпускает их в эфир, смешав со своим шумом; кто чьё и как — карточка «поглощение». ⏸ стоит — агенты не считают. ⏸⏸ «только статика» — никто не считает, а вращение и поле опыта идут: видно, что воздействие делает с датчиками само по себе. Поглощать нечего — клетки ▼▼, ▼⏸, ⏸▼ недоступны. Отмеченных клеток несколько — перебираются все."],
   ways: ["Совместная работа", "Как считают генераторы колеса (поглотители — карточка «поглощение»). Эгоистичный — каждый сам набирает шум, складывает число и проверяет. Каскад — числа из кусочков шума всех агентов колеса, проверяют все сразу. Одно число на всех — одно число на группу, его проверяют все (~10 простых/с). Эстафета — число из шума всех, проверяет один, ход по кругу."],
+  fq: ["Род поля", "Постоянное — ток катушки всё время в одну сторону («+» или «−» в «поле катушек»). Переменное — ток меняет направление плавно: ∿ синус или ⊓ мягкий меандр (прямоугольник с плавными фронтами по 100 мс) с заданной частотой, 0,1–50 Гц. «+» и «−» у переменного — фаза 0 и 180°: обе катушки на «+» идут в одной фазе (агенты подстраивают фазу по часам сервера, до 5 Гц), «+ −» — в противофазе. Амплитуда растёт и спадает плавно — за 3 периода, от 1 до 5 с. Синус греет обмотку и тратит аккумулятор вдвое меньше постоянного той же амплитуды. Провода катушки дрожат на частоте поля и вдвое чаще — эти линии в спектре статики считаются известными. Магнитометр колеса меряет средним за секунду — переменное он видит размахом. Нужна прошивка агента катушки с переменным полем."],
+  self: ["Своё рассеяние", "Генераторы сами выпускают свои простые в эфир: ядро счёта ищет простые, ядро связи каждое найденное смешивает со своим шумом (функция рассеяния агента) и сразу выпускает кадром — число рождается и уходит в эфир с того же чипа, без поглотителей. Нет — только считают. Пустышка — тот же трафик в те же моменты, но в кадрах вместо числа только шум: отделяет действие числа от действия радио. Кадров столько же, сколько простых (~40 в секунду на плату), — эфир занят сильнее, плата теплее на 1–3 °C. С поглощением другого колеса: пустышка поглощения делает пустышкой и своё рассеяние. Нужна прошивка с ss."],
   absorb: ["Поглощение", "Кто чьё поглощает и как — для опытов, где одно колесо генерирует, а другое поглощает. Кто чьё: все со всеми — каждый поглотитель берёт все простые; пары 1:1 — у каждого поглотителя свой генератор (по номерам), генераторы без пары — контроль внутри опыта; все — одного — все поглощают простые одного генератора, остальные работают без поглощения; каждое — одному — генераторы поделены между поглотителями, каждое простое поглощается ровно один раз; половина колеса — первую половину генераторов поглощают все, вторую никто. Как: смешать целиком — каждый смешивает всё число со своим шумом и выпускает кадр; по кускам — каждый свой кусок числа; эстафетой — передают друг другу, в эфир один кадр; пустышка — тот же трафик без числа; только слушают — без трафика. Пустышка и «только слушают» — контроль: отделяют действие числа от действия радио. «Кто чьё» понимает новая прошивка; старая поглощает все простые."],
   rot: ["Вращение колёс", "Каждое колесо: ■ стоит, ⟳ вперёд (по часовой, если смотреть на вал спереди), ⟲ назад. Строка таблицы — колесо 1, столбец — колесо 2: ⟳⟲ — навстречу, ⟳⟳ — вместе, ⟳■ — крутится одно. «только …» отмечает группу сразу (например, только навстречу). Колёса разгоняются за время установления опыта."],
   speed: ["Скорость колёс", "Обороты в минуту (по датчику на ободе), ШИМ в процентах или невесомость — обороты, при которых наверху колеса k = 1. Несколько значений — ещё один цикл. Опыты, где колёса стоят, скорость не перебирают."],
@@ -642,10 +644,15 @@ function spinWords(sp) {
 function fieldOf(w) {
   const C = COIL || {}, ag = (C.agents || {})[w], st = ag && ag.alive ? ((C.wheels || {})[w] || {}).state || null : null;
   const word = !ag ? "нет агента" : !ag.alive ? "нет связи" : ({ off: "выкл", "+": "+", "-": "−" })[st] || "?";
-  const sn = (C.sense || {})[w], sense = sn && sn.age != null && sn.age < 6 && sn.nbg ? sn : null;   // поле по магнитометру колеса
-  return { ag, st, word, on: st === "+" || st === "-", sense };
+  const sn = (C.sense || {})[w], sense = sn && sn.age != null && sn.age < 6 && (sn.nbg || sn.cmd === "~") ? sn : null;   // поле по магнитометру колеса
+  const wst = (C.wheels || {})[w] || {}, ac = wst.ac || null;   // переменное: {f, shape, edge}; null — постоянное
+  return { ag, st, word, ac, fq: fqOfSt(wst), on: st === "+" || st === "-", sense };
 }
-const FW = { off: "выкл", "+": "+", "-": "−", "?": "в другую сторону" };
+const FW = { off: "выкл", "+": "+", "-": "−", "?": "в другую сторону", "~": "∿ переменное" };
+// род поля вручную — по кругу: постоянное → = 70 % ШИМ → ∿ 0,5 → 1 → 5 → 17 Гц → ⊓ 1 Гц → ⟳ ×1 → ×2 → постоянное
+const fqOfSt = st => !st ? "dc" : st.ac && st.ac.sync ? `rot:${st.ac.sync.k}` : st.ac ? `${st.ac.shape === "sq" ? "sq" : "sin"}:${st.ac.f}`
+  : st.level && st.level < 1000 ? `dc:${Math.round(st.level / 10)}` : "dc";
+const fqNext = v => { const i = FQ_DEF.indexOf(v); return FQ_DEF[(i + 1) % FQ_DEF.length]; };
 // Режим колеса: идущий опыт программы, иначе — первый опыт эксперимента (план)
 function wheelMode(d, w) {
   const cur = currentLayers(), L = cur || ((expPlan().steps.find(s => s.set) || {}).layers), Lw = L ? L["w" + w] : null;
@@ -1446,7 +1453,7 @@ function renderPic(d) {
     // L8: угол колеса снаружи — агент катушки, кнопки поля, аккумуляторы шины и катушки
     const ca = fd.ag, cOff = ca && !ca.alive, cur = currentLayers(), planF = cur ? (cur.field || {})[ws] : null, miss = planF && ca && ca.alive && planF !== fd.word;
     const kx = w === 1 ? 16 : W - 16 - 214, ky = cy + R + 26, cDrop = pick && zoneOf(d, agentById(d, pick)) !== "coil" + w;
-    const cText = !ca ? "⚙ катушка: агента нет" : `⚙ №${ca.id} катушка · ${ca.alive ? "✓ поле " + fd.word : "✗ нет связи"}${miss ? " · ◐" : ""}`;
+    const cText = !ca ? "⚙ катушка: агента нет" : `⚙ №${ca.id} катушка · ${ca.alive ? "✓ поле " + fd.word + (fd.fq !== "dc" ? " " + fqShort(fd.fq) : "") : "✗ нет связи"}${miss ? " · ◐" : ""}`;
     L8 += `<g ${ca && !cDrop ? `data-act="agent" data-mac="${ca.mac}" data-zone="coil${w}" data-pop="coil|${ws}" tabindex="0" role="button" aria-label="${esc(cText)}"` : pick ? `data-act="place" data-dest="coil${w}" data-tt="поставить ${esc(nameOf(d, pick))} агентом катушки колеса ${w}" tabindex="0" role="button" aria-label="поставить сюда: катушка колеса ${w}"` : `data-pop="coil|${ws}"`}>
       <rect class="pa" x="${kx}" y="${ky}" width="214" height="26" rx="6" style="fill:var(${cDrop ? "--on-bg" : "--card"});stroke:var(${cDrop ? "--on" : cOff ? "--w-bad" : ca ? "--ink" : "--line2"})" stroke-width="${cDrop ? 2.5 : 1.4}" ${ca && !cOff && !cDrop ? "" : 'stroke-dasharray="4 3"'}/>
       ${ca && ca.mac === pick ? `<rect x="${kx - 6}" y="${ky - 6}" width="226" height="38" rx="9" fill="none" style="stroke:var(--on)" stroke-width="3.5" stroke-dasharray="7 4"/>` : ""}
@@ -1458,6 +1465,10 @@ function renderPic(d) {
         const bx = kx + k * 58, sel = stc === v;
         L8 += `<g data-act="cset" data-w="${ws}" data-v="${v}" data-tt="поле катушки колеса ${w} вручную: ${lab}" tabindex="0" role="button" aria-label="поле катушки колеса ${w}: ${lab}"><rect class="pa" x="${bx}" y="${by}" width="54" height="24" rx="5" style="fill:var(${sel ? "--on" : "--card"});stroke:var(${sel ? "--on" : "--line2"})"/>${T(bx + 27, by + 16.5, 13, `${sel ? "✓ " : ""}${lab}`, sel ? 'class="nh" style="fill:var(--on-ink)" font-weight="700"' : 'class="nh"')}</g>`;
       });
+      {                                                  // род поля: постоянное / переменное — по кругу
+        const bx = kx + 174, nx = fqNext(fd.fq), lab = fqShort(fd.fq), on = fd.fq !== "dc";
+        L8 += `<g data-act="cac" data-w="${ws}" data-v="${nx}" data-tt="род поля катушки колеса ${w}: сейчас ${esc(fqName(fd.fq))}; нажать — ${esc(fqName(nx))}" tabindex="0" role="button" aria-label="род поля катушки колеса ${w}: ${esc(fqName(fd.fq))}, нажать — ${esc(fqName(nx))}"><rect class="pa" x="${bx}" y="${by}" width="40" height="24" rx="5" style="fill:var(${on ? "--on" : "--card"});stroke:var(${on ? "--on" : "--line2"})"/>${T(bx + 20, by + 16.5, 12, esc(lab), on ? 'class="nh" style="fill:var(--on-ink)" font-weight="700"' : 'class="nh"')}</g>`;
+      }
       by += 30;
     }
     L8 += batMini(kx, by, bats.find(b => b.wheel === ws && b.kind === "bus"), "шина", ws, "bus") + batMini(kx + 104, by, bats.find(b => b.wheel === ws && b.kind === "coil"), "катушка", ws, "coil");
@@ -1668,14 +1679,17 @@ function noiseCfg(k) { if (mixSet(k)) return mixCfg(k); const n = NOISES.find(x 
 // Группы опыта: генераторы — колесо своей группой (или оба колеса одной, если «одной группой»);
 // поглотители другого колеса — в группу генераторов, кто чьё и как — по параметру «поглощение».
 // f — поле катушек: знак колеса 1 и колеса 2 (0 — выкл, p — ток +, m — ток −): «p0» — только катушка 1, ток +
-function makeStep(d, r1, r2, w1, w2, n1, n2, f) {
+// sf — своё рассеяние генераторов: "1" — сами рассеивают (ss 1), "s" — пустышка (ss 1, sh 1), иначе нет
+// fq — род поля: "dc" или нет — постоянное, "sin:1", "sq:0.5" — переменное (катушкам — coil.ac)
+function makeStep(d, r1, r2, w1, w2, n1, n2, f, sf, fq) {
   const G1 = wheelGroups(d, "1"), G2 = wheelGroups(d, "2");
   const layers = { w1: { role: r1, way: w1 || "", noise: n1 ? noiseName(n1) : "" }, w2: { role: r2, way: w2 || "", noise: n2 ? noiseName(n2) : "" },
                    field: fieldCoil(f) };
   const genGroup = (macs, way, noise, label) => {
     const own = {};
     macs.forEach(m => own[m] = { role: 0 });
-    return { targets: macs.slice(), cfg: { ...GEN_CFG[way], ...noiseCfg(noise), pl: 1, tmax: P.tmax }, own, label };
+    const self = sf === "1" ? { ss: 1, sh: 0 } : sf === "s" ? { ss: 1, sh: 1 } : { ss: 0 };
+    return { targets: macs.slice(), cfg: { ...GEN_CFG[way], ...noiseCfg(noise), pl: 1, tmax: P.tmax, ...self }, own, label };
   };
   // Поглотители другого колеса — в группу генераторов (колесо — одна группа): у каждого свой список «чьи простые
   // брать» (ba, номера генераторов) по «кто чьё», режим — по «как»
@@ -1708,7 +1722,10 @@ function makeStep(d, r1, r2, w1, w2, n1, n2, f) {
     if (m.length) groups = [{ targets: m, cfg: { mode: 0, dc: 0, run: 0 }, own: {}, label: "все стоят — только статика" }];
   }
   groups = groups.filter(g => g.targets.length).map(g => ({ targets: g.targets, cfg: g.cfg, own: g.own, label: g.label }));
-  return { groups, layers, coil: layers.field };
+  const ac = f && f !== "00" ? fqAc(fq) : null, lvl = f && f !== "00" ? fqLevel(fq) : 1000;
+  if (ac) layers.fq = acWord(ac);
+  else if (lvl < 1000) layers.fq = `= ${lvl / 10} % · ШИМ`;
+  return { groups, layers, coil: { ...layers.field, ...(ac ? { ac } : {}), ...(lvl < 1000 ? { level: lvl } : {}) } };
 }
 // Опыт «все стоят»: агенты колёс не считают, колёса стоят, поле выкл — меряется только статика (контроль)
 function idleStep(d) {
@@ -1888,16 +1905,41 @@ const AXES = {
   speed: { icon: "⏲", title: "скорость колёс", tip: "speed" },
   zgo: { icon: "±", title: "отступ от невесомости", tip: "zgo" },
   field: { icon: "⇉", title: "поле катушек", tip: "field" },
+  fq: { icon: "∿", title: "род поля", tip: "fq" },
   roles: { icon: "⇄", title: "излучение / поглощение", tip: "roles" },
   team: { icon: "⋈", title: "совместная работа", tip: "ways" },
   absorb: { icon: "▼", title: "поглощение", tip: "absorb" },
+  self: { icon: "◈", title: "своё рассеяние", tip: "self" },
   noise: { icon: "∿", title: "шум", tip: "noise" },
 };
 const ZG_MUL = ["-2", "-1", "0", "1", "2"];              // ступени около невесомости — в шагах (шаг E.zgStep, % оборотов)
-const AX_OK = { rot: ROT_ALL, field: FLD_ALL, roles: Object.keys(ROLE_PAIR), team: TEAMS.map(x => x[0]), zgo: ZG_MUL };
-const EXP_DEF = { order: ["rot", "speed", "zgo", "field", "roles", "team", "absorb", "noise"], ab: { who: ["all"], how: ["mix"] },
-                  sel: { rot: ["00"], speed: ["rpm:30"], zgo: ["0"], field: ["00"], roles: ["gg"], team: ["solo"] },
-                  speeds: ["rpm:15", "rpm:30", "rpm:45", "rpm:60", "zerog"], nz: { set: ["rng"], csi: "hb", ways: ["mix"] }, off: [],
+// своё рассеяние: генераторы сами выпускают свои простые (ss); s — пустышка (тот же трафик, в кадрах шум)
+const SELF = [["0", "нет", "генераторы только считают"], ["1", "сами рассеивают", "каждое своё простое — со своим шумом в эфир с ядра связи"],
+              ["s", "пустышка", "тот же трафик в те же моменты, в кадрах вместо числа шум"]];
+const SELF_SHORT = { "0": "—", "1": "◈", s: "◈пуст." };
+// род поля: dc — постоянное; sin:f, sq:f — переменное синусом или мягким меандром частоты f Гц («+»/«−» — фаза 0/180°);
+// dc:70 — постоянное на 70 % уровня: мост переключается (ШИМ 20 кГц), поле не меняется — контроль, отделяющий действие
+// переменного поля от действия переключений (70 % — та же мощность, что у синуса полной амплитуды).
+// Частоты не кратны 10 Гц: магнитометр обода меряет 20 раз в секунду — на 20 Гц поле для него стоит; 50 Гц — ещё и сеть.
+// rot:k — с вращением: синус частоты k × обороты колеса, максимум — когда агент с акселерометром проходит верх (по его
+// метке верха); у остальных агентов колеса — свой постоянный сдвиг (напротив — минимум у верха)
+const FQ_DEF = ["dc", "dc:70", "sin:0.5", "sin:1", "sin:5", "sin:17", "sq:1", "rot:1", "rot:2"];
+const fqAc = v => {
+  if (!v || String(v).startsWith("dc")) return null;
+  const [sh, f] = String(v).split(":");
+  return sh === "rot" ? { f: 1, shape: "sin", edge: 100, sync: { k: +f, deg: 0 } } : { f: +f, shape: sh === "sq" ? "sq" : "sin", edge: 100 };
+};
+const fqLevel = v => String(v || "").startsWith("dc:") ? Math.round(+String(v).split(":")[1] * 10) : 1000;   // уровень тока, ‰
+const hzWord = f => String(f).replace(".", ",");
+const acWord = a => !a ? "постоянное" : a.sync ? `⟳ ×${hzWord(a.sync.k)} с вращением` : `${a.shape === "sq" ? "⊓" : "∿"} ${hzWord(a.f)} Гц`;
+const fqName = v => { const a = fqAc(v), l = fqLevel(v); return !a ? (l < 1000 ? `= постоянное ${l / 10} % · ШИМ (контроль)` : "= постоянное")
+  : a.sync ? `⟳ с вращением ×${hzWord(a.sync.k)} — синус, максимум наверху` : `${a.shape === "sq" ? "⊓ мягкий меандр" : "∿ синус"} ${hzWord(a.f)} Гц`; };
+const fqShort = v => { const a = fqAc(v), l = fqLevel(v); return !a ? (l < 1000 ? `=${l / 10}` : "=") : a.sync ? `⟳×${hzWord(a.sync.k)}` : `${a.shape === "sq" ? "⊓" : "∿"}${hzWord(a.f)}`; };
+const fqCmp = (a, b) => { const r = v => { const A = fqAc(v); return !A ? [0, -fqLevel(v)] : A.sync ? [3, A.sync.k] : [A.shape === "sin" ? 1 : 2, A.f]; }; const x = r(a), y = r(b); return x[0] - y[0] || x[1] - y[1]; };
+const AX_OK = { rot: ROT_ALL, field: FLD_ALL, roles: Object.keys(ROLE_PAIR), team: TEAMS.map(x => x[0]), zgo: ZG_MUL, self: SELF.map(x => x[0]) };
+const EXP_DEF = { order: ["rot", "speed", "zgo", "field", "fq", "roles", "team", "self", "absorb", "noise"], ab: { who: ["all"], how: ["mix"] },
+                  sel: { rot: ["00"], speed: ["rpm:30"], zgo: ["0"], field: ["00"], fq: ["dc"], roles: ["gg"], team: ["solo"], self: ["0"] },
+                  speeds: ["rpm:15", "rpm:30", "rpm:45", "rpm:60", "zerog"], fqs: FQ_DEF.slice(), nz: { set: ["rng"], csi: "hb", ways: ["mix"] }, off: [],
                   sec: 30, sRot: 15, sMode: 8, sField: 5, rest: "none", mah: 2500, zgStep: 3 };
 // отступ словами: «+3» → «+3 %»; шагов — по шагу эксперимента
 const zgPct = (E, m) => String(Math.round(+m * (E.zgStep || 3) * 10) / 10);
@@ -1929,9 +1971,16 @@ function experiment() {
   if (!Array.isArray(E.list) || !E.list.length) E.list = null;     // пустой «сформированный» — как несформированный
   E.order = (E.order || []).filter(k => AXES[k]);
   if (!E.order.includes("absorb")) { const i = E.order.indexOf("team"); E.order.splice(i < 0 ? E.order.length : i + 1, 0, "absorb"); }
+  if (!E.order.includes("fq")) { const i = E.order.indexOf("field"); E.order.splice(i < 0 ? E.order.length : i + 1, 0, "fq"); }   // род поля — за полем
+  if (!E.order.includes("self")) { const i = E.order.indexOf("team"); E.order.splice(i < 0 ? E.order.length : i + 1, 0, "self"); }   // своё рассеяние — за способом
   if (!E.order.includes("zgo")) { const i = E.order.indexOf("speed"); E.order.splice(i < 0 ? E.order.length : i + 1, 0, "zgo"); }   // ступени невесомости — сразу за скоростью
   E.order = E.order.concat(Object.keys(AXES).filter(k => !E.order.includes(k)));
-  for (const k of ["speeds", "off"]) if (!Array.isArray(E[k])) E[k] = EXP_DEF[k].slice();
+  for (const k of ["speeds", "off", "fqs"]) if (!Array.isArray(E[k])) E[k] = EXP_DEF[k].slice();
+  if (E.fqs.join() === "dc,sin:0.5,sin:1,sin:5,sin:20,sq:1") {   // первый набор (20 Гц магнитометр не видит) — на нынешний
+    E.fqs = FQ_DEF.slice();
+    E.sel.fq = (E.sel.fq || []).map(v => v === "sin:20" ? "sin:17" : v);
+  }
+  if (E.fqs.join() === "dc,dc:70,sin:0.5,sin:1,sin:5,sin:17,sq:1") E.fqs = FQ_DEF.slice();   // + «⟳ с вращением»
   for (const k of ["sec", "sRot", "sMode", "sField", "rest", "mah", "zgStep"]) if (E[k] == null) E[k] = EXP_DEF[k];
   return E;
 }
@@ -1940,10 +1989,11 @@ function experiment() {
 function axIdle(E, k) {
   const has = r => axVals(E, "roles").some(v => ROLE_PAIR[v].includes(r));
   const spin = () => axVals(E, "rot").some(v => v !== "00");
+  if (k === "fq") return !axVals(E, "field").some(v => v !== "00");
   return k === "speed" ? !spin() : k === "zgo" ? !spin() || !axVals(E, "speed").includes("zerog")
-    : k === "absorb" ? !has("abs") : k === "team" || k === "noise" ? !has("gen") : false;
+    : k === "absorb" ? !has("abs") : k === "team" || k === "noise" || k === "self" ? !has("gen") : false;
 }
-const AX_IDLE_WORD = { speed: "не нужна — колёса стоят", zgo: "не нужен — нет скорости «невесомость»", absorb: "не нужно — никто не поглощает", team: "не нужна — никто не генерирует", noise: "не нужен — никто не генерирует" };
+const AX_IDLE_WORD = { speed: "не нужна — колёса стоят", zgo: "не нужен — нет скорости «невесомость»", absorb: "не нужно — никто не поглощает", team: "не нужна — никто не генерирует", noise: "не нужен — никто не генерирует", self: "не нужно — никто не генерирует", fq: "не нужен — катушки во всех опытах выкл" };
 // Отмеченные значения параметра — в порядке вариантов (сначала «стоят», «выкл»: от них считается влияние в отчёте)
 function axVals(E, k) {
   if (k === "noise") { const v = nzVariants(E.nz); return v.length ? v : ["m:rng"]; }
@@ -1957,31 +2007,34 @@ function axVals(E, k) {
     const sel = (E.sel.zgo || []).filter(x => ZG_MUL.includes(x));
     return [...new Set((sel.length ? ZG_MUL.filter(x => sel.includes(x)) : ["0"]).map(m => zgPct(E, m)))];
   }
-  const ok = k === "speed" ? E.speeds : AX_OK[k], sel = (E.sel[k] || []).filter(x => ok.includes(x));
+  const ok = k === "speed" ? E.speeds : k === "fq" ? E.fqs : AX_OK[k], sel = (E.sel[k] || []).filter(x => ok.includes(x));
   return sel.length ? ok.filter(x => sel.includes(x)) : [EXP_DEF.sel[k][0]];
 }
 function axName(k, v) {
   if (v == null) return "—";
   if (k === "zgo") return +v === 0 ? "ровно расчётная невесомость" : `невесомость ${zgWord(v)} оборотов (k ≈ ${fmt((1 + v / 100) ** 2, 2)})`;
   return k === "rot" ? rotName(v) : k === "speed" ? speedName(v) : k === "field" ? fieldName(v) + (v === "00" ? "" : " · " + FLD_WORD[v])
-    : k === "roles" ? `${roleName(v)} · ${ROLE_WORD[v]}` : k === "team" ? wayName(v) : k === "absorb" ? absName(v) : `${mixSet(v) ? mixIcon(v) : NOISE_ICON[v] || ""} ${noiseName(v)}`;
+    : k === "roles" ? `${roleName(v)} · ${ROLE_WORD[v]}` : k === "team" ? wayName(v) : k === "absorb" ? absName(v)
+    : k === "self" ? `◈ ${(SELF.find(x => x[0] === v) || [0, v])[1]}` : k === "fq" ? fqName(v) : `${mixSet(v) ? mixIcon(v) : NOISE_ICON[v] || ""} ${noiseName(v)}`;
 }
 function axShort(k, v) {
   if (v == null) return "—";
   if (k === "zgo") return +v === 0 ? "0" : zgWord(v);
   return k === "rot" ? rotGlyph(v) : k === "speed" ? speedName(v).replace(" об/мин", "") : k === "field" ? fieldName(v).replace(/ /g, "")
-    : k === "roles" ? ROLE_PAIR[v].map(r => ICONS[r]).join("") : k === "team" ? WAY_SHORT[v] : k === "absorb" ? absShort(v) : noiseShort(v);
+    : k === "roles" ? ROLE_PAIR[v].map(r => ICONS[r]).join("") : k === "team" ? WAY_SHORT[v] : k === "absorb" ? absShort(v)
+    : k === "self" ? SELF_SHORT[v] || v : k === "fq" ? fqShort(v) : noiseShort(v);
 }
 // Опыт словами — имя шага программы (не длиннее 100 знаков; по нему опыт находит свой контроль)
 function expName(x) {
-  return [x.rot === "00" ? "■■ стоят" : `${rotGlyph(x.rot)} ${speedName(x.speed)}${x.zgo && +x.zgo ? " " + zgWord(x.zgo) : ""}`, `поле ${fieldName(x.field)}`,
+  return [x.rot === "00" ? "■■ стоят" : `${rotGlyph(x.rot)} ${speedName(x.speed)}${x.zgo && +x.zgo ? " " + zgWord(x.zgo) : ""}`, `поле ${fieldName(x.field)}${x.fq && x.fq !== "dc" ? " " + fqShort(x.fq) : ""}`,
           ROLE_PAIR[x.roles].map((r, i) => `К${i + 1}${ICONS[r]}`).join(" "), x.team ? WAY_SHORT[x.team] : "",
+          x.self && x.self !== "0" ? SELF_SHORT[x.self] : "",
           x.absorb ? "▼" + absShort(x.absorb) : "", x.noise ? noiseShort(x.noise) : ""].filter(Boolean).join(" · ");
 }
 // Все опыты по порядку вложенности → шаги программы: своё установление по тому, что сменилось; вращение; отдых;
 // контроль — опыт без воздействия (колёса стоят, поле выкл), с ним сравнивается тот же режим и шум с воздействием
 // Отметки эксперимента одной строкой: изменились после «сформировать» — список устарел
-const expSig = E => JSON.stringify([E.order, E.sel, E.nz, E.ab, E.speeds, E.zgStep]);
+const expSig = E => JSON.stringify([E.order, E.sel, E.nz, E.ab, E.speeds, E.zgStep, E.fqs]);
 function* expSource(E, order, lists) {
   if (E.list) { for (let li = 0; li < E.list.length; li++) yield [{ ...E.list[li].x }, li]; return; }
   for (const v of product(lists)) yield [Object.fromEntries(order.map((k, i) => [k, v[i]])), null];
@@ -1994,21 +2047,26 @@ function expBuild(d, E) {
   for (const [x, li] of expSource(E, order, lists)) {
     if (x.rot === "00") x.speed = null;                     // колёса стоят — скорость не важна: такой опыт один
     if (x.speed !== "zerog") x.zgo = null;                  // ступени — только около невесомости
+    if (x.field === "00") x.fq = null;                      // катушки выкл — род поля не важен: такой опыт один
+    if (x.fq && String(x.fq).startsWith("rot") && x.rot === "00") {   // с вращением — только когда колёса крутятся
+      skipped.push("поле «⟳ с вращением» — только когда колёса крутятся: отметьте вращение или уберите ⟳"); continue; }
     else if (x.zgo == null) x.zgo = "0";
     const [r1, r2] = ROLE_PAIR[x.roles];
-    if (r1 !== "gen" && r2 !== "gen") { x.team = null; x.noise = null; }    // никто не генерирует — способ и шум не важны
+    if (r1 !== "gen" && r2 !== "gen") { x.team = null; x.noise = null; x.self = null; }    // никто не генерирует — способ, шум и своё рассеяние не важны
     if (r1 !== "abs" && r2 !== "abs") x.absorb = null;                     // никто не поглощает — поглощение не важно
     const key = Object.keys(AXES).map(k => x[k] ?? "-").join("|");
     if (li == null && seen.has(key)) { merged++; continue; }   // в сформированном списке повтор — нарочно (⧉)
     seen.add(key);
     if (hasBC(x.noise) && r1 !== "abs" && r2 !== "abs") { skipped.push("шум «↺ обратный» — только когда другое колесо поглощает: уберите ↺ в «шуме» или отметьте ▶▼ / ▼▶ в «излучении»"); continue; }
+    if (x.self && x.self !== "0" && x.absorb && (x.self === "s") !== (absParts(x.absorb)[1] === "sham")) {   // пустышка одна на группу (sh)
+      skipped.push("своё рассеяние и поглощение: пустышка у них общая — «◈ сами рассеивают» не идёт с поглощением-пустышкой, «◈ пустышка» — только с ней"); continue; }
     const way = r => r === "gen" ? x.team : r === "abs" ? x.absorb : "";
-    const st = makeStep(d, r1, r2, way(r1), way(r2), r1 === "gen" ? x.noise : "", r2 === "gen" ? x.noise : "", x.field);
+    const st = makeStep(d, r1, r2, way(r1), way(r2), r1 === "gen" ? x.noise : "", r2 === "gen" ? x.noise : "", x.field, x.self, x.fq);
     if (!st.groups.length) { skipped.push(`${roleName(x.roles)}: на колесе нет агентов — «⚙ состав…»`); continue; }
     rows.push({ x, key, st, li, off: li == null && E.off.includes(key) });
   }
   const live = rows.filter(r => !r.off), influence = live.some(r => r.x.rot !== "00" || r.x.field !== "00");
-  const modeKey = x => [x.roles, x.team, x.absorb, x.noise].join("|"), ctrlOf = {};
+  const modeKey = x => [x.roles, x.team, x.self, x.absorb, x.noise].join("|"), ctrlOf = {};
   const restOf = first => E.rest === "each" ? null : E.rest === "outer" ? first : false;
   const gap = d && d.rig && d.rig.gap_cm != null ? { gap: gapWord(d.rig.gap_cm) } : {};
   const steps = [], names = new Set();
@@ -2018,7 +2076,7 @@ function expBuild(d, E) {
   for (const r of live) {
     const x = r.x, st = r.st;
     const why = !prev ? (x.rot !== "00" ? "rot" : "mode") : prev.rot !== x.rot || prev.speed !== x.speed || prev.zgo !== x.zgo ? "rot"   // ступень — тоже разгон
-      : prev.team !== x.team || prev.noise !== x.noise || prev.roles !== x.roles || prev.absorb !== x.absorb ? "mode" : "field";
+      : prev.team !== x.team || prev.noise !== x.noise || prev.roles !== x.roles || prev.absorb !== x.absorb || prev.self !== x.self ? "mode" : "field";
     let name = expName(x);
     if (name.length > 100) name = name.slice(0, 99) + "…";
     if (names.has(name)) name = name.slice(0, 93) + " · №" + (steps.length + 1);
@@ -2083,6 +2141,16 @@ function axBodyHTML(E, k, V) {
       <div class="row small">＋ <input type="number" id="xSpN" min="1" max="110" step="1" style="width:4em" aria-label="новая скорость"><select id="xSpU" aria-label="единица"><option value="rpm">об/мин</option><option value="pwm">ШИМ %</option></select><button type="button" class="btn tiny" data-xact="addspeed">добавить</button>
         <span class="mut">${spin ? "в опытах, где колёса стоят, скорость не перебирается" : "колёса во всех опытах стоят — скорость не нужна"}</span></div>`;
   }
+  if (k === "fq") {                                  // род поля: постоянное или переменное с частотой
+    return `${chipsHTML("fq", E.fqs.map(v => [v, fqName(v), v === "dc" ? "ток всё время в одну сторону"
+        : v.startsWith("dc") ? "постоянное слабее, мост переключается 20 000 раз в секунду — контроль: отделяет действие переменного поля от действия переключений (70 % — та же мощность, что у синуса)"
+        : v.startsWith("rot") ? "синус с частотой оборотов × k: максимум поля, когда агент с акселерометром проходит верх (невесомость), у агента напротив — минимум; фаза — по метке верха раз в оборот, в молчащих опытах — одна короткая метка в секунду"
+        : "ток меняет направление плавно; «+»/«−» — фаза 0/180°"]), V)}
+      <div class="row small">＋ <select id="xFqS" aria-label="форма"><option value="sin">∿ синус</option><option value="sq">⊓ мягкий меандр</option><option value="dc">= постоянное, % уровня</option><option value="rot">⟳ с вращением, × оборотов</option></select>
+        <input type="number" id="xFqN" min="0.1" max="50" step="0.1" style="width:4.5em" aria-label="частота, Гц, процент уровня или множитель оборотов"> Гц / % / ×
+        <button type="button" class="btn tiny" data-xact="addfq">добавить</button>
+        <span class="mut">${axIdle(E, "fq") ? AX_IDLE_WORD.fq : "в опытах, где катушки выкл, род поля не перебирается"}</span></div>`;
+  }
   if (k === "zgo") {                                 // ступени около невесомости: 0 и ± шаг (по желанию ± два шага)
     const st = E.zgStep || 3, items = ZG_MUL.map(m => { const p = zgPct(E, m); return [m, +m === 0 ? "0 — расчётная" : zgWord(p), axName("zgo", p)]; });
     return `${chipsHTML("zgo", items, V)}
@@ -2099,6 +2167,8 @@ function axBodyHTML(E, k, V) {
         : `= ${plural(V.length, "вариант", "варианта", "вариантов")}: ${V.map(absShort).join(" · ")} · по кускам и эстафетой — всегда все со всеми`}</div>`;
   }
   if (k === "team") return `${chipsHTML("team", TEAMS.map(([v, name, note]) => [v, name, note]), V)}${quickHTML("team", [["все", TEAMS.map(x => x[0])]], V)}`;
+  if (k === "self") return `${chipsHTML("self", SELF, V)}${quickHTML("self", [["с пустышкой", ["1", "s"]], ["все", SELF.map(x => x[0])]], V)}
+    <div class="small mut">${axIdle(E, "self") ? AX_IDLE_WORD.self : "кадр в эфир на каждое простое генератора (~40/с на плату); пустышка — тот же трафик без числа"}</div>`;
   const bcNo = (E.nz.set || []).includes("bc") && !axVals(E, "roles").some(v => ROLE_PAIR[v].includes("abs"));
   return xNoiseHTML(E.nz) + (bcNo ? `<div class="small bad">✗ «↺ обратный» берётся из кадров поглотителей, а ни одно колесо не поглощает — опыты с ним не войдут в список. Снимите ↺ или отметьте ▶▼ / ▼▶ в «излучении / поглощении».</div>` : "");
 }
@@ -2166,7 +2236,7 @@ function planProg(R) {
   if (!ps || ps.length !== R.steps.length || ps.some((s, i) => s.name !== R.steps[i].name)) return null;
   return p;
 }
-const AX_TH = { rot: "вращ.", speed: "скор.", zgo: "±нев.", field: "поле", roles: "роли", team: "способ", absorb: "погл.", noise: "шум" };
+const AX_TH = { rot: "вращ.", speed: "скор.", zgo: "±нев.", field: "поле", fq: "род", roles: "роли", team: "способ", self: "расс.", absorb: "погл.", noise: "шум" };
 const SV_RANK = { check: 4, repeat: 3, nobase: 1, nodata: 1, ok: 0 };
 const RES_HEAD = `<th class="res" title="простых за опыт (все повторы)">простых</th><th class="res" title="простых в секунду, вся группа, среднее по повторам">пр/с</th><th class="res" title="самый горячий агент за опыт">°C</th><th class="res" title="напряжение аккумуляторов в конце опыта">аккум., В</th><th class="res" title="обороты колёс по датчику обода">об/мин</th><th class="res" title="поле катушки по магнитометру колеса, мкТл">поле</th><th class="res" title="вывод статики (худший из повторов), шум и max z">статика</th>`, RES_N = 7;
 // Опыт i плана в программе p: все его повторы — выполнено, испорчено, идёт сейчас; темп, самый горячий агент, |B|, статика
@@ -2392,6 +2462,25 @@ function expBind(B) {
       if (!E.speeds.includes(v)) E.speeds = E.speeds.concat([v]).sort(speedCmp);
       if (!E.sel.speed.includes(v)) E.sel.speed = E.sel.speed.concat([v]);
     }
+    else if (a === "addfq") {                        // своя частота переменного поля
+      const f = Math.round(+B.querySelector("#xFqN").value * 10) / 10, sh = B.querySelector("#xFqS").value;
+      let v;
+      if (sh === "rot") {                              // с вращением: множитель оборотов
+        if (!(f >= 0.25 && f <= 4)) { note("✗ с вращением: множитель 0,25–4", "bad"); return; }
+        v = `rot:${f}`;
+      } else if (sh === "dc") {                        // постоянное неполного уровня: ШИМ без смены поля
+        const p = Math.round(f);
+        if (!(p >= 10 && p <= 100)) { note("✗ постоянное: 10–100 % уровня", "bad"); return; }
+        v = p === 100 ? "dc" : `dc:${p}`;
+      } else {
+        if (!(f >= 0.1 && f <= 50)) { note("✗ частота переменного поля: 0,1–50 Гц", "bad"); return; }
+        if (Math.abs(f / 10 - Math.round(f / 10)) < 0.001)
+          note(`◐ ${hzWord(f)} Гц кратна 10 Гц: магнитометр обода (20 замеров в секунду) поле почти не увидит${f === 50 ? "; 50 Гц — ещё и сеть в спектре статики" : ""}`, "warn");
+        v = `${sh}:${f}`;
+      }
+      if (!E.fqs.includes(v)) E.fqs = E.fqs.concat([v]).sort(fqCmp);
+      if (!E.sel.fq.includes(v)) E.sel.fq = E.sel.fq.concat([v]);
+    }
     else if (a === "zgstep") {                       // шаг ступеней около невесомости
       const v = Math.round(+B.querySelector("#xZgS").value * 2) / 2;
       if (!(v >= 0.5 && v <= 10)) { note("✗ шаг: 0,5–10 % оборотов", "bad"); return; }
@@ -2465,7 +2554,7 @@ function renderExpLine() {
 function layText(L, coil) {
   if (!L) return "";
   const one = (k, w) => `К${k} ${ICONS[w.role] || ICONS.idle}${w.way ? " " + (WAY_SHORT[w.way] || absShort(w.way)) : ""}${w.noise ? ` <span class="mut">· ${esc(noiseLabel(w.noise))}</span>` : ""}`;
-  return `${L.rot ? `<span>${L.rot === "стоят" || L.rot === "без вращения" ? "■ без вращения" : esc(L.rot)}</span><br>` : ""}${one(1, L.w1)}<br>${one(2, L.w2)}<br><span class="mut">поле ${coil ? esc(coil["1"] + " " + coil["2"]) : "—"}${L.gap ? " · между колёсами " + esc(L.gap) : ""}</span>`;
+  return `${L.rot ? `<span>${L.rot === "стоят" || L.rot === "без вращения" ? "■ без вращения" : esc(L.rot)}</span><br>` : ""}${one(1, L.w1)}<br>${one(2, L.w2)}<br><span class="mut">поле ${coil ? esc(coil["1"] + " " + coil["2"]) + (coil.ac ? " · " + esc(acWord(coil.ac)) : coil.level && coil.level < 1000 ? ` · = ${coil.level / 10} % ШИМ` : "") : "—"}${L.gap ? " · между колёсами " + esc(L.gap) : ""}</span>`;
 }
 async function loadProg(d) {
   const p = d.program;
@@ -3288,6 +3377,12 @@ document.addEventListener("click", async e => {
   else if (act === "cset") {                             // катушка вручную: колесо, поле
     try { COIL = await postJSON("/api/coils", { wheel: t.dataset.w, state: t.dataset.v }); renderAll(); } catch (er) { note("✗ катушка: " + er.message, "bad"); }
   }
+  else if (act === "cac") {                              // катушка вручную: род поля (знак — как был)
+    const w = t.dataset.w, st = ((COIL || {}).wheels || {})[w] || {};
+    try { COIL = await postJSON("/api/coils", { wheel: w, state: st.state || "off", ac: fqAc(t.dataset.v), level: fqLevel(t.dataset.v) }); renderAll();
+          note(`катушка колеса ${w}: ${fqName(t.dataset.v)}${String(t.dataset.v).startsWith("rot") ? " — фаза по метке верха, пока колесо крутится" : ""}`, "ok"); }
+    catch (er) { note("✗ катушка: " + er.message, "bad"); }
+  }
   else if (act === "mset") {                            // моторы: {wheel, ключ: значение} или шаг ±
     const w = t.dataset.w, k = t.dataset.k, s = (((MOT || {}).wheels || {})[w]) || {};
     const body = w ? { wheel: w } : {};
@@ -4006,8 +4101,8 @@ const POP = {
   },
   field(d, w) {
     const fd = fieldOf(w), mag = magOf(d, w), fs = fd.sense;
-    return { h: `⇉ поле катушки колеса ${w}`, b: kvHTML([["⇉", `команда: ${esc(fd.word)}`],
-      fs ? ["🧲", `по датчику №${mag ? mag.id : "?"}: ${FW[fs.seen] || "?"}${fs.agree === true ? " ✓ совпадает" : fs.agree === false ? " ◐ другое" : ""}${fs.proj != null ? ` · ${fs.proj >= 0 ? "+" : "−"}${fmt(Math.abs(fs.proj), 0)} мкТл` : ""}`] : ["🧲", `<span class="mut">стрелки — по команде: магнитометра на колесе нет или он ещё не знает фон</span>`]]) };
+    return { h: `⇉ поле катушки колеса ${w}`, b: kvHTML([["⇉", `команда: ${esc(fd.word)}${fd.fq !== "dc" ? ` · ${esc(fqName(fd.fq))}` : ""}`],
+      fs ? ["🧲", `по датчику №${mag ? mag.id : "?"}: ${FW[fs.seen] || "?"}${fs.agree === true ? " ✓ совпадает" : fs.agree === false ? " ◐ другое" : ""}${fs.proj != null ? ` · ${fs.proj >= 0 ? "+" : "−"}${fmt(Math.abs(fs.proj), 0)} мкТл` : ""}${fs.cmd === "~" && fs.spread != null ? ` · размах |B| за секунду ${fmt(fs.spread, 0)} мкТл` : ""}`] : ["🧲", `<span class="mut">стрелки — по команде: магнитометра на колесе нет или он ещё не знает фон</span>`]]) };
   },
   spin(d, w) { const s = spinWords(spinOf(d, w)); return { h: `⟳ колесо ${w}`, b: `${s.main}${s.sub ? ` · ${esc(s.sub)}` : ""}`, go: "⟳ моторы вручную…" }; },
   bat(d, w, kind) {
@@ -4022,7 +4117,8 @@ const POP = {
     const fd = fieldOf(w), cur = currentLayers(), planF = cur ? (cur.field || {})[w] : null, ca = fd.ag;
     return { h: `⚙ катушка колеса ${w}`, go: ca ? "окно агента…" : null, b: kvHTML([["⚙", ca ? `агент №${ca.id} · ${ca.alive ? "на связи" : "нет связи"}` : "агента нет — «⚙ Настройка»: плата → сюда"],
       ["⇉", `поле ${esc(fd.word)}${planF && planF !== fd.word ? ` · <span class="warn">◐ по опыту ${esc(planF)} (включили вручную?)</span>` : ""}`],
-      ["▸", `<span class="small mut">кнопки под ней — поле вручную: выкл · + · −</span>`]]) };
+      ["∿", `род поля: ${esc(fqName(fd.fq))}${fd.fq.startsWith("rot") ? ((((COIL || {}).sync || {})[w] || {}).ok ? ` · <span class="ok">✓ по метке верха, ${fmt(COIL.sync[w].f, 2)} Гц</span>` : ` · <span class="warn">◐ метки верха нет — прежней частотой</span>`) : ""}${ca && ca.ac_ok === false ? ` · <span class="warn">◐ прошивка агента переменное не умеет — обновите</span>` : ""}`],
+      ["▸", `<span class="small mut">кнопки под ней — поле вручную: выкл · + · −; ∿ — род поля по кругу: постоянное → = 70 % ШИМ → ∿ 0,5 / 1 / 5 / 17 Гц → ⊓ 1 Гц → ⟳ ×1 / ×2 с вращением</span>`]]) };
   },
   motor(d) {
     const M = MOTS || {}, ag = (M.agents || []).find(x => x.alive) || (M.agents || [])[0];

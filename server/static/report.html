@@ -116,7 +116,7 @@ async function loadProg() {
 }
 function agentsOf(x) {
   const ids = new Set();
-  for (const r of x.runs || []) for (const k of Object.keys(r.gen || {})) if (k !== "все" && k !== "колесо-пустышка") ids.add(k);
+  for (const r of x.runs || []) for (const k of Object.keys(r.gen || {})) if (k !== "все" && k !== "колесо-пустышка" && k !== "все/опора") ids.add(k);
   return [...ids].sort((a, b) => (parseInt(a.replace(/\D/g, "")) || 0) - (parseInt(b.replace(/\D/g, "")) || 0));
 }
 // Поле за шаг: по каждому магнитометру — |B| среднее ± СКО; эксцесс > 1 — «толчки поля» (переключения, железо рядом)
@@ -170,6 +170,7 @@ const sdOf = L => { if (L.length < 2) return null; const m = avgOf(L); return Ma
 const MET = {
   pr: { name: "простых в секунду, все", rel: true, d: 1, get: r => ((r.gen || {})["все"] || {}).pr_s },
   cand: { name: "кандидатов в секунду, все", rel: true, d: 0, get: r => ((r.gen || {})["все"] || {}).cand_s },
+  ref: { name: "простых в секунду, колёса к опоре (колесу‑пустышке)", rel: true, d: 3, get: r => ((r.gen || {})["все/опора"] || {}).pr_s },
   temp: { name: "температура агентов, °C", rel: false, unit: "°C", d: 1, get: r => avgOf(Object.entries(r.gen || {}).filter(([k, m]) => k !== "все" && m && m.temp != null).map(([, m]) => m.temp)) },
   field: { name: "|B| магнитометров, мкТл", rel: false, unit: "мкТл", d: 1, get: r => avgOf(Object.values(r.field || {}).map(x => ((x.stats || {})["|B|"] || {}).mean).filter(v => v != null)) },
   stat: { name: "статика: доля опытов «⚠ проверить», %", rel: false, unit: "п.п.", d: 0, scale: 100, get: r => r.watch ? (r.watch.verdict === "check" ? 1 : 0) : null },

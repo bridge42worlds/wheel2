@@ -58,6 +58,10 @@ Its own card in the experiment, two rows, every combination is tried. Details �
 In pieces and relay are always "all with all". The console and the live diagram also have **background** — the
 absorbers' own noise at a set rate.
 
+**◈ Own scattering** (`ss`) — without absorbers: a generator itself releases each of its primes, mixed with its own
+noise (the counting core searches, the communication core scatters); placebo — the same traffic without the number.
+A layer of the experiment window: no / scatter themselves / placebo. In detail — [scatter.md](scatter.md).
+
 ## Cooperation: how the generators look for primes
 
 | way | how it works | primes/s | what to look at |
@@ -112,6 +116,13 @@ quick picks "off · same sign · opposite signs · one coil · all 9".
 (measured, [coil_test.md](coil_test.md)). The coil agents switch the field on at the start of a run; at rest, on pause,
 at the end of a program and on «■ Всё стоп» (all stop) — off. By hand — "off / + / −" under the wheel on the diagram.
 Wiring — [wiring.md](wiring.md).
+
+**∿ Kind of field** («род поля») is a layer of its own: DC or AC — ∿ sine or ⊓ soft square at 0.1–50 Hz (your own
+frequency can be added; not a multiple of 10 Hz — otherwise the rim magnetometer hardly sees the field); the control
+"= 70 % · PWM" — weaker DC, the bridge switches, the field does not change; **⟳ with rotation** — a sine at the
+rotation frequency × k, the field maximum at the top of the agent with the accelerometer (by its top mark). For AC "+" and "−" are phase 0 and 180°: "+ +" — coils in one phase, "+ −" — in antiphase. The
+amplitude rises and falls smoothly, over 3 periods (1–5 s). Where the coils are off, the kind is not iterated. By hand —
+the "∿" button under the wheel (kind in a cycle). In detail — [sensors.md](sensors.md).
 
 ## Wheel rotation
 

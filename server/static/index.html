@@ -236,6 +236,8 @@ dialog#helpDlg .kv2 { display:grid; grid-template-columns:auto 1fr; gap:4px 10px
           <span class="mut small">контроль: отделяет действие числа от действия радио</span></label>
         <label>Фон <select id="bgr"></select> кадров в секунду
           <span class="mut small">свой шум в эфир независимо от простых; нужен петле</span></label>
+        <label>Сам рассеивает свои простые <select id="ss"></select>
+          <span class="mut small">генератор: ядро счёта ищет, ядро связи каждое найденное — со своим шумом в эфир (пустышка — галочкой выше)</span></label>
         <label>CSI у агентов <select id="cf"></select></label>
         <h3 class="sub">Шум и плата — у кого не задано своё</h3>
         <div>
@@ -796,6 +798,7 @@ function buildForm(o) {
   $("afs").innerHTML = o.afs.map(v => `<option value="${v}">±${v}</option>`).join("");
   $("cf").innerHTML = o.cf.map(x => `<option value="${x.cf}">${esc(x.name)}</option>`).join("");
   $("bgr").innerHTML = o.bgr.map(v => `<option value="${v}">${v || "нет"}</option>`).join("");
+  $("ss").innerHTML = (o.ss || [{ ss: 0, name: "нет" }]).map(x => `<option value="${x.ss}">${esc(x.name)}</option>`).join("");
   $("role").innerHTML = o.roles.map(x => `<option value="${x.role}">${esc(x.name)}</option>`).join("");
   $("sf").innerHTML = o.sf.map(x => `<option value="${x.sf}">${esc(x.name)}</option>`).join("");
   document.querySelectorAll("#ctl input, #ctl select").forEach(e => e.addEventListener("change", () => {
@@ -841,6 +844,7 @@ function applyPresetToForm(key) {
   if (c.sm != null) $("sm").value = c.sm;
   if (c.sh != null) $("sh").checked = !!c.sh;
   if (c.bgr != null) $("bgr").value = c.bgr;
+  if (c.ss != null) $("ss").value = c.ss;
   $("presetNote").innerHTML = `<b>${esc(p.name)}</b>: ${esc(p.desc)}${p.b ? " — нужны агенты с ролью «рассеяние»" : ""}` +
     (p.a_src ? " — генерации ставится шум «эфир сета B» (петля)" : "");
   dirty = true;
@@ -855,7 +859,7 @@ function formCfg() {
            k: +$("k").value, pre: $("pre").checked ? 1 : 0, tp: +$("tp").value,
            txp: +$("txp").value, cpu: +$("cpu").value, ping: +$("ping").value, led: $("led").checked ? 1 : 0,
            sm: +$("sm").value, cf: +$("cf").value, role: +$("role").value, sf: +$("sf").value,
-           sh: $("sh").checked ? 1 : 0, bgr: +$("bgr").value,
+           sh: $("sh").checked ? 1 : 0, bgr: +$("bgr").value, ss: +$("ss").value,
            tl: +$("tl").value, tq: +$("tq").value || 0, rmm: +$("rmm").value || 450, afs: +$("afs").value,
            pl: $("pl").checked ? 1 : 0, dc: $("dc").checked ? 1 : 0,
            gv: +$("gv").value, rk: +$("rk").value, pw: +$("pw").value, raw: +$("raw").value };
@@ -870,7 +874,7 @@ function setForm(c) {
   $("txp").value = c.txp ?? 20; $("cpu").value = c.cpu ?? 240; $("ping").value = c.ping ?? 100;
   $("led").checked = (c.led ?? 1) !== 0;
   $("sm").value = c.sm === 4 ? 1 : (c.sm ?? 1); $("sh").checked = !!c.sh || c.sm === 4;
-  $("cf").value = c.cf ?? 0; $("role").value = c.role ?? 0; $("sf").value = c.sf ?? 0; $("bgr").value = c.bgr ?? 0;
+  $("cf").value = c.cf ?? 0; $("role").value = c.role ?? 0; $("sf").value = c.sf ?? 0; $("bgr").value = c.bgr ?? 0; $("ss").value = c.ss ?? 0;
   $("tl").value = c.tl ?? 0; $("tq").value = c.tq ?? 0; $("rmm").value = c.rmm ?? 450; $("afs").value = c.afs ?? 2;
   $("pl").checked = !!c.pl; $("dc").checked = !!c.dc;
   $("gv").value = c.gv ?? 0; $("rk").value = c.rk ?? 1; $("pw").value = c.pw ?? 0; $("raw").value = c.raw ?? 0;

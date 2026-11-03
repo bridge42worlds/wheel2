@@ -56,6 +56,9 @@ PAGES = [
      "кабелем, запасная сеть, порты. Полярность диодов и конденсаторов.", ""),
     ("coil_test", "Катушка на выносливость", "Прогон 27.10.2026: сколько минут поля даёт пара 18650, держится ли поле, "
      "пока садятся аккумуляторы, настоящая ёмкость пары с надписью 2600 мА·ч; хватит ли на опыт 20 минут.", ""),
+    ("check_2026-11-03", "Первая полная проверка", "Журнал 03.11.2026: прошивка 6da4bb9 на всех 19 платах, агенты и "
+     "датчики, катушки — постоянное и переменное поле, счёт и своё рассеяние, моторы потихоньку; найдена и снята неверная "
+     "перестановка мостов моторов.", ""),
     ("toroid_field", "Поле тороида — расчёт", "Интерактивный расчёт поля кольцевой катушки по закону Био — Савара для "
      "каждого витка: неровная трубка и намотка, отклонение от идеального тора, поле снаружи и в центре кольца, наклон "
      "силовых линий, разрезы, сечение, гармоники вдоль кольца, изометрия.", ""),
@@ -96,6 +99,9 @@ PAGES_EN = {
     "coil_test": ("Coil endurance test", "Run of 2026-10-27: how many minutes of field a pair of 18650 cells gives, whether the "
                   "field holds while the cells run down, the real capacity of a pair labelled 2600 mAh; is it enough for a "
                   "20-minute experiment."),
+    "check_2026-11-03": ("First full check", "Log of 2026-11-03: firmware 6da4bb9 on all 19 boards, agents and sensors, "
+                         "coils — DC and alternating field, counting and own scattering, motors slowly; a wrong motor bridge "
+                         "swap was found and removed."),
     "toroid_field": ("Toroid field — calculator", "Interactive Biot–Savart calculation of the ring coil field turn by turn: an "
                      "uneven tube and winding, deviation from an ideal torus, the field outside and at the ring centre, tilt of "
                      "the field lines, cuts, cross-section, harmonics along the ring, isometric view."),

@@ -17,6 +17,10 @@ static uint8_t      s_imu_cfg[4] = {};
 static WheelTracker s_wheel;
 static volatile float s_radius = 450.0f;
 static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
+// верх колеса по последнему обороту (под s_mux): когда агент прошёл верхнюю точку, период, номер оборота
+static int64_t  s_top_us = 0;
+static float    s_top_T = 0;
+static uint32_t s_top_n = 0;
 
 // Накопленное для телеметрии (под s_mux): забирается и обнуляется add_imu / add_mag.
 struct ImuAcc {
@@ -88,6 +92,14 @@ static void task(void*) {
         s_ia.temp = smp.temp;
         s_ia.revs = s_wheel.revs();
         if (done) {                             // последние NREV оборотов
+          // верх колеса: |f|² наименьший при угле гироскопа ph1 + π (наибольший — внизу, при ph1). Угол оборота
+          // идёт от 0 в сторону вращения: до верха u рад, от верха до конца оборота — period·(1 − u/2π)
+          const float sg = s_wheel.w_now() >= 0 ? 1.0f : -1.0f;
+          float u = fmodf(sg * (rev.ph1 + (float)PI), 2.0f * (float)PI);
+          if (u < 0) u += 2.0f * (float)PI;
+          s_top_us = now - (int64_t)(rev.period * (1.0f - u / (2.0f * (float)PI)) * 1e6f);
+          s_top_T = rev.period;
+          ++s_top_n;
           if (s_ia.nrev == NREV) {
             memmove(s_ia.rev, s_ia.rev + 1, sizeof(WheelRev) * (NREV - 1));
             --s_ia.nrev;
@@ -232,6 +244,19 @@ void add_tel(Out& o) {
         (unsigned long)s_mag.errors());
 }
 
+bool top(uint32_t& age_ms, uint32_t& period_ms, uint32_t& n) {
+  portENTER_CRITICAL(&s_mux);
+  const int64_t t = s_top_us;
+  const float T = s_top_T;
+  n = s_top_n;
+  portEXIT_CRITICAL(&s_mux);
+  const int64_t age = esp_timer_get_time() - t;
+  if (!n || T <= 0 || age < 0 || age > (int64_t)(2.5f * T * 1e6f)) return false;   // стоит или давно не было оборота
+  age_ms = (uint32_t)(age / 1000);
+  period_ms = (uint32_t)lroundf(T * 1000.0f);
+  return true;
+}
+
 void add_imu(Out& o) {
   portENTER_CRITICAL(&s_mux);
   s_isnap = s_ia;
@@ -252,6 +277,8 @@ void add_imu(Out& o) {
         r.fmin, r.fmax);
   }
   add(o, "]");
+  uint32_t ta, tT, tn;
+  if (top(ta, tT, tn)) add(o, ",\"top\":[%lu,%lu,%lu]", (unsigned long)ta, (unsigned long)tT, (unsigned long)tn);
   if (a.frame)
     add(o, ",\"ax\":[%d,%d,%d],\"rd\":[%d,%d,%d]", (int)lroundf(a.axis[0] * 1000), (int)lroundf(a.axis[1] * 1000),
         (int)lroundf(a.axis[2] * 1000), (int)lroundf(a.radial[0] * 1000), (int)lroundf(a.radial[1] * 1000),

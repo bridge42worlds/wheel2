@@ -64,7 +64,8 @@ static const char    VER = '5';
 static const uint8_t BCAST[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 
 // ---------- события задачи протокола ----------
-enum : uint8_t { EV_RX = 1, EV_JOB = 2, EV_CFG = 3, EV_PRIME = 4, EV_REST = 5 };   // EV_REST: len — секунд, 0 — назад
+enum : uint8_t { EV_RX = 1, EV_JOB = 2, EV_CFG = 3, EV_PRIME = 4, EV_REST = 5,     // EV_REST: len — секунд, 0 — назад
+                 EV_SSN = 6 };                                                     // EV_SSN: шум на своё рассеяние (ss)
 struct Event {
   uint8_t   kind;
   uint8_t   mac[6];
@@ -564,6 +565,9 @@ static bool s_refill = false;
 // Рассеяние (сет B): шум агента — блоки по s_bn_unit байт, набранные заранее.
 static bool      s_b_on = false;               // агент — в сете B и работает
 static bool      s_ann = false;                // агент — в сете A, сет B есть: объявлять простые
+static bool      s_ss = false;                 // агент — генератор, сам рассеивает свои простые (ss)
+static uint32_t  s_ss_n = 0;                   // своих простых с применения настройки (каждое ss-е — в эфир)
+static volatile int s_ss_ask = 0;              // блоков шума на рассеяние попрошено и ещё не принесено (под s_mux)
 static int       s_bpos = -1, s_nbs = 0;       // место в сете B и его размер
 static uint8_t   s_bmacs[MAX_GROUP][6];
 static bool      s_bmac_ok[MAX_GROUP];
@@ -731,6 +735,7 @@ static void want_pcs(uint32_t cycle, uint8_t round, uint8_t to) {
 
 // ---------- мастер ----------
 static void announce(const uint8_t* num, uint16_t nbytes);
+static void ss_take(const uint8_t* num, uint16_t nbytes);
 static void b_pump();
 static void start_test(bool num);
 static void test_check();
@@ -981,6 +986,7 @@ static void finish() {
     ++s_stats.primes_m;
     if (s_nbytes <= 64) number_hex(s_number, s_nbytes, s_stats.last_prime, sizeof s_stats.last_prime);
     if (s_ann) announce(s_number, s_nbytes);    // сету B — рассеивать
+    if (s_ss) ss_take(s_number, s_nbytes);      // сам — рассеять
     if (s_cfg.pl) plog::push(s_number, s_nbytes, 1);   // журнал простых группы ведёт мастер
   } else if (nf == 1) {              // составное: мастер — нашедший
     s_next = s_cfg.grp[__builtin_ctz(mask)];
@@ -1376,6 +1382,7 @@ static void r_prime(const uint8_t* pr) {
   memcpy(s_found, pr, s_nbytes);
   if (s_nbytes <= 64) number_hex(pr, s_nbytes, s_stats.last_prime, sizeof s_stats.last_prime);
   if (s_ann) announce(pr, s_nbytes);            // сету B — рассеивать
+  if (s_ss) ss_take(pr, s_nbytes);              // сам — рассеять
   if (s_cfg.pl) plog::push(pr, s_nbytes, 1);    // журнал простых: каждый проверяющий — свои
   if (s_turn_pr >= s_cfg.rk) r_pass();
 }
@@ -1957,6 +1964,15 @@ static void b_fn(const uint8_t* in, int len, const uint8_t* noise, uint8_t* out,
   else scatter_fn(s_cfg.sf, in, len, noise, out);
 }
 
+// Своё рассеяние (ss): простое, найденное этим генератором, — всё число одним кадром, сразу (окна
+// места нет: генераторы находят простые не одновременно). Пустышка — тот же кадр, только шум.
+static void ss_process(const BWork& w, const uint8_t* noise) {
+  static uint8_t out[256];
+  const bool sham = s_cfg.sh != 0;
+  b_fn(w.data, w.len, noise, out, sham);
+  b_send_scat(sham ? SM_SHAM : SM_EACH, 0, 1, w, out, w.len);
+}
+
 static void b_process(const BWork& w, const uint8_t* noise) {
   static uint8_t out[256];
   const bool sham = s_cfg.sh || s_cfg.sm == SM_SHAM;          // SM_SHAM — прежняя «пустышка каждого»
@@ -2019,11 +2035,18 @@ static void b_pump() {               // рассеять всё, на что е�
       break;
     }
     --s_bn_units;
-    b_process(w, s_bn + s_bn_units * s_bn_unit);
+    if (s_ss) {                      // своё рассеяние: блок шума ушёл — попросить новый
+      ss_process(w, s_bn + s_bn_units * s_bn_unit);
+      portENTER_CRITICAL(&s_mux);
+      ++s_ss_ask;
+      portEXIT_CRITICAL(&s_mux);
+    } else {
+      b_process(w, s_bn + s_bn_units * s_bn_unit);
+    }
     s_bq_head = (s_bq_head + 1) % BQ;
     --s_bq_n;
   }
-  refill();
+  if (!s_ss) refill();               // своё рассеяние: шум приносит ss_put, не задание ядру 1
 }
 
 static void b_push(bool chain, uint8_t from, uint32_t seq, const uint8_t* data, uint16_t len) {
@@ -2040,6 +2063,22 @@ static void b_push(bool chain, uint8_t from, uint32_t seq, const uint8_t* data, 
   w.t = now_us();
   memcpy(w.data, data, len);
   ++s_bq_n;
+  b_pump();
+}
+
+static void ss_take(const uint8_t* num, uint16_t nbytes) {   // своё простое — рассеять (каждое ss-е)
+  if (!s_ss || nbytes == 0 || nbytes > sizeof s_bq[0].data) return;
+  if (++s_ss_n % s_cfg.ss) return;
+  b_push(false, (uint8_t)s_me, s_ss_n, num, nbytes);
+}
+
+static void ss_noise(const uint8_t* d, int len) {             // блок шума на своё рассеяние принесли
+  uint32_t gs;
+  if (len < 4) return;
+  memcpy(&gs, d, 4);
+  if (!s_ss || gs != s_gs || len - 4 != s_bn_unit || s_bn_units >= s_bn_max) return;   // прошлой настройки
+  memcpy(s_bn + s_bn_units * s_bn_unit, d + 4, s_bn_unit);
+  ++s_bn_units;
   b_pump();
 }
 
@@ -2284,7 +2323,10 @@ static void apply_cfg(const GenConfig& c) {
   s_prod_len = 0;                                    // производителю шума — стоять, пока не настроимся
   if (keep && !c.run) {                              // остановка сессии: итоги замирают
     s_on = false;
-    s_b_on = s_ann = false;
+    s_b_on = s_ann = s_ss = false;
+    portENTER_CRITICAL(&s_mux);
+    s_ss_ask = 0;
+    portEXIT_CRITICAL(&s_mux);
     s_ph = PH_OFF;
     s_txq_n = 0;
     s_tx_busy = false;
@@ -2314,6 +2356,7 @@ static void apply_cfg(const GenConfig& c) {
       }
   s_b_on = c.role == ROLE_B && c.run && s_bpos >= 0;
   s_ann = c.role == ROLE_A && c.run && c.nbg > 0;
+  s_ss = c.role == ROLE_A && c.run && c.ss > 0;
   s_gs = c.cid;
   s_stats = Stats();
   s_ann_drop0 = s_ann_drop;
@@ -2366,6 +2409,12 @@ static void apply_cfg(const GenConfig& c) {
   s_bq_head = s_bq_n = 0;
   s_ann_seq = 0;
   s_bg_next = 0;
+  s_ss_n = 0;
+  portENTER_CRITICAL(&s_mux);
+  s_ss_ask = s_ss ? s_bn_max : 0;                    // своё рассеяние: шум на первые простые — заранее
+  portEXIT_CRITICAL(&s_mux);
+  if (s_ss)
+    Serial.printf("SCAT cid=%lu self ss=%u sf=%u sh=%u\n", (unsigned long)c.cid, c.ss, c.sf, c.sh);
   if (s_b_on || s_ann)
     Serial.printf("SCAT cid=%lu set=%c pos=%d/%d sm=%u sf=%u\n", (unsigned long)c.cid, s_b_on ? 'B' : 'A',
                   s_bpos, s_nbs, c.sm, c.sf);
@@ -2496,6 +2545,9 @@ static void task(void*) {
         else s_job_busy = false;       // отдых: итог задания, начатого до него, не нужен
       } else if (ev.kind == EV_PRIME) {
         if (s_ann) announce(ev.data, ev.len);
+        if (s_ss) ss_take(ev.data, ev.len);
+      } else if (ev.kind == EV_SSN) {
+        ss_noise(ev.data, ev.len);
       } else if (ev.kind == EV_REST) {
         rest_cmd(ev.len);
       }
@@ -2569,6 +2621,27 @@ void job_done(const JobResult& r) {
   // Не ждать места вечно: пока ядро 1 стоит здесь, оно не принимает новую настройку (take_pending).
   // Потерянный итог задача группы спишет сама (5 с без итога — s_job_lost).
   if (xQueueSend(s_evq, &ev, pdMS_TO_TICKS(200)) != pdTRUE) ++s_job_lost;
+}
+
+int ss_want(uint32_t* gs) {
+  portENTER_CRITICAL(&s_mux);
+  const int n = s_ss_ask > 0 ? s_bn_unit : 0;
+  *gs = s_gs;
+  portEXIT_CRITICAL(&s_mux);
+  return n;
+}
+
+void ss_put(const uint8_t* b, int len, uint32_t gs) {
+  static Event ev;                    // зовёт тот, кто набирает шум (одно ядро — один зовущий)
+  if (len <= 0 || len + 4 > (int)MSG_MAX) return;
+  ev.kind = EV_SSN;
+  ev.len = (uint16_t)(len + 4);
+  memcpy(ev.data, &gs, 4);
+  memcpy(ev.data + 4, b, len);
+  if (xQueueSend(s_evq, &ev, 0) != pdTRUE) return;   // очередь занята — ss_want попросит ещё раз
+  portENTER_CRITICAL(&s_mux);
+  if (s_ss_ask > 0) --s_ss_ask;
+  portEXIT_CRITICAL(&s_mux);
 }
 
 void announce_prime(const uint8_t* num, uint16_t nbytes) {

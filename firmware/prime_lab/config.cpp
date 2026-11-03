@@ -46,7 +46,7 @@ bool same_work(const GenConfig& a, const GenConfig& b) {
          a.kmax == b.kmax && a.pre == b.pre && a.cpu == b.cpu && a.dc == b.dc &&
          a.gv == b.gv && a.rk == b.rk && a.pw == b.pw &&
          a.role == b.role && a.sm == b.sm && a.sf == b.sf && a.cf == b.cf && a.nbg == b.nbg &&
-         a.sh == b.sh && a.bgr == b.bgr && a.ba == b.ba &&
+         a.sh == b.sh && a.bgr == b.bgr && a.ss == b.ss && a.ba == b.ba &&
          memcmp(a.bg, b.bg, sizeof a.bg) == 0 && a.has_bmac == b.has_bmac &&
          memcmp(a.bmac, b.bmac, sizeof a.bmac) == 0;
 }
@@ -54,7 +54,7 @@ bool same_work(const GenConfig& a, const GenConfig& b) {
 bool soft_differs(const GenConfig& a, const GenConfig& b) {
   return a.tmax != b.tmax || a.txp != b.txp || a.ping != b.ping || a.hb != b.hb || a.led != b.led || a.tp != b.tp ||
          a.tl != b.tl || a.tq != b.tq || a.rmm != b.rmm || a.afs != b.afs || a.avg != b.avg || a.pl != b.pl ||
-         a.dur != b.dur || a.ro != b.ro;
+         a.dur != b.dur || a.ro != b.ro || a.rt != b.rt;
 }
 
 bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* err, size_t errlen) {
@@ -65,9 +65,9 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
   long cid = -1, src = cur.src, bits = cur.bits, nb = cur.nb, all = cur.all, td = cur.td;
   long tmax = cur.tmax, mode = cur.mode, nrate = cur.nrate, run = cur.run;
   long kmax = cur.kmax, pre = cur.pre, cpu = cur.cpu, txp = cur.txp, ping = cur.ping, led = cur.led, tp = cur.tp;
-  long role = cur.role, sm = cur.sm, sf = cur.sf, cf = cur.cf, sh = cur.sh, bgr = cur.bgr;
+  long role = cur.role, sm = cur.sm, sf = cur.sf, cf = cur.cf, sh = cur.sh, bgr = cur.bgr, ss = cur.ss;
   long tl = cur.tl, tq = cur.tq, rmm = cur.rmm, afs = cur.afs, avg = cur.avg, pl = cur.pl, dc = cur.dc;
-  long gv = cur.gv, rk = cur.rk, pw = cur.pw, raw = cur.raw, hb = cur.hb, dur = cur.dur, ro = cur.ro;
+  long gv = cur.gv, rk = cur.rk, pw = cur.pw, raw = cur.raw, hb = cur.hb, dur = cur.dur, ro = cur.ro, rt = cur.rt;
   uint64_t ba = cur.ba;
   bool bad_ba = false;
   int nbg = cur.nbg;
@@ -115,6 +115,7 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
     else if (!strcmp(tok, "hb"))   hb = v;
     else if (!strcmp(tok, "dur"))  dur = v;
     else if (!strcmp(tok, "ro"))   ro = v;
+    else if (!strcmp(tok, "rt"))   rt = v;
     else if (!strcmp(tok, "led"))  led = v;
     else if (!strcmp(tok, "tp"))   tp = v;
     else if (!strcmp(tok, "role")) role = v;
@@ -123,6 +124,7 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
     else if (!strcmp(tok, "cf"))   cf = v;
     else if (!strcmp(tok, "sh"))   sh = v;
     else if (!strcmp(tok, "bgr"))  bgr = v;
+    else if (!strcmp(tok, "ss"))   ss = v;
     else if (!strcmp(tok, "tl"))   tl = v;
     else if (!strcmp(tok, "tq"))   tq = v;
     else if (!strcmp(tok, "rmm"))  rmm = v;
@@ -175,6 +177,8 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
   else if (sf < SF_HASH || sf > SF_PERM)   snprintf(err, errlen, "bad sf=%ld", sf);
   else if (cf < 0 || cf > 3)               snprintf(err, errlen, "bad cf=%ld", cf);   // 3 — только пинг, без CSI (опыт)
   else if (bgr < 0 || bgr > 200)           snprintf(err, errlen, "bad bgr=%ld", bgr);
+  else if (ss < 0 || ss > 16)              snprintf(err, errlen, "bad ss=%ld", ss);
+  else if (rt < 0 || rt > 1)               snprintf(err, errlen, "bad rt=%ld", rt);
   else if (tl < TL_NORMAL || tl > TL_QUIET) snprintf(err, errlen, "bad tl=%ld", tl);
   else if (tq < 0 || tq > 65535)           snprintf(err, errlen, "bad tq=%ld", tq);
   else if (rmm < 50 || rmm > 2000)         snprintf(err, errlen, "bad rmm=%ld", rmm);
@@ -207,6 +211,7 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
     out.hb = (uint8_t)hb;
     out.dur = (uint16_t)dur;
     out.ro = ro ? 1 : 0;
+    out.rt = rt ? 1 : 0;
     out.led = led ? 1 : 0;
     out.tp = (uint16_t)tp;
     out.role = (uint8_t)role;
@@ -215,6 +220,7 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
     out.cf = (uint8_t)cf;
     out.sh = sh ? 1 : 0;
     out.bgr = (uint8_t)bgr;
+    out.ss = (uint8_t)ss;
     out.ba = ba;
     out.tl = (uint8_t)tl;
     out.tq = (uint16_t)tq;

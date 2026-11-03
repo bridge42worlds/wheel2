@@ -75,6 +75,29 @@ in blocks: one block the size of the number (at least 32 bytes) per prime, up to
 source (CSI, ADC, jitter) the absorber may fall behind: primes wait for noise ("waited for noise"), and no more than
 four waiting are kept — the next ones are skipped ("skipped").
 
+### Own scattering: a generator is its own absorber (`ss`)
+
+No absorbers: the generator releases its own primes itself. The counting core searches for primes as usual; the
+communication core mixes each one found (or every `ss`-th: 1, 2, 4, 8 … 16) with its own noise by its own function
+`sf` and at once releases it as a broadcast SCAT frame. There is no place window (generators do not find primes at the
+same moment); the delay is up to its own frame (`slat` / `sn`). The number is born and leaves into the air from the same
+chip — the loop at one point. Placebo — `sh 1`: the same frame at the same moment, but noise only. It works in any way:
+"each on its own" (one and two cores), cascade, relay, one number for all — whoever found the prime scatters it.
+
+The noise for scattering is gathered by the same party that gathers the counting noise (noise is taken by one core —
+[randomness.md](randomness.md)): the counting core between candidates, or the producer on the communication core with
+two cores. A block the size of the number (at least 32 bytes), up to 8 in reserve, from its own sources; the source
+statistics of the counting are not changed by it. With the fast RNG this is unnoticeable; with a slow source (CSI, ADC,
+jitter) counting loses about as much as it spends on noise for scattering. Counters are as for an absorber: `stx`,
+`sdrop`, `swait`, `slat` / `sn`; in the run results — `stx_s`.
+
+The price: a frame per prime (~40 per second per board, on twelve boards ~500 frames/s — about the level of
+"quench") and 1–3 °C of heat from the transmitter. A firmware without `ss` does not know the setting — the server
+refuses it ("update over Wi‑Fi"), so that a run does not go silently without scattering. In the experiment window —
+the layer **◈ своё рассеяние** (own scattering): no / scatter themselves / placebo. A group has one placebo flag
+(`sh`): with own scattering the absorption by the other wheel must be of the same kind (real with real, placebo with
+placebo), otherwise the run is not put in the list.
+
 ## 4. The loop through the air: reverse noise
 
 Two paths, both switchable.

@@ -37,7 +37,7 @@ from program import Runner, TEMPLATE as PROGRAM_TEMPLATE
 from runlog import RunLog
 from agent_rating import Ratings
 from motors import Motors
-from coils import Coils
+from coils import Coils, ac_word as coils_ac_word
 from battery import Batteries
 from rimcal import RimCal
 from analysis import G as G_STD, gyro_eps, rim_fit
@@ -148,20 +148,23 @@ OPTIONS = {"bits": [32, 64, 128, 256, 512, 1024, 2048], "nb_max": len(BASES), "b
                   {"cf": 2, "name": "только с кадров сета B"},
                   {"cf": 3, "name": "опыт: пинг роутера без CSI (разбор «зомби»)"}],
            "bgr": [0, 5, 10, 20, 50, 100],
+           # генератор сам рассеивает свои простые: каждое ss-е (0 — нет)
+           "ss": [{"ss": 0, "name": "нет"}, {"ss": 1, "name": "каждое своё простое"},
+                  {"ss": 2, "name": "каждое 2-е"}, {"ss": 4, "name": "каждое 4-е"}, {"ss": 8, "name": "каждое 8-е"}],
            "sf": [{"sf": 0, "name": "хеш SHA-256"}, {"sf": 1, "name": "XOR с шумом"},
                   {"sf": 2, "name": "умножение на случайное"}, {"sf": 3, "name": "перестановка бит"}]}
 DEFAULT_CFG = {"src": 1, "bits": 256, "nb": 8, "all": 0, "td": 1000, "tmax": 73, "mode": 0, "nr": 1,
                "k": 24, "pre": 1, "tp": 1000, "cpu": 240, "txp": 20, "ping": 100, "led": 1,
-               "role": 0, "sm": 1, "sf": 0, "cf": 0, "sh": 0, "bgr": 0, "tl": 0, "tq": 0, "rmm": 450, "afs": 2,
-               "avg": 2, "pl": 0, "dc": 0, "gv": 0, "rk": 1, "pw": 0, "raw": 0, "hb": 1, "dur": 0, "ro": 0,
+               "role": 0, "sm": 1, "sf": 0, "cf": 0, "sh": 0, "bgr": 0, "ss": 0, "tl": 0, "tq": 0, "rmm": 450, "afs": 2,
+               "avg": 2, "pl": 0, "dc": 0, "gv": 0, "rk": 1, "pw": 0, "raw": 0, "hb": 1, "dur": 0, "ro": 0, "rt": 0,
                "ba": []}
 # Свои у каждого агента (не задано — как общие).
-OWN_KEYS = ("src", "raw", "tmax", "txp", "cpu", "ping", "led", "role", "sf", "tl", "rmm", "afs", "avg", "ba")
+OWN_KEYS = ("src", "raw", "tmax", "txp", "cpu", "ping", "led", "role", "sf", "ss", "tl", "rmm", "afs", "avg", "ba")
 # Меняются на ходу: номер настройки прежний, счёт не обнуляется.
-SOFT_KEYS = ("tmax", "txp", "ping", "hb", "led", "tp", "tl", "tq", "rmm", "afs", "avg", "pl", "dur", "ro")
+SOFT_KEYS = ("tmax", "txp", "ping", "hb", "led", "tp", "tl", "tq", "rmm", "afs", "avg", "pl", "dur", "ro", "rt")
 # Всё остальное — «работа»: смена даёт новый номер, счёт с нуля (в группе — у всех).
 HARD_KEYS = ("src", "bits", "nb", "all", "td", "mode", "nr", "k", "pre", "cpu", "run", "grp", "gm",
-             "role", "sm", "sf", "cf", "sh", "bgr", "bg", "bm", "ba", "dc", "gv", "rk", "pw", "raw")
+             "role", "sm", "sf", "cf", "sh", "bgr", "ss", "bg", "bm", "ba", "dc", "gv", "rk", "pw", "raw")
 SCAT_KEYS = ("role", "sm", "sf", "cf", "sh", "bgr", "ann", "adrop", "heard", "prx", "stx", "sdrop", "swait",
              "chs", "chf", "chd", "slat", "sn", "sbg", "bclost", "rxdrop")
 
@@ -288,7 +291,7 @@ GEN_KEYS = ("cid", "src", "bits", "nb", "all", "td", "age", "cand", "tdr", "mri"
             "err", "stall", "bt", "br", "bus", "tdus", "mrus", "tpn", "tps", "tpmin", "tpmax", "tph",
             "e", "sha", "csi", "rf", "st", "lp", "tmax", "work", "ts", "mode", "grp", "jobs",
             "udpf", "wdisc", "wrsn", "nr", "run", "k", "pre", "cpu", "txp", "txr", "ping", "led", "tp",
-            "tl", "tq", "tls", "rmm", "sens", "imu", "mag", "etx", "pl", "pln", "pll", "dc", "dcq",
+            "tl", "tq", "tls", "rmm", "sens", "imu", "mag", "etx", "pl", "pln", "pll", "dc", "dcq", "ss",
             "gv", "rk", "pw", "raw", "dur", "ro", "roff", "done", "net", "i2c") + SCAT_KEYS
 
 
@@ -537,6 +540,7 @@ def ingest_imu(a, mac, p, tt):
         a["imu"]["last_rev"] = a["wrevs"][-1]
         imc_merge(a, mac)                  # форма кривой могла прийти раньше оборотов
     a["imu"]["gs"] = (a.get("imc") or {}).get("gs")
+    top_note(a, p, tt)
     put(mac, "w_rpm_now", tt, round((p.get("w") or 0) * 60 / (2 * math.pi), 3))
     s_ = p.get("s") or []                # к центру, по ходу, вдоль оси, |f| — мg, 20 Гц
     for i, v in enumerate(s_):
@@ -546,6 +550,20 @@ def ingest_imu(a, mac, p, tt):
 
 
 IMC_KEYS = ("t_agent", "kc", "a0", "ph1", "eps", "gs", "h2", "mx", "my", "mz", "flat")
+
+
+def top_note(a, p, tt):
+    """Метка верха колеса от агента обода: [мс назад прошёл верх, период оборота мс, номер оборота] — по часам
+    сервера (задержка сети — единицы мс). По ней держится фаза поля катушек «с вращением»."""
+    top = p.get("top")
+    if isinstance(top, list) and len(top) >= 2 and top[1]:
+        a["top"] = {"t": round(tt - top[0] / 1000.0, 3), "T": top[1] / 1000.0, "n": top[2] if len(top) > 2 else None,
+                    "rx": tt}
+
+
+def ingest_top(a, mac, p, tt):
+    """Метка верха при молчании (настройка rt): одна в секунду."""
+    top_note(a, p, tt)
 
 
 def ingest_imc(a, mac, p, tt):
@@ -719,7 +737,7 @@ def field_live(mac, sec=60.0, since=None):
     return res
 
 
-SENSOR_INGEST = {"imu": ingest_imu, "imr": ingest_imr, "imc": ingest_imc, "mag": ingest_mag}
+SENSOR_INGEST = {"imu": ingest_imu, "imr": ingest_imr, "imc": ingest_imc, "mag": ingest_mag, "top": ingest_top}
 
 
 def ingest_acc(t, ip, text):
@@ -866,6 +884,9 @@ def known_lines():
     out += [{"f": float(p), "name": f"пинг CSI агентов ({p}/с)", "harm": 5} for p in sorted(pings)]
     out += [{"f": 1000.0 / tp, "name": f"телеметрия раз в {tp} мс", "harm": 5} for tp in sorted(tps)]
     out += [{"f": f, "name": "обороты колеса", "harm": 10} for f in rpms[:2]]
+    # переменное поле катушек: линия на частоте поля и гармоники (сила на провода ~ ток² — вдвое чаще)
+    acs = {round(s["ac"]["f"], 2) for s in coils.brief()["wheels"].values() if s.get("ac") and s.get("state") != "off"}
+    out += [{"f": float(f), "name": f"переменное поле катушек ({f:g} Гц)", "harm": 6} for f in sorted(acs)]
     return out
 
 
@@ -1050,10 +1071,10 @@ def cfg_line(c):
             f" k={c.get('k', 24)} pre={c.get('pre', 1)} cpu={c.get('cpu', 240)} txp={c.get('txp', 20)}"
             f" ping={c.get('ping', 100)} hb={c.get('hb', 1)} led={c.get('led', 1)} tp={c.get('tp', 1000)}"
             f" role={c.get('role', 0)} sm={c.get('sm', 1)} sf={c.get('sf', 0)} cf={c.get('cf', 0)}"
-            f" sh={c.get('sh', 0)} bgr={c.get('bgr', 0)} tl={c.get('tl', 0)} tq={c.get('tq', 0)}"
+            f" sh={c.get('sh', 0)} bgr={c.get('bgr', 0)} ss={c.get('ss', 0)} tl={c.get('tl', 0)} tq={c.get('tq', 0)}"
             f" rmm={c.get('rmm', 450)} afs={c.get('afs', 2)} avg={c.get('avg', 2)} pl={c.get('pl', 0)}"
             f" dc={c.get('dc', 0)} gv={c.get('gv', 0)} rk={c.get('rk', 1)} pw={c.get('pw', 0)} raw={c.get('raw', 0)}"
-            f" dur={c.get('dur', 0)} ro={c.get('ro', 0)}"                 # шаг на агенте: длительность, радио выкл
+            f" dur={c.get('dur', 0)} ro={c.get('ro', 0)} rt={c.get('rt', 0)}"   # шаг на агенте; метка верха при молчании
             f" bg={','.join(str(i) for i in c.get('bg', []))}"          # сет B — всегда, пустой тоже:
             f" bm={','.join(m.replace(':', '') for m in c.get('bm', []))}"   # иначе агент помнит старый
             f" ba={','.join(str(i) for i in c.get('ba', []))}")          # чьи простые поглощать (пусто — всех)
@@ -1082,6 +1103,7 @@ def validate_cfg(c):
                "led": 1 if c.get("led", 1) else 0,
                "role": int(c.get("role", 0)), "sm": int(c.get("sm", 1)), "sf": int(c.get("sf", 0)),
                "cf": int(c.get("cf", 0)), "sh": 1 if c.get("sh", 0) else 0, "bgr": int(c.get("bgr", 0)),
+               "ss": int(c.get("ss", 0)), "rt": 1 if c.get("rt") else 0,
                "tl": int(c.get("tl", 0)), "tq": int(c.get("tq", 0)), "rmm": int(c.get("rmm", 450)),
                "afs": int(c.get("afs", 2)), "avg": int(c.get("avg", 2)), "pl": 1 if c.get("pl", 0) else 0,
                "dc": 1 if c.get("dc", 0) else 0,
@@ -1145,6 +1167,8 @@ def validate_cfg(c):
         raise ValueError("CSI: 0 — любые кадры, 1 — только роутер, 2 — только сет B")
     if not 0 <= out["bgr"] <= 200:
         raise ValueError("фон сета B от 0 до 200 кадров в секунду")
+    if not 0 <= out["ss"] <= 16:
+        raise ValueError("своё рассеяние: каждое ss-е простое, ss от 0 до 16")
     if out["tl"] not in (0, 1, 2):
         raise ValueError("телеметрия: 0 — обычная, 1 — редкая, 2 — молчание")
     if not 0 <= out["tq"] <= 65535:
@@ -1214,6 +1238,11 @@ def apply_control(targets, cfg, own=None, force=False, remember=True, label=None
         if not targets:
             raise ValueError("нет агентов с прошивкой prime_lab")
         eff = {m: validate_cfg({**cfg, **own.get(m, {})}) for m in targets}
+        old = [agents[m].get("id") or m[-5:] for m in targets
+               if eff[m]["ss"] and eff[m]["role"] == 0 and agents[m]["gen"] and agents[m]["gen"].get("ss") is None]
+        if old:
+            raise ValueError("своё рассеяние (ss): прошивка не умеет у " + ", ".join(f"№{i}" for i in old)
+                             + " — обновите по Wi-Fi (⇪ прошивка)")
         for m in targets:                          # измерителю, агенту моторов и катушки группа не нужна: прошивка
             if eff[m]["role"] in (2, 3):           # отвергает «сообща» без списка группы (grp missing)
                 eff[m]["mode"] = 0
@@ -1315,7 +1344,7 @@ STANDBY_CFG = {"run": 0, "cpu": 80, "led": 0}                                   
 SLOTS = ["idle"] + [f"{g}{r}" for g in "1234" for r in "AB"] + ["S", "coil"]   # coil — агент M катушки колеса (wheels)
 # Свои параметры группы поверх набора (пульт): что ищем, шум, проверка, связь, тепло, журнал.
 GROUP_CFG_KEYS = ("bits", "nb", "all", "td", "src", "raw", "dc", "rk", "pw", "k", "pre", "nr", "txp", "cpu", "tmax", "pl",
-                  "sm", "sh", "bgr", "sf", "cf")
+                  "sm", "sh", "bgr", "sf", "cf", "ss")
 GROUP_KEYS = "1234"
 SUBGROUPS = "абвгдежз"        # подгруппы на колесе (планшетка): буква у агента; без буквы — «а»
 
@@ -1510,8 +1539,8 @@ def adopt_static(mac):
 
 
 APPLIED_KEYS = ("cid", "src", "bits", "nb", "all", "td", "tmax", "mode", "grp", "nr", "run", "k", "pre", "cpu", "txp", "hb",
-                "txr", "ping", "led", "tp", "role", "sm", "sf", "cf", "sh", "bgr", "tl", "tq", "tls", "rmm", "afs", "avg",
-                "pl", "dc", "gv", "rk", "pw", "raw", "dur", "ro")
+                "txr", "ping", "led", "tp", "role", "sm", "sf", "cf", "sh", "bgr", "ss", "tl", "tq", "tls", "rmm", "afs", "avg",
+                "pl", "dc", "gv", "rk", "pw", "raw", "dur", "ro", "rt")
 
 
 # ---------------- прошивка по Wi-Fi (OTA) ----------------
@@ -2052,7 +2081,7 @@ def run_extras(t0, t1):
     if radius:                                         # радиусы линейкой и k каждого агента при средних оборотах опыта
         out["radius"] = {_agent_name(m): r for m, r in radius.items()}
         out["k"] = {_agent_name(m): k for w in rpm for m, k in agent_k(w, rpm[w] * cf[w]).items()}
-    out["coil_sense"] = {w: {k: x.get(k) for k in ("proj", "dabs", "seen", "cmd", "agree", "ref")}
+    out["coil_sense"] = {w: {k: x.get(k) for k in ("proj", "dabs", "seen", "cmd", "agree", "ref", "spread")}
                          for w, x in (coils.brief().get("sense") or {}).items()}
     with lock:                                         # свободная внутренняя память агентов в конце опыта, КБ
         now = time.time()
@@ -2477,6 +2506,22 @@ def coil_agents():
 coils = Coils(coil_agents, lambda line, ip: send_line(line, ip), log=lambda text: print(text, flush=True))
 
 
+def coil_rot(w):
+    """Колесо w: (время верха по часам сервера, период оборота) по свежей метке агента обода, или None."""
+    now = time.time()
+    best = None
+    with lock:
+        c = compose_state()
+        for m, a in agents.items():
+            t = a.get("top")
+            if t and c["wheels"].get(m) == w and now - t["rx"] < max(3.0, 2.5 * t["T"]) and (not best or t["rx"] > best["rx"]):
+                best = t
+    return (best["t"], best["T"]) if best else None
+
+
+coils.rot_fn = coil_rot
+
+
 def coils_state():
     st = coils.brief()
     now = time.time()
@@ -2488,13 +2533,22 @@ def coils_state():
                 continue
             mt = a.get("mtel") or {}
             row = {"mac": m, "id": a["id"], "alive": bool(a["last"] and now - a["last"] < 10),
-                   "age": round(now - a["last"], 1) if a["last"] else None, "mot": mt.get("mot"), "temp": mt.get("temp")}
+                   "age": round(now - a["last"], 1) if a["last"] else None, "mot": mt.get("mot"), "temp": mt.get("temp"),
+                   # прошивка умеет переменное поле — в телеметрии моста есть "aca"
+                   "ac_ok": bool((mt.get("mot") or {}).get("aca") is not None)}
             w = c["wheels"].get(m, "")
             if w in st["agents"]:
                 st["agents"][w].setdefault("more", []).append(row)
             else:
                 st["agents"][w] = row
+    st["ac_word"] = {w: coils_ac_word(x.get("ac")) for w, x in st["wheels"].items()}
     return st
+
+
+def coil_ac_old(wheels=("1", "2")):
+    """Колёса, у агента катушки которых прошивка без переменного поля (на связи, но "aca" в телеметрии нет)."""
+    st = coils_state()
+    return [w for w in wheels if (st["agents"].get(w) or {}).get("alive") and not st["agents"][w].get("ac_ok")]
 
 
 def wheel_radius(wheel):
@@ -3349,11 +3403,15 @@ class Handler(BaseHTTPRequestHandler):
             if u.path == "/api/battery":                # ёмкость пары по умолчанию: {cap: мА·ч}
                 batteries.set_cap(body.get("cap"))
                 return self.send_json({"ok": True, **battery_brief()})
-            if u.path == "/api/coils":                  # катушки: {wheel, state: off|+|-, level} или {off: true}
+            if u.path == "/api/coils":                  # катушки: {wheel, state: off|+|-, level, ac} или {off: true}
                 if body.get("off"):
                     coils.all_off(body.get("src") or "вручную")
-                else:
-                    coils.set(str(body.get("wheel")), body.get("state", "off"), body.get("level"), src="вручную")
+                else:                                   # ac: {f, shape, edge} — переменное, null — постоянное, нет — как было
+                    w = str(body.get("wheel"))
+                    if body.get("ac") and coil_ac_old([w]):
+                        raise ValueError(f"переменное поле: прошивка агента катушки колеса {w} его не умеет — обновите по Wi-Fi")
+                    coils.set(w, body.get("state", "off"), body.get("level"), src="вручную",
+                              ac=body["ac"] if "ac" in body else False)
                 return self.send_json({"ok": True, **coils_state()})
             if u.path == "/api/motors":                 # моторы: {wheel, mode, dir, pwm, rpm, flip, ramp, wd} или {stop}
                 motors.set(body)
@@ -3406,6 +3464,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"ok": True, "id": session_start(body)})
             if u.path == "/api/program/start":
                 busy = "идёт сессия — сначала остановите её" if session_active["s"] is not None else None
+                steps = ((body.get("program") or {}).get("steps") or []) if isinstance(body.get("program"), dict) else []
+                if any(isinstance(x, dict) and ((x.get("coil") or {}) if isinstance(x.get("coil"), dict) else {}).get("ac")
+                       for x in steps) and coil_ac_old():   # иначе катушки молча шли бы постоянным полем
+                    raise ValueError("переменное поле: прошивка агента катушки колеса " + ", ".join(coil_ac_old())
+                                     + " его не умеет — обновите по Wi-Fi (⇪ прошивка)")
                 return self.send_json({"ok": True, "id": runner.start(body.get("program"), busy)})
             if u.path == "/api/program/stop":            # {now} — сразу; иначе после опыта; {cancel} — снять просьбу
                 return self.send_json({"ok": True, "did": runner.request_stop(bool(body.get("now")), bool(body.get("cancel")))})

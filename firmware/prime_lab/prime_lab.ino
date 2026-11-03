@@ -274,6 +274,16 @@ static void take_pending() {
   publish(true);
 }
 
+// Сам рассеивает (ss): шум на рассеяние набирает тот, кто набирает шум счёта — по блоку, когда задача
+// группы просит. Счётчики источников — свои (st), чтобы шум рассеяния не мешался со статистикой счёта.
+static void ss_feed(const GenConfig& c, EntropyStats& st, volatile bool* abort, void (*tick)()) {
+  static uint8_t nb[256];
+  uint32_t gs = 0;
+  const int n = group::ss_want(&gs);
+  if (n <= 0 || n > (int)sizeof nb || gs != c.cid) return;
+  if (entropy_fill(nb, n, noise_mask(c), st, abort, tick)) group::ss_put(nb, n, gs);
+}
+
 // ---------- ядро 0: производитель кандидатов (два ядра) ----------
 static void prod_task(void*) {
   static uint8_t buf[640];                             // кандидат (до 256 байт) или набор кусочков группы (до 600)
@@ -307,6 +317,10 @@ static void prod_task(void*) {
       continue;
     }
     g_prod_idle = false;
+    if (c.ss) {                                        // своё рассеяние: шум берёт это ядро — и на него
+      static EntropyStats se;
+      ss_feed(c, se, &g_prod_abort, prod_tick);
+    }
     // Долг тепла — только за счёт (шум, отсев): ожидание места в очереди в него не входит,
     // иначе после затора производитель спал бы лишнее и темп колебался.
     if (c.mode == MODE_GROUP) {                        // эстафета, каскад: наборы кусочков шума для группы
@@ -447,6 +461,10 @@ static void gen_task(void*) {
     if (c.mode == MODE_GROUP || c.role == ROLE_B) {  // сообща или рассеяние: по заданиям протокола
       group::Job j;
       if (group::take_job(j, pdMS_TO_TICKS(20))) run_job(j);
+      if (c.ss && !noise_on_core0(c)) {              // своё рассеяние: шум берёт это ядро
+        static EntropyStats se;
+        ss_feed(c, se, &g_pending, publish_tick);
+      }
       publish(false);
       continue;
     }
@@ -461,16 +479,16 @@ static void gen_task(void*) {
       }
       if (it.epoch != g_epoch) continue;             // кандидат прошлой настройки
       w0 = esp_timer_get_time();
-      found = test_sieved(it.b, c, s_st.p, c.bits <= 256 ? hex : nullptr, sizeof hex, (c.nbg || c.pl) ? prime : nullptr);
+      found = test_sieved(it.b, c, s_st.p, c.bits <= 256 ? hex : nullptr, sizeof hex, (c.nbg || c.pl || c.ss) ? prime : nullptr);
     } else {
       if (!entropy_fill(buf, c.bits / 8, noise_mask(c), s_st.e, &g_pending, publish_tick)) {
         ++s_st.stall;
         continue;
       }
-      found = test_candidate(buf, c, s_st.p, c.bits <= 256 ? hex : nullptr, sizeof hex, (c.nbg || c.pl) ? prime : nullptr);
+      found = test_candidate(buf, c, s_st.p, c.bits <= 256 ? hex : nullptr, sizeof hex, (c.nbg || c.pl || c.ss) ? prime : nullptr);
     }
     if (found) {
-      if (c.nbg) group::announce_prime(prime, c.bits / 8);   // сет B есть — пусть рассеивает
+      if (c.nbg || c.ss) group::announce_prime(prime, c.bits / 8);   // сету B — рассеивать; ss — рассеять самому
       if (c.pl) plog::push(prime, c.bits / 8, 0);             // журнал простых
       int64_t now = esp_timer_get_time();
       uint64_t dt = now - t_last;            // от прошлого простого (или от новых настроек)
@@ -483,6 +501,10 @@ static void gen_task(void*) {
       int k = dt ? 63 - __builtin_clzll(dt) : 0;
       ++s_st.tp_hist[k < HIST_N ? k : HIST_N - 1];
       if (c.bits <= 256) strlcpy(s_st.last_hex, hex, sizeof s_st.last_hex);
+    }
+    if (c.ss && !c.dc) {                             // своё рассеяние: шум берёт это ядро
+      static EntropyStats se;
+      ss_feed(c, se, &g_pending, publish_tick);
     }
     publish(false);
     thermal::pace((uint32_t)(esp_timer_get_time() - w0), &g_pending);   // предел температуры
@@ -571,10 +593,11 @@ static void build_tel(Out& o, const GenStats& g, const group::Stats& gs, uint32_
       (unsigned long)gs.tx_fail);
   add(o, ",\"pl\":%u,\"pln\":%lu,\"pll\":%lu", c.pl, (unsigned long)plog::total(), (unsigned long)plog::lost());   // журнал простых
   add(o, ",\"dc\":%u,\"dcq\":[%llu,%llu]", c.dc, g.cwait, g.pwait);   // два ядра: кто кого ждал
+  add(o, ",\"ss\":%u", c.ss);                                       // сам рассеивает свои простые
   add(o, ",\"gv\":%u,\"rk\":%u,\"pw\":%u,\"raw\":%u", c.gv, c.rk, c.pw, c.raw);         // вариант группы: эстафета, каскад
   // прошивка по Wi-Fi: состояние (0 нет, 1 загрузка, 2 записано, -1 ошибка), «ждёт подтверждения», раздел
   add(o, ",\"ota\":[%d,%d,\"%s\"]", ota::state(), ota::pending_verify() ? 1 : 0, ota::slot());
-  if (c.role == ROLE_B)
+  if (c.role == ROLE_B || c.ss)
     add(o, ",\"prx\":%lu,\"stx\":%lu,\"sdrop\":%lu,\"swait\":%lu,\"chs\":%lu,\"chf\":%lu,\"chd\":%lu,"
            "\"slat\":%llu,\"sn\":%lu,\"sbg\":%lu",
         (unsigned long)gs.prx, (unsigned long)gs.stx, (unsigned long)gs.sdrop, (unsigned long)gs.swait,
@@ -1131,6 +1154,18 @@ static void comms_task(void*) {
       portEXIT_CRITICAL(&g_mux);
       agent::CoreLoad load = agent::core_load();
       bool up = WiFi.status() == WL_CONNECTED;
+      // молчание, а поле катушек идёт «с вращением»: агент обода всё равно шлёт метку верха — один короткий
+      // пакет в секунду (сервер держит по ней фазу катушки); без rt молчание полное
+      if (!fixed && up && g_srv_port && tl == TL_QUIET && g.cfg.rt && (rim::present() & rim::HAS_IMU)) {
+        uint32_t ta, tT, tn;
+        if (rim::top(ta, tT, tn)) {
+          out.n = 0;
+          out.over = false;
+          add_head(out, "top", seq, now);
+          add(out, ",\"top\":[%lu,%lu,%lu]}", (unsigned long)ta, (unsigned long)tT, (unsigned long)tn);
+          if (!out.over) send_out(udp, out);
+        }
+      }
       if (fixed) {                                       // статический: свой короткий tel
         if (up && g_srv_port && tl != TL_QUIET) {
           out.n = 0;

@@ -165,7 +165,7 @@ deviated from the same controls in the same direction by at least z/2. Otherwise
 outlier.
 
 **▣ The placebo wheel — a check of the detector itself.** Two boards without sensors lie next to the wheels, with their
-own power from a USB supply (not from the bus). In the composition this is "wheel 3" without a motor and coil: on the
+own power from a power bank through a USB-C → 5 V trigger module (not from the bus). In the composition this is "wheel 3" without a motor and coil: on the
 main screen diagram, in the settings, to the right of the "free" ones there is a place «▣ колесо‑пустышка» (placebo
 wheel). In the program its agents are listed in `dummy`. In every run the placebo wheel works as its own group in the
 same mode as the wheels: cascade, the same noise, "each on its own". In runs with absorption the two boards work as a
@@ -190,6 +190,20 @@ air, temperature or an error in the analysis itself. Such findings go not into `
 in the run list and on the main screen — the line «▣ колесо‑пустышка: ложных тревог нет» (placebo wheel: no false
 alarms) or their number. If a false alarm is **confirmed**, the detector is wrong, and the wheel anomalies of that
 program cannot be trusted until the cause is found.
+
+**Reference correction — the placebo wheel as a reference.** The placebo wheel works in the same mode at the same
+time as the wheels, so every run also gets the channel `gen:все/опора` (all/reference): primes (and candidates) per
+second per agent on the wheels divided by the same on the placebo wheel. What the wheels and the reference share —
+the load of the air, the room temperature, the time of day — cancels in the ratio, while a control run takes place at
+another time; so `gen:все` against the control sees such drift and `gen:все/опора` does not. The channel is checked by
+the same criterion in the same family of comparisons (`metrics: ["pr_s"]` includes it: the metric name is the same),
+which makes the correction one or two comparisons stricter. If `gen:все/опора` deviates together with an alarm of the
+placebo wheel itself, the cause is in the reference, not in the wheels (`shared`). A reference of two boards is noisy
+itself: at ~40 primes/s per board over 3 min — about 0.9 % on the ratio. The null program will show whether the ratio is
+steadier than `gen:все`. In the report — the metric «колёса к опоре» (wheels to reference) in "what matters".
+The placebo boards have no heatsinks; their clock is the same as the wheels' (compare at one frequency), but their
+temperature ceiling is their own — `dummy_tmax`, 75 °C by default (the wheels have 73): the program sets it as their own
+setting in every run so that the regulator does not slow them down.
 
 **❗ Static alarm.** The static verdict for a run is "⚠ check" — a deviation from the baseline persists for at least
 2 windows in a row or is visible over the whole run and is not explained by known sources. The program records an
@@ -263,7 +277,8 @@ An experiment from the main screen is a special case; a program can also be hand
 | `redo`, `again` | 2, 0 | repeats of a spoiled run; repeats on a static alarm |
 | `pause_repeat`, `pause_lost` | no, yes | a pause before every repeat; a pause if the link is lost |
 | `targets`, `axes` | `"all"`, — | who takes part (`"all"` or a list of MACs); a dictionary of the experiment's parameters for the report |
-| `dummy` | — | the placebo wheel agents (MACs, from `targets`): their findings are false alarms (`placebo`), not part of `gen:все` |
+| `dummy` | — | the placebo wheel agents (MACs, from `targets`): their findings are false alarms (`placebo`), not part of `gen:все`; the wheels relative to them — `gen:все/опора` |
+| `dummy_tmax` | 75 | temperature ceiling of the placebo wheel boards in every run, °C (40–75; 0 — same as everyone) |
 
 | step field | what |
 |---|---|

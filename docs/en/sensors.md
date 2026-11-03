@@ -251,3 +251,62 @@ off and the readings are steady give the background (the Earth, iron nearby), se
 coil field at the sensor. Readings minus background, projected onto "+", are the field with a sign: one can see whether
 there is a field, where it points and whether it matches the command; in the step record — `coil_sense`. If the sensor
 is moved, the background and direction are relearned within a few seconds.
+
+**Alternating field.** The same coil, but the current changes direction smoothly: ∿ sine or ⊓ soft square (a
+rectangle whose edges are half-waves of a sine, 100 ms each), frequency 0.1–50 Hz. The command gets `fa=` — frequency
+in mHz, `ka=` — shape (0 sine, 1 square), `ea=` — edge in ms and `qa=` — the phase by the server clock in thousandths of
+a period (DC — `fa=0`). The agent drives an envelope: the amplitude rises and falls at rate `r`, and the server sets it
+so that full amplitude is reached in 3 periods, 1 to 5 s; a change of kind (DC ↔ AC, another shape) goes through zero.
+On AC the bridge is updated 1000 times a second (20 points per period at 50 Hz), the PWM is the same 20 kHz. "+" and
+"−" are phase 0 and 180°: up to 5 Hz the agent smoothly adjusts its phase to the server clock, so two coils on "+" run in
+one phase and "+ −" in antiphase, to within the network delay (a few ms); above 5 Hz each runs on its own. In the bridge
+telemetry — `aca`: [frequency mHz, shape, edge ms, phase ‰, phase error against the server ‰].
+
+Why it does no harm and what to keep in mind. The coil is about 1 mH at 5 Ω (an estimate): the time constant is ~0.2 ms,
+up to ~100 Hz the current keeps up with the voltage, and at 1 A it stores ~0.5 mJ — the bridge holds that even on an
+abrupt switch; what limits is current and winding heat. A sine of the same amplitude heats the winding and drains the
+battery half as much as DC. The coil wires vibrate at the field frequency and at twice it (force ~ current²) — in runs
+with AC the server counts these lines with their harmonics as known in the static spectrum
+([static_watch.md](static_watch.md)). The wheel magnetometer measures a one-second average — it sees AC by the spread of
+|B| within the second (`coil_sense.seen` = "~", `spread`); background and the "+" direction are not learned on AC. The
+coil INA219 on AC shows the momentary current, not the amplitude. A firmware without the alternating field would not
+understand the command and run DC — the server refuses it ("update over Wi‑Fi").
+
+It is set by the experiment window layer **∿ род поля** (kind of field: DC, = 70 % · PWM, ∿ 0.5 / 1 / 5 / 17 Hz,
+⊓ 1 Hz, your own frequency or level) or by hand — the "∿" button under the wheel: kind of field in a cycle, the sign — by
+the "+ / −" buttons.
+
+**Frequencies.** Not multiples of 10 Hz: the rim magnetometer measures 20 times a second — at 20 Hz (and 40) the field
+stands still for it, at 10 Hz it hits the same two points of the period; 50 Hz is also the mains in the static spectrum.
+So the set has 17 Hz, and the window warns about your own frequency if it is a multiple of 10.
+
+**The "= 70 % · PWM" control.** At full DC level the bridge is simply open — no switching; on AC it switches 20,000 times
+a second all the time. PWM edges can reach the high-impedance inputs of the agents (common ground, winding capacitance)
+— a comparison "AC against DC" would mix the effect of the field and the effect of switching. DC at 70 % level: PWM is
+there, the field does not change (and the power is the same as a full-amplitude sine) — with it one can see what comes
+from the changing field and what from switching. In the step — `coil.level` (‰); without it — full level.
+
+**What the field does to the agents' noise.** The rim magnetometer (source 🧲) sees the field directly: in the tube
+~1.3–1.4 mT — about 9000 counts at the most sensitive gain (limit ±4.9 mT on x, y, the threshold for a coarser gain is
+28,000), the gain does not switch, there is no clipping. The sensor noise in the low bits is the same — with the hash the
+quality of numbers does not change, but without the hash the field directly changes the low bits (AC works as dither): a
+difference "field on / off" in 🧲 is known physics, a control of the channel, not an anomaly. Pin D0 (source ⏚ ADC)
+hardly sees the field: the induction in its loop even at 50 Hz and full field is of the order of 40 µV per 1 cm² against
+an ADC step of ~0.8 mV; but it may see the 20 kHz PWM edges (~21,000 samples a second — folding to about 1 kHz), hence
+the "= 70 % · PWM" control. We credit ¼ bit per ADC sample and 2 bits per magnetometer byte — interference does not
+remove noise, what is credited stays honest.
+
+**⟳ With rotation.** A sine of frequency k × wheel rotation (×1, ×2, your own multiplier 0.25–4): the coil turns with the
+wheel, and the field becomes tied to the position in the room. The phase comes from the top mark: once per revolution
+the rim agent finds the top point (smallest |f| — weightlessness is there too) and sends `top` [ms ago, period ms,
+revolution number] — in the imu packet, and in silent runs (setting `rt`, the program sets it itself) as a separate short
+packet once a second. The server puts the sine maximum at the top of the agent with the accelerometer; the field in the
+tube is one for the whole rim, so the other agents have their own constant shift: the agent opposite passes the top at
+the minimum (field of opposite sign), agents at the sides near zero. Up to 5 Hz the coil agent holds the phase by the
+mark; with no marks (wheel stands, sensor silent) the field runs at the previous frequency without adjustment (on the
+board «◐ метки верха нет»). Wheels standing — such a run is not put in the list.
+
+**Does the alternating current radiate.** Hardly. The wavelength at 50 Hz is 6000 km, at 1 Hz 300,000 km, and the coil is
+a metre: it is not an antenna but a "near field" that falls off as 1/r³ and does not go out. An estimate of the radiated
+power of the single winding turn around the ring (1 A, area ~0.08 m²) at 50 Hz is about 10⁻²⁵ W, at 1 Hz 10⁻³² W. What
+really goes out is the 20 kHz PWM edges along the wires (as with any motor driver), hence the "= 70 % · PWM" control.

@@ -98,7 +98,8 @@ The spread of each frequency is taken from the baseline, smoothed over neighbour
 small by chance. In a window with a knock, the spectrum and noise shape are not compared — they come from the knock.
 
 **Known sources.** A line near a known frequency is marked and does not count as an alarm: mains 50 Hz and
-harmonics, router beacons (102.4 ms), the CSI ping of working agents, telemetry, sample packets, wheel rpm.
+harmonics, router beacons (102.4 ms), the CSI ping of working agents, telemetry, sample packets, wheel rpm,
+the alternating coil field (the field frequency and harmonics — the wires also vibrate at twice it).
 Frequencies above half the sample rate are taken into account with folding.
 
 **Over the whole segment.** Besides windows, the whole segment (a run, a session) is compared with the baseline using

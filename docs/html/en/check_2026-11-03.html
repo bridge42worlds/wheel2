@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>First full check of the rig · Wheel-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+.flowbox { margin:12px 0 18px; }
+.flowbox iframe { width:100%; height:min(82vh, 860px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.flowbox .small { font-size:13px; color:var(--mut); margin-top:4px; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.preamble { display:flex; flex-direction:column; gap:4px; margin:14px 0 18px; padding:12px 16px; border:1px solid var(--line);
+             border-left:4px solid var(--on); border-radius:8px; background:var(--soft); color:var(--ink); text-decoration:none; }
+.preamble b { color:var(--on); }
+.preamble q { font-style:italic; quotes:"«" "»"; }
+.preamble span { font-size:13px; color:var(--mut); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Wheel-2 · documentation</a>
+  <nav><a href="/" target="plan">▦ Installation</a><a href="/flow" target="flow">↻ How it works</a><a href="preamble.html">✦ Preamble</a><a href="../check_2026-11-03.html" hreflang="ru" title="Русская версия"><b>RU</b></a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Documents</h4>
+    <ul><li><a href="index.html">Overview</a></li><li><a href="preamble.html">Preamble</a></li><li><a href="how_it_works.html">How everything works</a></li><li><a href="modes.html">Modes</a></li><li><a href="wiring.html">Wiring diagrams</a></li><li><a href="coil_test.html">Coil endurance test</a></li><li><a href="check_2026-11-03.html" class=cur>First full check</a></li><li><a href="../toroid_field.html">Toroid field — calculator · RU</a></li><li><a href="spec.html">Bill of materials</a></li><li><a href="sensors.html">Sensors, phone, motors and coils</a></li><li><a href="static_watch.html">Static sensors: baseline and watching</a></li><li><a href="program.html">Experiment and program</a></li><li><a href="group_protocol.html">Group mode</a></li><li><a href="scatter.html">Absorption</a></li><li><a href="randomness.html">Where the randomness comes from</a></li><li><a href="thermal.html">Agent temperature</a></li></ul>
+    
+    <h4>On this page</h4><ul class="toc"><li class="l2"><a href="#firmware">Firmware</a></li><li class="l2"><a href="#agents-and-sensors">Agents and sensors</a></li><li class="l2"><a href="#coils">Coils</a></li><li class="l2"><a href="#counting-and-own-scattering">Counting and own scattering</a></li><li class="l2"><a href="#motors-and-rotation">Motors and rotation</a></li><li class="l2"><a href="#hiccups">Hiccups</a></li><li class="l2"><a href="#not-checked">Not checked</a></li></ul>
+  </aside>
+  <main class="doc">
+
+<h1>First full check of the rig</h1>
+<p><i>English translation of <a href="../check_2026-11-03.html">docs/check_2026-11-03.md</a> — the Russian original is the source of truth.</i></p>
+<p>Log of 2026-11-03, evening. Everything on: both wheels (six agents on the bus each and the coil agent), static accelerometer №8, the placebo wheel №22 and №23, phone №9, motor agent №10. The wheels were turned only slowly (PWM 30 %, ~25 rpm), not up to weightlessness (73 rpm) — the mechanics are still being looked at.</p>
+<h2 id="firmware">Firmware<a class="anc" href="#firmware">#</a></h2>
+<p>All 19 boards were flashed over Wi‑Fi with build <b>6da4bb9</b> (a commit of the same day), each confirmed the new version.</p>
+<div class="tw"><table><thead><tr><th>who</th><th>was</th><th>flashing over Wi‑Fi</th></tr></thead><tbody>
+<tr><td>wheel 1: №3, №5, №6, №11, №12, №20, coil №13</td><td>fcee625</td><td>7 boards in 83 s</td></tr>
+<tr><td>wheel 2: №14–№19, coil №21</td><td>4b221d0, 46f9960</td><td>7 boards in 79 s</td></tr>
+<tr><td>static №8, placebo №22, №23</td><td>fcee625, be44124-dirty</td><td>3 boards in 75 s</td></tr>
+<tr><td>motors №10</td><td>fcee625</td><td>75 s</td></tr>
+</tbody></table></div>
+<p>New in 6da4bb9: own scattering <code>ss</code> (<a href="scatter.html">scatter.md</a>), the alternating coil field and the field "with rotation" (<a href="sensors.html">sensors.md</a>), the wheel top mark.</p>
+<h2 id="agents-and-sensors">Agents and sensors<a class="anc" href="#agents-and-sensors">#</a></h2>
+<div class="tw"><table><thead><tr><th>what</th><th>result</th></tr></thead><tbody>
+<tr><td>link</td><td>✓ all online; over 20 s no losses (№16 — one packet of 20); the earlier 6–9 % losses came from switching everything on</td></tr>
+<tr><td>rim accelerometer №6 (wheel 1)</td><td>✓ 200 Hz, 0 errors, |a| 995–1001 mg, gyroscope still; noise 0.45–0.59 mg, the second time 2.4–4.3 mg — the wheel was touched</td></tr>
+<tr><td>rim accelerometer №14 (wheel 2)</td><td>✓ 200 Hz, 0 errors, |a| 994–996 mg, noise 0.55–1.2 mg</td></tr>
+<tr><td>magnetometer №20 (wheel 1)</td><td>✓ noise up to 1.7 µT; background 84, then 67 µT (usually 25–65) — iron nearby, not the sensor</td></tr>
+<tr><td>magnetometer №18 (wheel 2)</td><td>✓ background 25–31 µT, noise up to 1.7 µT</td></tr>
+<tr><td>static №8 (ADXL355)</td><td>✓ 504 Hz, no gaps, noise 0.4–1.2 mg</td></tr>
+<tr><td>phone №9</td><td>✓ accelerometer 481 Hz with no gaps (noise 0.7–1.8 mg), magnetometer ~120 Hz, battery 50 %</td></tr>
+<tr><td>coil batteries</td><td>✓ wheel 1 — 8.11 V (85 %), wheel 2 — 7.94 V (76 %); the coil agent draws 90–94 mA without field</td></tr>
+</tbody></table></div>
+<h2 id="coils">Coils<a class="anc" href="#coils">#</a></h2>
+<p><b>DC field</b> (off → "+" → off → "−", 4 times): ✓ on both wheels current flowed 4 of 4, the field by the wheel magnetometer 1305–1328 µT (wheel 1) and 1327–1342 µT (wheel 2), the sign matched the command, after switching off — background.</p>
+<p><b>Alternating field</b> (both coils in turn):</p>
+<div class="tw"><table><thead><tr><th>kind</th><th>result</th></tr></thead><tbody>
+<tr><td>∿ 1 Hz</td><td>✓ the envelope rises in ~3 s; the agent's phase converges to the server clock within ±2 thousandths of a period; the magnetometer sees a |B| spread of 1285–1355 µT</td></tr>
+<tr><td>∿ 5 Hz</td><td>✓ the frequency changes on the fly; phase ±2–26 thousandths (up to 9°) — at 5 Hz the network delay is noticeable</td></tr>
+<tr><td>⊓ soft square 1 Hz</td><td>✓ the change of shape goes through zero; current up to 0.89–0.98 A</td></tr>
+<tr><td>off</td><td>✓ the coil current falls to the agent's own current (~92 mA)</td></tr>
+</tbody></table></div>
+<h2 id="counting-and-own-scattering">Counting and own scattering<a class="anc" href="#counting-and-own-scattering">#</a></h2>
+<ul><li><b>"Each on its own", 30 s, all 14 generators</b> (both wheels and the placebo): ✓ 23–25 primes per second per board, 0 errors, all accepted the setting; heating over 30 s — 41–46 °C, the placebo boards without heatsinks — 58–61 °C.</li><li>**Own scattering <code>ss</code>** (№3 scatters itself, №5 next to it without, 40 s): ✓ 989 primes → 990 frames, 0 skipped, no waiting for noise, delay 0.61 ms; №5 heard 98 % of the frames; №3's speed did not drop (~25 primes/s, as №5).</li></ul>
+<h2 id="motors-and-rotation">Motors and rotation<a class="anc" href="#motors-and-rotation">#</a></h2>
+<ul><li>PWM 30 %, each wheel back and forth for 6 s: wheel 1 — 22–25 rpm, wheel 2 — 25–27 rpm; the rim |a| 0.87–1.12 g — as it should be at such speed (k ≈ 0.1).</li><li>Top mark: ✓ comes from №6, period 2601 ms = 23.1 rpm.</li><li><b>Found and fixed:</b> the bridge swap (<code>swap</code>, "wheel 1 on bridge b", set on 30.10) had become wrong — "wheel 1" turned the wheel that carries №14 and №18. In the "by rpm" and "weightlessness" modes the server would spin one wheel while watching the rpm of the other (standing) one and raise PWM to the limiter. The swap is removed; checked: bridge a → wheel 1 (№6 up to 24.9 rpm), bridge b → wheel 2 (№14 up to 26.1 rpm), the other wheel stands.</li><li>Wheel 2 in the first pass hardly went forward (1.6 rpm in the last second). A repeat check — 6 starts of 6 clean: it moves off after 1.4–1.6 s forward and 1.8–2.0 s backward (with the motor ramp), runs at 25–27 rpm. Backward it moves off 0.3–0.4 s later — check for play.</li></ul>
+<h2 id="hiccups">Hiccups<a class="anc" href="#hiccups">#</a></h2>
+<ul><li>Right after flashing, the placebo wheel did not get two commands in a row (they are not in the agent's counter, no refusal); the third one arrived, after that everything worked. Outside a program the server does not repeat a lost setting — it hangs as "pending".</li></ul>
+<h2 id="not-checked">Not checked<a class="anc" href="#not-checked">#</a></h2>
+<ul><li>Both coils together — in phase and in antiphase (wheel 1 had been switched off by then).</li><li>The field "⟳ with rotation" on a coil — needs the wheel spun up, the next step.</li><li>Own scattering in a group (cascade, relay), the static sensor as a participant (not made yet).</li></ul>
+<p>At the end everything was stopped: motors standing, coils off, agents in "Stop".</p>
+  </main>
+</div>
+<footer>This page is built from docs/en/check_2026-11-03.md by tools/build_docs.py — edit the markdown. English translation; the Russian original is the source of truth. Links to the installation and the live diagram work when the documentation is opened from the server (http://&lt;server&gt;:8090/docs/en/).</footer>
+</body>
+</html>

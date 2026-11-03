@@ -35,6 +35,10 @@ TEST_S = 10         # проверка режима перед исполнен�
 # и «температура отличается от контроля» сказала бы только это. Сравнивать показатели нужно с
 # поправкой на них (пока — глазами: они лежат рядом в записи шага).
 COVARIATES = ("temp", "work", "rssi")
+# Опорная поправка: колесо-пустышка работает тем же режимом в то же время, поэтому отношение «колёса на агента /
+# пустышка на агента» сравнивается с тем же отношением в контроле — без дрейфа, общего у колёс и опоры.
+REF = "все/опора"
+DUMMY_TMAX = 75         # потолок температуры плат колеса-пустышки, °C: радиаторов у них нет, частота та же, что у колёс
 
 
 def metric_keys(m):
@@ -124,7 +128,8 @@ def gen_metrics(snap, dur, snap0=None, dummy=()):
     """Показатели генерации за шаг по каждому агенту и всем вместе. Счётчики агентов идут с момента
     применения настройки, а меряется шаг с t0 (после установления) — поэтому берётся разность со
     снимком на t0 (snap0), если он есть. Температура и доля работы — ковариаты (COVARIATES).
-    dummy — агенты пустышки (неподвижная группа без мотора и поля): в «все» не входят, их сумма — «колесо-пустышка»."""
+    dummy — агенты пустышки (неподвижная группа без мотора и поля): в «все» не входят, их сумма — «колесо-пустышка».
+    Есть и колёса, и пустышка — ещё опорная поправка REF: колёса на агента к пустышке на агента в том же шаге."""
     out, tot, dt = {}, {"pr_s": 0.0, "cand_s": 0.0}, {"pr_s": 0.0, "cand_s": 0.0}
     dur = max(dur, 1e-6)
     for mac, a in (snap or {}).items():
@@ -147,7 +152,7 @@ def gen_metrics(snap, dur, snap0=None, dummy=()):
         if cand > 0:
             m["cand_s"] = cand / dur
             m["mr_us"] = d(g, g0, "mrus") / cand
-        if g.get("role") == 1:
+        if g.get("role") == 1 or g.get("ss"):          # поглотитель или генератор, рассеивающий своё
             m["stx_s"] = d(g, g0, "stx") / dur
         if a.get("temp") is not None:
             m["temp"] = a["temp"]
@@ -158,9 +163,15 @@ def gen_metrics(snap, dur, snap0=None, dummy=()):
         t["n"] = t.get("n", 0) + 1
         t["pr_s"] += m["pr_s"]
         t["cand_s"] += m.get("cand_s", 0.0)
-    for key, t in (("все", tot), ("колесо-пустышка", dt)):
-        if t.pop("n", 0):
-            out[key] = t
+    n, nd = tot.pop("n", 0), dt.pop("n", 0)
+    if n:
+        out["все"] = tot
+    if nd:
+        out["колесо-пустышка"] = dt
+    if n and nd:            # общий дрейф (эфир, температура комнаты, время суток) у колёс и опоры сокращается
+        ref = {k: (tot[k] / n) / (dt[k] / nd) for k in ("pr_s", "cand_s") if tot[k] > 0 and dt[k] > 0}
+        if ref:
+            out[REF] = ref
     return out
 
 
@@ -360,7 +371,11 @@ def validate(prog):
            "axes": _axes(prog.get("axes")),
            # колесо-пустышка: агенты неподвижной группы без мотора и поля — их генерация сравнивается с контролем отдельно
            # от колёс (ложная тревога детектора), в «все» не входит
-           "dummy": sorted({str(m).lower() for m in (prog.get("dummy") or []) if m})}
+           "dummy": sorted({str(m).lower() for m in (prog.get("dummy") or []) if m}),
+           # потолок температуры плат колеса-пустышки в каждом шаге (свои у агентов поверх tmax шага); 0 — как у всех
+           "dummy_tmax": int(prog.get("dummy_tmax", DUMMY_TMAX) or 0)}
+    if out["dummy_tmax"] and not 40 <= out["dummy_tmax"] <= 75:
+        raise ValueError("потолок колеса-пустышки: dummy_tmax от 40 до 75 °C (0 — как у всех)")
     if 0 < out["baseline_min"] < 1:
         raise ValueError("эталон — не меньше 1 минуты (или 0 — взять уже записанный)")
     if out["rest"] == "below" and not (out["rest_below"] and 20 <= out["rest_below"] <= 80):
@@ -823,7 +838,9 @@ class Runner:
         t_apply = time.time()
         self._phase("start")
         fixed = self.h["static_macs"]()
-        dummy = set(((self.active or {}).get("program") or {}).get("dummy") or ())
+        prog = (self.active or {}).get("program") or {}
+        dummy = set(prog.get("dummy") or ())
+        hot = {m: prog["dummy_tmax"] for m in dummy} if prog.get("dummy_tmax") else {}   # платы без радиаторов
         # колесо-пустышка — только в группе из одних его агентов; в группе колеса (мост, подслушивание) или в одной
         # настройке на всех агент — участник опыта, и его отклонение может быть настоящим
         dummy = {m for g in (st.get("groups") or []) if set(g["targets"]) <= dummy for m in g["targets"]}
@@ -850,6 +867,11 @@ class Runner:
             own = st["own"] if st["own"] is not None else base["own"]
             plan.append((list(macs), {**base["cfg"], **st["cfg"], "run": 1, **dur}, own, None))
             idle = []
+        if ((st.get("coil") or {}).get("ac") or {}).get("sync"):   # поле с вращением: метка верха — и при молчании
+            plan = [(tg, {**cfg, "rt": 1}, own, label) for tg, cfg, own, label in plan]
+        if hot:                                                # потолок плат колеса-пустышки — в любой группе шага
+            plan = [(tg, cfg, {**(own or {}), **{m: {**((own or {}).get(m) or {}), "tmax": hot[m]} for m in tg if m in hot}},
+                     label) for tg, cfg, own, label in plan]
         applied = []
         if self.h.get("coil"):                                 # поле катушек шага: «+», «−», «выкл» (агенты катушек)
             self.h["coil"](st.get("coil") or {}, f"шаг «{st['name']}»")
@@ -859,7 +881,8 @@ class Runner:
             cid = self.h["apply"](tg, cfg, own, True)          # новый номер: счётчики — с нуля
             applied.append({"targets": tg, "cid": cid, "cfg": cfg, "own": own, "label": label})
         if idle:                                               # не заняты на этом шаге — стоят и остывают
-            self.h["apply"](idle, {**base["cfg"], "run": 0, "cpu": 80, "led": 0}, base["own"], False)
+            self.h["apply"](idle, {**base["cfg"], "run": 0, "cpu": 80, "led": 0,
+                                   **({"rt": 1} if ((st.get("coil") or {}).get("ac") or {}).get("sync") else {})}, base["own"], False)
         head = {"step": item["step"], "name": st["name"], "control": st["control"], "control_for": st.get("control_for"),
                 "confirm": bool(item.get("confirm")), "repeat": item.get("repeat"), "redo": item.get("redo", 0), "quiet": st["quiet"],
                 "again": item.get("again", 0), "again_why": item.get("why"),
@@ -886,7 +909,7 @@ class Runner:
             gm = gen_metrics(self.h["snapshot"](macs), time.time() - ta, s0, dummy)
             nm = self.h.get("name") or (lambda m: m)              # поглотители не считают — в «не считают» их не писать
             absn = {nm(m) for a in applied for m in a["targets"] if ((a["own"] or {}).get(m) or {}).get("role") == 1}
-            idle = sorted(k for k, v in gm.items() if k not in ("все", "колесо-пустышка") and k not in absn
+            idle = sorted(k for k, v in gm.items() if k not in ("все", "колесо-пустышка", REF) and k not in absn
                           and not (v.get("pr_s") or v.get("cand_s") or v.get("cycles_s")))
             test = {"s": round(time.time() - ta, 1), "pr_s": round((gm.get("все") or {}).get("pr_s") or 0, 2), "idle": idle,
                     "ok": bool((gm.get("все") or {}).get("pr_s") or (gm.get("все") or {}).get("cand_s"))}

@@ -95,6 +95,9 @@ struct GenConfig {
   uint8_t  cf   = 0;        // CSI: 0 — с любых кадров, 1 — только с ответов роутера, 2 — только с кадров сета B
   uint8_t  sh   = 0;        // пустышка: сет B выпускает тот же трафик, но вместо числа — только шум
   uint8_t  bgr  = 0;        // фон сета B: кадров своего шума в секунду, независимо от простых (0 — нет)
+  uint8_t  rt   = 0;        // агент обода: метку верха колеса слать и при молчании (поле катушек с вращением)
+  uint8_t  ss   = 0;        // генератор сам рассеивает свои простые: каждое ss-е (1..16) смешивает со своим
+                            // шумом функцией sf и выпускает в эфир с ядра связи; sh — пустышка; 0 — нет
   uint64_t ba   = 0;        // сет B: чьи простые поглощать — бит k = агент №k (0 — всех); «ba=3,5» в CFG
   uint8_t  nbg  = 0;        // агентов в сете B (сервер подставляет сам)
   uint8_t  bg[MAX_GROUP] = {};        // их номера по порядку
@@ -139,7 +142,7 @@ inline bool keep_stats(const GenConfig& n, const GenConfig& old) {
 
 // Разбор строки "CFG cid=12 src=3 bits=256 nb=8 all=0 td=1000 tmax=70 mode=1 gv=0 rk=1 pw=0 grp=1,2
 //                gm=68ee8f51a018,68ee8f51ae20 nr=1 k=24 pre=1 cpu=240 txp=20 ping=100 led=1 tp=1000
-//                role=0 sm=1 sf=0 cf=0 sh=0 bgr=0 bg=3 bm=68ee8f51a03c ba=1,2 afs=2 avg=2 pl=0 dur=0 ro=0".
+//                role=0 sm=1 sf=0 cf=0 sh=0 bgr=0 ss=0 bg=3 bm=68ee8f51a03c ba=1,2 afs=2 avg=2 pl=0 dur=0 ro=0".
 // Незаданные поля берутся из cur. При ошибке — false и причина в err.
 bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* err, size_t errlen);
 
