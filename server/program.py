@@ -140,20 +140,25 @@ def gen_metrics(snap, dur, snap0=None, dummy=()):
         g0, gs0 = a0.get("gen") or {}, a0.get("gstat") or {}
         gs = a.get("gstat") or {}
         d = lambda x, x0, k: (x.get(k) or 0) - (x0.get(k) or 0) if (x0.get("cid") or x.get("cid")) == x.get("cid") else (x.get(k) or 0)
+        # длительность — по часам агента: разность его «age» (с применения настройки) в тех же пакетах, что и счётчики.
+        # Часы сервера (dur) с ними расходятся: снимок до молчания и первый пакет после него отстоят от t0 и t1 на
+        # секунду-две, на коротком шаге это ±10 %. Нет age (старая прошивка) или он несуразный — часы сервера
+        da = d(g, g0, "age") if isinstance(g.get("age"), (int, float)) else None
+        du = da if da and 0.3 * dur <= da <= 3 * dur else dur
         m = {}
         pr = d(g, g0, "pr")
         if g.get("mode") == 1 and not g.get("role") and not g.get("gv"):   # все на одном числе: простые и циклы — у мастера
             pr = d(gs, gs0, "primes_m")
-            m["cycles_s"] = d(gs, gs0, "cycles_m") / dur
+            m["cycles_s"] = d(gs, gs0, "cycles_m") / du
         elif g.get("mode") == 1 and not g.get("role"):
-            m["cycles_s"] = d(gs, gs0, "cycles_m") / dur
-        m["pr_s"] = pr / dur
+            m["cycles_s"] = d(gs, gs0, "cycles_m") / du
+        m["pr_s"] = pr / du
         cand = d(g, g0, "cand")
         if cand > 0:
-            m["cand_s"] = cand / dur
+            m["cand_s"] = cand / du
             m["mr_us"] = d(g, g0, "mrus") / cand
         if g.get("role") == 1 or g.get("ss"):          # поглотитель или генератор, рассеивающий своё
-            m["stx_s"] = d(g, g0, "stx") / dur
+            m["stx_s"] = d(g, g0, "stx") / du
         if a.get("temp") is not None:
             m["temp"] = a["temp"]
         if a.get("work") is not None:
@@ -373,7 +378,10 @@ def validate(prog):
            # от колёс (ложная тревога детектора), в «все» не входит
            "dummy": sorted({str(m).lower() for m in (prog.get("dummy") or []) if m}),
            # потолок температуры плат колеса-пустышки в каждом шаге (свои у агентов поверх tmax шага); 0 — как у всех
-           "dummy_tmax": int(prog.get("dummy_tmax", DUMMY_TMAX) or 0)}
+           "dummy_tmax": int(prog.get("dummy_tmax", DUMMY_TMAX) or 0),
+           # вывод статики «повторить» (толчок, сдвиг, сбой прибора) портит шаг; false — статика меряется и пишется,
+           # но шаг в сравнение идёт (поиск отклонений генерации, когда рядом ходят люди)
+           "static_spoil": bool(prog.get("static_spoil", True))}
     if out["dummy_tmax"] and not 40 <= out["dummy_tmax"] <= 75:
         raise ValueError("потолок колеса-пустышки: dummy_tmax от 40 до 75 °C (0 — как у всех)")
     if 0 < out["baseline_min"] < 1:
@@ -726,7 +734,7 @@ class Runner:
                 # не подтвердил настройку (считал не то) — в сравнение не идёт, повторяется сразу
                 why = ("прерван: стоп посреди опыта" if run.get("cut")
                        else "замолчали посреди опыта (питание?)" if run.get("silent")
-                       else "статические: повторить" if (run.get("watch") or {}).get("verdict") == "repeat"
+                       else "статические: повторить" if (run.get("watch") or {}).get("verdict") == "repeat" and prog["static_spoil"]
                        else "не подтвердили настройку" if run.get("not_confirmed")
                        else "не сдали итоги" if run.get("not_done")
                        else "не вышли из молчания" if run.get("not_seen") else None)

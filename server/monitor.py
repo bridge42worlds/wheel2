@@ -461,6 +461,7 @@ def ingest(t, ip, text, live=False):
             g = {k: p.get(k) for k in GEN_KEYS}
             g["rate"] = {k: round(v, 3) for k, v in der.items()} or (a["gen"] or {}).get("rate", {})
             a["gen"] = g
+            a["tel_t"] = t                            # когда пришли счётчики (tel): итоги шага ждут именно их, не любой пакет
             a["kind"] = "B" if p.get("role") == 1 else "A"
             a.pop("stel", None)                       # был статическим — теперь генератор
             a.pop("mtel", None)
@@ -862,6 +863,9 @@ def plog_brief(a, now):
             "fail_list": pl["fail_list"]}
 
 
+MOTOR_GEAR = 68.8          # вал мотора к колесу: частота линии вала / частота оборотов колеса (замер 03.11.2026)
+
+
 def known_lines():
     """Известные источники линий в спектре статических: частота, название, сколько гармоник."""
     out = [{"f": 50.0, "name": "сеть 50 Гц", "harm": 20},
@@ -883,7 +887,16 @@ def known_lines():
                 rpms.append(abs(a["imu"]["w"]) / (2 * math.pi))
     out += [{"f": float(p), "name": f"пинг CSI агентов ({p}/с)", "harm": 5} for p in sorted(pings)]
     out += [{"f": 1000.0 / tp, "name": f"телеметрия раз в {tp} мс", "harm": 5} for tp in sorted(tps)]
+    # обод молчит (молчание на опыте) — обороты по моторам: колесо, которое мотор крутит, — по его цели или замеру
+    if not rpms:
+        for w in (motors.brief().get("wheels") or {}).values():
+            r = w.get("meas") or w.get("target") if w.get("eff") not in (None, "off") else None
+            if r and abs(r) > 3:
+                rpms.append(abs(r) / 60.0)
     out += [{"f": f, "name": "обороты колеса", "harm": 10} for f in rpms[:2]]
+    # вал мотора: 36GP-555 через редуктор — линия вала ≈ MOTOR_GEAR × обороты колеса (замер 03.11.2026: 81,7–85,6 Гц
+    # у №8 при 71–75 об/мин, 68,8 ×), со своими гармониками; щётки дают и широкий шум — его так не спрятать
+    out += [{"f": f * MOTOR_GEAR, "name": "вал мотора", "harm": 3} for f in rpms[:2]]
     # переменное поле катушек: линия на частоте поля и гармоники (сила на провода ~ ток² — вдвое чаще)
     acs = {round(s["ac"]["f"], 2) for s in coils.brief()["wheels"].values() if s.get("ac") and s.get("state") != "off"}
     out += [{"f": float(f), "name": f"переменное поле катушек ({f:g} Гц)", "harm": 6} for f in sorted(acs)]
@@ -1994,14 +2007,14 @@ batteries = Batteries(lambda: os.path.join(DATA, "battery.json"), log=lambda tex
 rimcal = RimCal(lambda: os.path.join(DATA, "rim_cal.json"), log=lambda text: print(text, flush=True))
 
 
-rig = {"gap_cm": None, "t": None, "hist": [], "radius": {}, "swap": False}   # установка руками: расстояние между колёсами, см, радиусы агентов, мм, колесо 1 на мосту b; история
+rig = {"gap_cm": None, "t": None, "hist": [], "radius": {}, "swap": False, "mirror": False}   # установка руками: расстояние между колёсами, см, радиусы агентов, мм, колесо 1 на мосту b; история
 
 
 def rig_load():
     try:
         d = json.load(open(RIG_FILE, encoding="utf-8"))
         rig.update(gap_cm=d.get("gap_cm"), t=d.get("t"), hist=d.get("hist") or [], radius=d.get("radius") or {},
-                   swap=bool(d.get("swap")))
+                   swap=bool(d.get("swap")), mirror=bool(d.get("mirror")))
     except (OSError, ValueError):
         pass
 
@@ -2057,6 +2070,18 @@ def rig_swap_set(swap):
     print(f"[rig] колесо 1 на мосту {'b' if swap else 'a'}", flush=True)
 
 
+def rig_mirror_set(mirror):
+    """Колёса друг напротив друга, моторы зеркально: «навстречу» и «вместе» — глазами наблюдателя (motors.py)."""
+    with lock:
+        was = bool(rig.get("mirror"))
+        rig["mirror"] = bool(mirror)
+        rig["hist"] = (rig["hist"] + [{"t": round(time.time(), 1), "mirror": rig["mirror"], "was": was}])[-500:]
+        body = json.dumps(rig, ensure_ascii=False)
+    with open(RIG_FILE, "w", encoding="utf-8") as f:
+        f.write(body)
+    print(f"[rig] колёса {'друг напротив друга (зеркально)' if mirror else 'моторы как есть'}", flush=True)
+
+
 def run_extras(t0, t1):
     """К записи опыта: аккумуляторы контуров в конце (напряжение, ток, заряд), средние обороты колёс по датчику обода
     за опыт и поле катушек по магнитометру колеса (показания минус фон, со знаком) в конце опыта."""
@@ -2091,7 +2116,8 @@ def run_extras(t0, t1):
 
 
 def rig_brief():
-    return {"gap_cm": rig["gap_cm"], "t": rig["t"], "radius": dict(rig.get("radius") or {}), "swap": bool(rig.get("swap"))}
+    return {"gap_cm": rig["gap_cm"], "t": rig["t"], "radius": dict(rig.get("radius") or {}), "swap": bool(rig.get("swap")),
+            "mirror": bool(rig.get("mirror"))}
 
 
 def battery_label(key, addr=None, wire=None):
@@ -2617,7 +2643,7 @@ def rimcal_state():
 
 
 motors = Motors(motor_agents, lambda line, ip: send_line(line, ip), wheel_rpm, radius_fn=wheel_radius,
-                rmm_fn=lambda: (control.get("common") or DEFAULT_CFG).get("rmm", 450), swap_fn=lambda: rig.get("swap"),
+                rmm_fn=lambda: (control.get("common") or DEFAULT_CFG).get("rmm", 450), swap_fn=lambda: rig.get("swap"), mirror_fn=lambda: rig.get("mirror"),
                 log=lambda text: print(text, flush=True))
 
 
@@ -3386,7 +3412,9 @@ class Handler(BaseHTTPRequestHandler):
                     rig_radius_set(body["radius"])
                 if "swap" in body:
                     rig_swap_set(body["swap"])
-                if "gap_cm" in body or not ({"radius", "swap"} & set(body)):
+                if "mirror" in body:
+                    rig_mirror_set(body["mirror"])
+                if "gap_cm" in body or not ({"radius", "swap", "mirror"} & set(body)):
                     rig_set(body.get("gap_cm"))
                 return self.send_json({"ok": True, **rig_brief()})
             if u.path == "/api/rimcal":                 # {wheel, tach} — точка; {wheel, del: i}; {wheel, clear}; {wheel, tach_on, fit_on}
@@ -3529,7 +3557,9 @@ def _prog_seen(macs, t, timeout):
     t_end, last_send = time.time() + timeout, 0.0
     while True:
         with lock:
-            bad = [m for m in gens if not (agents[m]["last"] and agents[m]["last"] > t)]
+            # живой пакет — телеметрия со счётчиками: после молчания агент с журналом простых сперва выгружает сотни
+            # prm, и по первому из них итоги снимались бы со старой телеметрии (до молчания) — счёт шага выходил ~0
+            bad = [m for m in gens if not (agents[m].get("tel_t") and agents[m]["tel_t"] > t)]
             sends = ([(cfg_line(control["desired"][m]), agents[m]["ip"]) for m in bad
                       if m in control["desired"] and agents[m]["ip"]] if time.time() - last_send >= RESEND_S else [])
         if not bad or time.time() > t_end:

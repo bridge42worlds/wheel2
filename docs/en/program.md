@@ -85,7 +85,10 @@ The coefficients are `THERM` and `POWER` in `server/static/plan.html`.
 ## How a run goes
 
 Every run has a **new settings number**, so the agents' counters count exactly that run; the totals are the difference
-of the counters over the measurement window, settling does not enter the rate. The basis of the runs is the agents'
+of the counters over the measurement window, settling does not enter the rate. The rate is divided by the time **by
+the agent's own clock** (the difference of its `age` in the same packets as the counters): the snapshot before silence and
+the first packet after it are a second or two off the window's start and end, and on a short run the server clock would
+give ±10 %. The basis of the runs is the agents'
 common and own parameters at the moment of the start; after the program the agents go back to them but stand
 (run = 0), the coil field is switched off, and the wheels, if the program was turning them, stop.
 
@@ -279,6 +282,7 @@ An experiment from the main screen is a special case; a program can also be hand
 | `targets`, `axes` | `"all"`, — | who takes part (`"all"` or a list of MACs); a dictionary of the experiment's parameters for the report |
 | `dummy` | — | the placebo wheel agents (MACs, from `targets`): their findings are false alarms (`placebo`), not part of `gen:все`; the wheels relative to them — `gen:все/опора` |
 | `dummy_tmax` | 75 | temperature ceiling of the placebo wheel boards in every run, °C (40–75; 0 — same as everyone) |
+| `static_spoil` | true | the static verdict "repeat" spoils a run; false — the static sensors measure and are recorded, but the run goes into the comparison (searching for generation deviations while people walk around) |
 
 | step field | what |
 |---|---|

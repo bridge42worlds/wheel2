@@ -25,6 +25,9 @@
 Смена направления каждые flip минут (0 — не менять); сам переход агент
 делает через остановку и паузу 1 с. Состояние — только в памяти: после перезапуска сервера колёса стоят.
 
+Колёса стоят друг напротив друга, моторы — зеркально (mirror_fn): одинаковое направление моторов — для наблюдателя
+колёса крутятся в разные стороны. «Навстречу» и «вместе» — глазами наблюдателя: при зеркале «навстречу» — моторы
+в одну сторону, «вместе» — в разные.
 Мосты агента: колесо 1 — на мосту a (D0/D1), колесо 2 — на мосту b (D2/D3). Подключено наоборот — swap_fn
 («колесо 1 на мосту b» в настройках установки): меняются местами только выходы в команде MOT, всё остальное
 (обороты с обода, программы, панель) — по номерам колёс.
@@ -48,13 +51,14 @@ def zero_g_rpm(r_mm):
 
 
 class Motors:
-    def __init__(self, agents_fn, send_fn, rpm_fn, radius_fn=None, rmm_fn=None, swap_fn=None, log=print):
+    def __init__(self, agents_fn, send_fn, rpm_fn, radius_fn=None, rmm_fn=None, swap_fn=None, mirror_fn=None, log=print):
         self.agents_fn = agents_fn            # () -> [(mac, ip, alive)] агентов роли M
         self.send_fn = send_fn                # (line, ip)
         self.rpm_fn = rpm_fn                  # (колесо "1"/"2") -> обороты с обода или None
         self.radius_fn = radius_fn or (lambda w: (None, None))   # (колесо) -> (радиус мм, k последнего оборота[, откуда радиус])
         self.rmm_fn = rmm_fn or (lambda: 450.0)                  # радиус из настроек, мм
         self.swap_fn = swap_fn or (lambda: False)                # True — колесо 1 на мосту b, колесо 2 на мосту a
+        self.mirror_fn = mirror_fn or (lambda: False)            # True — колёса друг напротив друга, моторы зеркально
         self.log = log
         self.lock = threading.Lock()
         self.ramp = 500                       # ‰ в секунду
@@ -138,7 +142,8 @@ class Motors:
             return s["mode"], s["dir"], s["pwm"], s["rpm"], s["zg"]
         if (self.pair == "only1" and w == "b") or (self.pair == "only2" and w == "a"):
             return "off", 1, 0, 0.0, 0.0
-        d = -L["dir"] if self.pair == "opposite" and w == "b" else L["dir"]
+        # «навстречу» — глазами наблюдателя: колёса друг напротив друга (зеркало) — моторы в одну сторону
+        d = -L["dir"] if w == "b" and (self.pair == "opposite") != bool(self.mirror_fn()) else L["dir"]
         return L["mode"], d, L["pwm"], L["rpm"], L["zg"]
 
     # ---------- раз в секунду ----------
@@ -227,7 +232,7 @@ class Motors:
             out[w] = {**{k: v for k, v in s.items() if k != "t_flip"}, "wheel": WHEELS[w],
                       "flip_left": round(max(0.0, lead["flip"] * 60 - (now - lead["t_flip"])), 0) if lead["flip"] else None}
         return {"ramp": self.ramp, "wd": self.wd, "pair": self.pair, "rpm_full": RPM_FULL, "sent": self.sent,
-                "swap": bool(self.swap_fn()),
+                "swap": bool(self.swap_fn()), "mirror": bool(self.mirror_fn()),
                 "zerog_set": round(zero_g_rpm(float(self.rmm_fn() or 450.0)), 2), "wheels": out}
 
     def brief(self):
