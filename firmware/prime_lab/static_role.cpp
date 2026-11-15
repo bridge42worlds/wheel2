@@ -26,6 +26,7 @@ static portMUX_TYPE s_mux = portMUX_INITIALIZER_UNLOCKED;
 static uint32_t     s_head = 0;               // отсчётов (после усреднения) всего
 static uint32_t     s_mark_i = 0, s_mark_ms = 0;   // номер отсчёта и время последнего чтения FIFO
 static uint32_t     s_cut = 0;                // отсчёты до этого номера — в прежнем режиме: не слать
+static volatile bool s_pause = false;        // опыт без наблюдения: датчик не читать
 // пишет только ядро 1:
 static volatile uint32_t s_raw = 0, s_bad = 0, s_rderr = 0;
 static volatile float    s_temp = 0, s_hz = 0;
@@ -86,6 +87,7 @@ static void task(void*) {
   uint32_t raw0 = 0;
   for (;;) {
     vTaskDelay(pdMS_TO_TICKS(READ_MS));
+    if (s_pause) continue;                   // без наблюдения: ни чтения, ни счёта
     if (s_reconf) {                          // новый предел или усреднение
       s_reconf = false;
       s_ok = imu_setup(s_new_afs, s_new_avg);
@@ -184,6 +186,18 @@ void set(uint8_t afs, uint8_t avg) {
 }
 
 bool present() { return s_ok; }
+
+void pause(bool on) {
+  if (on == s_pause) return;
+  if (!on) {                                 // снова мерить: заново настроить (FIFO чистый, частота заново)
+    s_new_afs = s_afs;
+    s_new_avg = s_avg;
+    s_reconf = true;
+  }
+  s_pause = on;
+}
+
+bool paused() { return s_pause; }
 
 uint32_t pending() {
   portENTER_CRITICAL(&s_mux);

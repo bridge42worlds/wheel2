@@ -214,6 +214,9 @@ void add_tel(Out& o) {
   add(o, ",\"mot\":{\"ok\":%d,\"a\":[%d,%d,%u],\"b\":[%d,%d,%u],\"r\":%d,\"wd\":%lu,\"age\":%.1f,\"wdf\":%d,\"n\":%lu,\"hz\":%lu",
       s_ok ? 1 : 0, m[0].target, (int)lroundf(m[0].cur), m[0].state, m[1].target, (int)lroundf(m[1].cur), m[1].state, ramp,
       (unsigned long)(wd / 1000), age / 1000.0f, fired ? 1 : 0, (unsigned long)cmds, (unsigned long)FREQ);
+  // что на самом деле выдаёт ШИМ-контроллер на четырёх ножках (06.11: мост «вёл», а колесо стояло — зависание искать здесь)
+  add(o, ",\"rd\":[%lu,%lu,%lu,%lu]", (unsigned long)ledcRead(PIN[0][0]), (unsigned long)ledcRead(PIN[0][1]),
+      (unsigned long)ledcRead(PIN[1][0]), (unsigned long)ledcRead(PIN[1][1]));
   // переменное: [частота мГц, форма 0 синус / 1 меандр, фронт мс, фаза в тысячных, ошибка фазы против сервера в тысячных]
   for (int k = 0; k < 2; ++k) {
     const float err = m[k].f && m[k].q >= 0 ? wrap_half((float)(m[k].q + m[k].f / 1e3 * ((millis() - m[k].q_ms) / 1e3) - m[k].ph)) : 0;

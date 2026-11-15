@@ -84,6 +84,7 @@ Details — [group_protocol.md](group_protocol.md).
 | ↯ | router ping CSI — the same from the router's ping replies | slow, use with care |
 | ⏚ | ADC D0 — the floating input D0 | slow |
 | ⧖ | RC jitter — the internal oscillator against the crystal | slow |
+| ⚂ | the RNG register directly — the register word without folding | ~10 million words/s |
 | ↺ | reverse noise — frames of the other wheel's absorbers, a loop through the air | only when the other wheel absorbs |
 | ↕ 🧲 | rim accelerometer, magnetometer (agents with a sensor) | very slow |
 
@@ -98,7 +99,10 @@ main ones (RNG, CSI, ADC, RC). Those ticked together make one mixture. **How to 
 | all three | the mixture, without each, each alone | 9 | 13 |
 
 Without hashing (`raw`) the physics of the source is visible (the ADC gives 54–59 % ones), with von Neumann the bias is
-removed. How noises are taken, credited and mixed — [randomness.md](randomness.md).
+removed. Two more methods: the XOR of every `xf` bits (`raw` 3) and a Toeplitz extractor with a public seed (`raw` 4).
+**The computation check** (`det`) — the numbers are not from noise but consecutive: which of them are prime, the
+server knows in advance. How noises are taken, credited and mixed and what to expect of them without any anomaly —
+[randomness.md](randomness.md).
 
 ## Coil field
 

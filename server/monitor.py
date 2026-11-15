@@ -28,6 +28,7 @@
     --no-beacon    без маяка — настоящие агенты такой сервер не найдут
 """
 import argparse, hashlib, hmac, io, math, csv, json, os, queue, random, re, shutil, socket, subprocess, sys, threading, time
+from array import array
 from collections import deque
 from datetime import datetime
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -42,6 +43,7 @@ from battery import Batteries
 from rimcal import RimCal
 from analysis import G as G_STD, gyro_eps, rim_fit
 from primecheck import BASES, is_probable_prime, Pool as PrimePool
+import nullmodel
 try:
     from static_watch import Watch
 except ImportError as e:                       # нет numpy — всё работает, кроме статических
@@ -99,6 +101,9 @@ SOURCES = [
      "note": "esp_random(): аппаратный генератор; при включённом Wi-Fi в него подмешивается и шум приёмника; ~44 800 слов/с"},
     {"bit": 8, "key": "jit", "group": "int", "name": "Дрожание RC-генератора",
      "note": "такты кварца за 8 периодов внутреннего RC 136 кГц; 1/4 бита на отсчёт"},
+    {"bit": 128, "key": "rrg", "group": "int", "name": "Регистр ГСЧ напрямую",
+     "note": "одно чтение регистра генератора, без складывания: esp_random() складывает (XOR) все чтения за 1778 тактов "
+             "шины; ~10 млн слов/с, соседние слова связаны; 1 бит на 4 слова. Без хеша (raw 1) один — слова как есть"},
     {"bit": 2, "key": "csi", "group": "ext", "name": "CSI Wi-Fi",
      "note": "замеры радиоканала по ответам роутера на пинг 100 Гц; ~97 пакетов/с, 32 бита на пакет"},
     {"bit": 4, "key": "adc", "group": "ext", "name": "Шум АЦП (D0)",
@@ -112,7 +117,7 @@ SOURCES = [
     {"bit": 64, "key": "mag", "group": "ext", "name": "Магнитометр",
      "note": "MLX90393: младшие байты осей поля, 20 замеров/с, 2 бита на байт; с другими шумами — подмешивается"},
 ]
-SRC_INDEX = {"rng": 0, "csi": 1, "adc": 2, "jit": 3, "bc": 4, "acc": 5, "mag": 6}     # порядок в массиве "e" телеметрии
+SRC_INDEX = {"rng": 0, "csi": 1, "adc": 2, "jit": 3, "bc": 4, "acc": 5, "mag": 6, "rrg": 7}     # порядок в массиве "e" телеметрии
 OPTIONS = {"bits": [32, 64, 128, 256, 512, 1024, 2048], "nb_max": len(BASES), "bases": BASES,
            "td": [0, 100, 1000, 10000, 20000], "sources": SOURCES, "source_groups": SOURCE_GROUPS,
            "tmax": [50, 55, 60, 65, 70, 73, 75],
@@ -125,7 +130,15 @@ OPTIONS = {"bits": [32, 64, 128, 256, 512, 1024, 2048], "nb_max": len(BASES), "b
            # как брать шум: хеш размешивает структуру источника, без хеша она остаётся в числах
            "raw": [{"raw": 0, "name": "с хешем SHA-256 — числа равномерны, структура шума размешана"},
                    {"raw": 1, "name": "без хеша — младшие биты сырья прямо в число"},
-                   {"raw": 2, "name": "без хеша, выравнивание фон Неймана — снят перекос 0 и 1"}],
+                   {"raw": 2, "name": "без хеша, выравнивание фон Неймана — снят перекос 0 и 1"},
+                   {"raw": 3, "name": "XOR каждых xf бит сырья — перекос гаснет как e^xf, связь соседних остаётся"},
+                   {"raw": 4, "name": "экстрактор Тёплица: xf·256 бит сырья → 256, матрица из открытого зерна"}],
+           "xf": [2, 3, 4, 8, 16],    # во сколько сжимать сырьё в raw 3 и 4
+           "rw": [1, 2, 3, 4],        # SHA-256 с регистром ГСЧ: слов регистра на бит выхода
+           "sq": [0, 1],              # Миллер — Рабин: квадрат степенью 2 на ускорителе (0) или умножением (1)
+           "tc": [0, 1],              # два проверяльщика: ядро связи тоже проверяет кандидатов (07.11)
+           # проверка счёта: кандидаты подряд от 2^(bits−1), какие простые — известно заранее; det — номер окна
+           "det": [{"det": 0, "name": "нет — числа из шума"}, {"det": 1, "name": "окно 1 (у всех одни числа)"}],
            "pw": [0, 5, 10, 20, 50, 100, 500, 2000],
            # 1 Мбит/с: кадр висит в эфире в 20 раз дольше — плата греется и группа тормозит
            "nr": [{"nr": 1, "name": "24 Мбит/с"}, {"nr": 2, "name": "6 Мбит/с (берёт слабее сигнал)"},
@@ -156,15 +169,15 @@ OPTIONS = {"bits": [32, 64, 128, 256, 512, 1024, 2048], "nb_max": len(BASES), "b
 DEFAULT_CFG = {"src": 1, "bits": 256, "nb": 8, "all": 0, "td": 1000, "tmax": 73, "mode": 0, "nr": 1,
                "k": 24, "pre": 1, "tp": 1000, "cpu": 240, "txp": 20, "ping": 100, "led": 1,
                "role": 0, "sm": 1, "sf": 0, "cf": 0, "sh": 0, "bgr": 0, "ss": 0, "tl": 0, "tq": 0, "rmm": 450, "afs": 2,
-               "avg": 2, "pl": 0, "dc": 0, "gv": 0, "rk": 1, "pw": 0, "raw": 0, "hb": 1, "dur": 0, "ro": 0, "rt": 0,
-               "ba": []}
+               "avg": 2, "pl": 0, "dc": 0, "gv": 0, "rk": 1, "pw": 0, "raw": 0, "hb": 1, "dur": 0, "ro": 0, "rt": 0, "sg": 0,
+               "xf": 4, "rw": 4, "sq": 0, "tc": 1, "sx": 0, "det": 0, "seg": 0, "ba": []}
 # Свои у каждого агента (не задано — как общие).
-OWN_KEYS = ("src", "raw", "tmax", "txp", "cpu", "ping", "led", "role", "sf", "ss", "tl", "rmm", "afs", "avg", "ba")
+OWN_KEYS = ("src", "raw", "xf", "rw", "det", "tmax", "txp", "cpu", "ping", "led", "role", "sf", "ss", "sg", "tl", "rmm", "afs", "avg", "ba")
 # Меняются на ходу: номер настройки прежний, счёт не обнуляется.
-SOFT_KEYS = ("tmax", "txp", "ping", "hb", "led", "tp", "tl", "tq", "rmm", "afs", "avg", "pl", "dur", "ro", "rt")
+SOFT_KEYS = ("tmax", "txp", "ping", "hb", "led", "tp", "tl", "tq", "rmm", "afs", "avg", "pl", "dur", "ro", "rt", "seg")
 # Всё остальное — «работа»: смена даёт новый номер, счёт с нуля (в группе — у всех).
 HARD_KEYS = ("src", "bits", "nb", "all", "td", "mode", "nr", "k", "pre", "cpu", "run", "grp", "gm",
-             "role", "sm", "sf", "cf", "sh", "bgr", "ss", "bg", "bm", "ba", "dc", "gv", "rk", "pw", "raw")
+             "role", "sm", "sf", "cf", "sh", "bgr", "ss", "sg", "bg", "bm", "ba", "dc", "gv", "rk", "pw", "raw", "xf", "rw", "sq", "tc", "det")
 SCAT_KEYS = ("role", "sm", "sf", "cf", "sh", "bgr", "ann", "adrop", "heard", "prx", "stx", "sdrop", "swait",
              "chs", "chf", "chd", "slat", "sn", "sbg", "bclost", "rxdrop")
 
@@ -292,7 +305,7 @@ GEN_KEYS = ("cid", "src", "bits", "nb", "all", "td", "age", "cand", "tdr", "mri"
             "e", "sha", "csi", "rf", "st", "lp", "tmax", "work", "ts", "mode", "grp", "jobs",
             "udpf", "wdisc", "wrsn", "nr", "run", "k", "pre", "cpu", "txp", "txr", "ping", "led", "tp",
             "tl", "tq", "tls", "rmm", "sens", "imu", "mag", "etx", "pl", "pln", "pll", "dc", "dcq", "ss",
-            "gv", "rk", "pw", "raw", "dur", "ro", "roff", "done", "net", "i2c") + SCAT_KEYS
+            "gv", "rk", "pw", "raw", "xf", "rw", "sq", "tc", "sx", "det", "seg", "dur", "ro", "roff", "done", "net", "i2c") + SCAT_KEYS
 
 
 def derive_grp(a, p):
@@ -385,6 +398,14 @@ def ingest(t, ip, text, live=False):
             a["ack"] = {"t": round(t, 3), "cid": p.get("cid"), "ok": p.get("ok"), "err": p.get("err", "")}
             recent.setdefault(mac, deque(maxlen=RECENT_LEN)).append({"rx": round(t, 3), **p})
             return
+        if p.get("type") == "seg":                     # таблица отрезков шага: плата сдаёт её после шага
+            ingest_seg(mac, p)
+            return
+        if p.get("type") == "ent":                     # счётчики источников шума своим пакетом: длинный tel не влез в 1460 байт
+            g0 = a.get("gen")                          # (08.11, опыт №66: плата замолкала для сервера) — к счётчикам того же номера
+            if g0 is not None and g0.get("cid") == p.get("cid") and isinstance(p.get("e"), list):
+                g0["e"] = p["e"]
+            return
         if p.get("type") == "nbr":                     # соседи по пульсу: [номер, сигнал, с давности, кадров, считает, °C]
             a["nbr"] = {"t": round(t, 3), "nb": [x for x in (p.get("nb") or []) if isinstance(x, list) and len(x) >= 4]}
             recent.setdefault(mac, deque(maxlen=RECENT_LEN)).append({"rx": round(t, 3), **p})
@@ -442,6 +463,8 @@ def ingest(t, ip, text, live=False):
             a["ota"] = p["ota"]                       # [состояние, ждёт подтверждения, раздел]
         if isinstance(p.get("rbt"), list):
             a["rbt"] = p["rbt"]                       # [причина сброса чипа, сторож: 1 радио / 2 Wi-Fi, раз]
+        a["ws"] = p["ws"] if isinstance(p.get("ws"), list) else None   # раздача шума колеса (09.11): [колесо, отдано, принято,
+                                                  # пропущено, байт акс., байт магн., не влезло, чужого колеса]
         if ratings:
             ratings.on_tel(t, mac, a["id"], p, live, rebooted)
         static = p.get("role") == 2                   # статический акселерометр: только меряет
@@ -460,6 +483,8 @@ def ingest(t, ip, text, live=False):
                 series.setdefault((mac, k), deque(maxlen=SERIES_LEN)).append((tt, round(v, 4)))
             g = {k: p.get(k) for k in GEN_KEYS}
             g["rate"] = {k: round(v, 3) for k, v in der.items()} or (a["gen"] or {}).get("rate", {})
+            if g.get("e") is None and (a["gen"] or {}).get("cid") == g.get("cid"):
+                g["e"] = (a["gen"] or {}).get("e")     # tel без счётчиков источников (слой -1) — прежние до пакета ent
             a["gen"] = g
             a["tel_t"] = t                            # когда пришли счётчики (tel): итоги шага ждут именно их, не любой пакет
             a["kind"] = "B" if p.get("role") == 1 else "A"
@@ -494,6 +519,11 @@ def ingest(t, ip, text, live=False):
             a["kind"], a["gen"], a["gstat"] = "S", None, None
             a.pop("mtel", None)
             a["stel"] = {k: p.get(k) for k in STATIC_TEL_KEYS}
+            sg = p.get("sg")
+            if isinstance(sg, list) and len(sg) >= 7:  # датчик-участник: счёт «каждый сам» рядом с измерением
+                a["sgen"] = {"sg": sg[0], "run": sg[1], "cid": sg[2], "pr": sg[3], "cand": sg[4], "age": sg[5],
+                             "work": sg[6], "mode": 0, "t": t}
+                a["tel_t"] = t
             if live:
                 adopt_static(mac)
             want = control["desired"].get(mac)
@@ -512,7 +542,7 @@ def ingest(t, ip, text, live=False):
 
 # ---------------- датчики: колесо (imu), поле (mag); статические — static_watch ----------------
 SENSOR_LEN = 12000                  # точек: 10 мин показаний 20 Гц
-STATIC_TEL_KEYS = ("cid", "role", "run", "cpu", "tp", "txp", "txr", "led", "tl", "tq", "tls", "afs", "avg", "sens",
+STATIC_TEL_KEYS = ("cid", "role", "run", "cpu", "tp", "txp", "txr", "led", "tl", "tq", "tls", "afs", "avg", "sg", "sens",
                    "dev", "adxl", "ph", "imu", "acc", "temp", "rssi", "heap", "cpu0", "cpu1", "udpf", "net")
 AXES = "xyz"
 
@@ -767,6 +797,65 @@ def put_locked(mac, key, t, v):
 
 
 prm_queue = queue.Queue()      # (функция, аргументы): проверка простых — в своей задаче (prm_worker)
+# Биты простых журнала по (mac, cid) — для предсказанного нуля (nullmodel): принято простых, свободных бит, единиц,
+# пар соседних, совпало; номера k простых проверки счёта по окнам det. Перечитывание сырья на старте заполняет заново.
+PRM_STATS = {}
+PRM_STATS_MAX = 600
+# Отрезки шага (пакеты seg): плата сама сняла счётчики на границах k·seg — {(mac, cid): {"seg", "n", "rows": {i: строка}}};
+# строка — [мс агента, кандидатов, отсеяно, простых, [[источник, единиц, всего, совпало, пар], …]]
+SEG_TAB = {}
+
+
+def prm_stats_add(mac, cid, bits, hexes):
+    """Под замком: простые одного пакета prm — в счётчики (mac, cid)."""
+    st = PRM_STATS.get((mac, cid))
+    if st is None:
+        while len(PRM_STATS) >= PRM_STATS_MAX:
+            PRM_STATS.pop(next(iter(PRM_STATS)))
+        st = PRM_STATS[(mac, cid)] = {"bits": bits, "n": 0, "free": 0, "ones": 0, "pairs": 0, "same": 0, "det": {},
+                                      "pts": [array("L"), array("H"), array("H"), array("H"), array("H")]}
+    for ms, hx in hexes:
+        n, ones, pairs, same = nullmodel.prime_bits(hx)
+        for a, v in zip(st["pts"], (ms & 0xFFFFFFFF, n, ones, pairs, same)):   # по времени агента — для отрезков шага
+            a.append(v)
+        st["n"] += 1
+        st["free"] += n
+        st["ones"] += ones
+        st["pairs"] += pairs
+        st["same"] += same
+        w = nullmodel.det_index(int(hx, 16), len(hx) * 4)
+        if w:
+            st["det"].setdefault(w[0], []).append(w[1])
+
+
+def prm_stats(mac, cid):
+    """Копия счётчиков бит журнала (mac, cid) или None — для программы (предсказанный ноль, проверка счёта)."""
+    with lock:
+        st = PRM_STATS.get((mac, cid))
+        return {**st, "det": {k: list(v) for k, v in st["det"].items()}, "pts": [list(a) for a in st["pts"]]} if st else None
+
+
+def ingest_seg(mac, p):
+    """Под замком: часть таблицы отрезков шага (пакет seg приходит трижды — строки по номеру, повтор не мешает)."""
+    try:
+        cid, i0, rows = int(p["cid"]), int(p["i0"]), list(p["r"])
+    except (KeyError, TypeError, ValueError):
+        return
+    t = SEG_TAB.setdefault((mac, cid), {"seg": p.get("seg"), "n": p.get("n"), "rows": {}})
+    for i, r in enumerate(rows):
+        t["rows"][i0 + i] = r
+    while len(SEG_TAB) > 400:
+        SEG_TAB.pop(next(iter(SEG_TAB)))
+
+
+def seg_table(mac, cid):
+    """Таблица отрезков шага (mac, cid) целиком — строки по порядку — или None, пока дошла не вся."""
+    with lock:
+        t = SEG_TAB.get((mac, cid))
+        if not t or not t.get("n") or len(t["rows"]) < t["n"]:
+            return None
+        return {"seg": t["seg"], "rows": [t["rows"][i] for i in range(t["n"])]}
+
 prime_pool = PrimePool(log=lambda text: print(text, flush=True))
 
 
@@ -839,6 +928,7 @@ def ingest_prm(t, ip, mac, p, live, known=None):
         pl["fail"] += len(fails)
         pl["fail_list"] = (pl["fail_list"] + fails)[-10:]
         guard_add(p.get("cid", 0), [r.split()[5] for r in rows], fails)
+        prm_stats_add(mac, p.get("cid", 0), p.get("bits"), [(int(r.split()[1]), r.split()[5]) for r in rows])
         if ratings:
             for hx in fails:
                 ratings.on_prime_fail(t, mac, a["id"], hx, live)
@@ -1087,7 +1177,8 @@ def cfg_line(c):
             f" sh={c.get('sh', 0)} bgr={c.get('bgr', 0)} ss={c.get('ss', 0)} tl={c.get('tl', 0)} tq={c.get('tq', 0)}"
             f" rmm={c.get('rmm', 450)} afs={c.get('afs', 2)} avg={c.get('avg', 2)} pl={c.get('pl', 0)}"
             f" dc={c.get('dc', 0)} gv={c.get('gv', 0)} rk={c.get('rk', 1)} pw={c.get('pw', 0)} raw={c.get('raw', 0)}"
-            f" dur={c.get('dur', 0)} ro={c.get('ro', 0)} rt={c.get('rt', 0)}"   # шаг на агенте; метка верха при молчании
+            f" dur={c.get('dur', 0)} ro={c.get('ro', 0)} rt={c.get('rt', 0)} sg={c.get('sg', 0)}"   # шаг на агенте; метка верха; датчик-участник
+            f" xf={c.get('xf', 4)} rw={c.get('rw', 4)} sq={c.get('sq', 0)} tc={c.get('tc', 1)} sx={c.get('sx', 0)} det={c.get('det', 0)} seg={c.get('seg', 0)}"   # сжатие сырья; слов регистра на бит SHA; проверка счёта; отрезки
             f" bg={','.join(str(i) for i in c.get('bg', []))}"          # сет B — всегда, пустой тоже:
             f" bm={','.join(m.replace(':', '') for m in c.get('bm', []))}"   # иначе агент помнит старый
             f" ba={','.join(str(i) for i in c.get('ba', []))}")          # чьи простые поглощать (пусто — всех)
@@ -1116,12 +1207,12 @@ def validate_cfg(c):
                "led": 1 if c.get("led", 1) else 0,
                "role": int(c.get("role", 0)), "sm": int(c.get("sm", 1)), "sf": int(c.get("sf", 0)),
                "cf": int(c.get("cf", 0)), "sh": 1 if c.get("sh", 0) else 0, "bgr": int(c.get("bgr", 0)),
-               "ss": int(c.get("ss", 0)), "rt": 1 if c.get("rt") else 0,
+               "ss": int(c.get("ss", 0)), "rt": 1 if c.get("rt") else 0, "sg": 1 if c.get("sg") else 0,
                "tl": int(c.get("tl", 0)), "tq": int(c.get("tq", 0)), "rmm": int(c.get("rmm", 450)),
                "afs": int(c.get("afs", 2)), "avg": int(c.get("avg", 2)), "pl": 1 if c.get("pl", 0) else 0,
                "dc": 1 if c.get("dc", 0) else 0,
                "gv": int(c.get("gv", 0)), "rk": int(c.get("rk", 1)), "pw": int(c.get("pw", 0)),
-               "raw": int(c.get("raw", 0)),
+               "raw": int(c.get("raw", 0)), "xf": int(c.get("xf", 4)), "rw": int(c.get("rw", 4)), "sq": 1 if c.get("sq") else 0, "tc": 0 if c.get("tc", 1) in (0, "0", False) else 1, "sx": 1 if c.get("sx") else 0, "det": int(c.get("det", 0)),
                # сет B: чьи простые поглощать — номера генераторов (пусто — всех); «3,5» или [3, 5]
                "ba": sorted({int(x) for x in (str(c.get("ba")).split(",") if isinstance(c.get("ba"), str)
                                               else c.get("ba") or []) if str(x).strip()})}
@@ -1133,7 +1224,7 @@ def validate_cfg(c):
         raise ValueError("режим 0 или 1")
     if out["nr"] not in (0, 1, 2):
         raise ValueError("скорость ESP-NOW: 1 (24 Мбит/с), 2 (6 Мбит/с) или 0 (1 Мбит/с)")
-    if out["src"] <= 0 or out["src"] & ~127:
+    if out["src"] <= 0 or out["src"] & ~255:
         raise ValueError("отметьте хотя бы один источник")
     if out["bits"] not in OPTIONS["bits"]:
         raise ValueError(f"длина должна быть одной из {OPTIONS['bits']}")
@@ -1151,8 +1242,14 @@ def validate_cfg(c):
         raise ValueError("ожидание кусочков от 0 (ждать всех) до 5000 мс")
     if any(not 1 <= i <= 63 for i in out["ba"]):
         raise ValueError("ba — номера генераторов от 1 до 63")
-    if out["raw"] not in (0, 1, 2):
-        raise ValueError("шум: 0 — с хешем, 1 — без хеша, 2 — без хеша с выравниванием фон Неймана")
+    if out["raw"] not in (0, 1, 2, 3, 4):
+        raise ValueError("шум: 0 — с хешем, 1 — без хеша, 2 — фон Нейман, 3 — XOR каждых xf бит, 4 — Тёплиц")
+    if not 2 <= out["xf"] <= 16:
+        raise ValueError("сжатие сырья xf от 2 до 16")
+    if not 1 <= out["rw"] <= 4:
+        raise ValueError("слов регистра ГСЧ на бит SHA-256 (rw) — от 1 до 4")
+    if not 0 <= out["det"] <= 65535:
+        raise ValueError("проверка счёта: окно det от 0 (нет) до 65535")
     if out["cpu"] not in (80, 160, 240):
         raise ValueError("частота процессора 80, 160 или 240 МГц")
     if not 2 <= out["txp"] <= 20:
@@ -1166,6 +1263,9 @@ def validate_cfg(c):
         raise ValueError("длительность шага на агенте от 0 (без срока) до 7200 с")
     if out["ro"] and not out["dur"]:
         raise ValueError("выключать радио можно только на шаге с длительностью на агенте (dur)")
+    out["seg"] = int(c.get("seg", 0))                               # отрезки шага: снимок счётчиков каждые seg с
+    if out["seg"] and not (5 <= out["seg"] <= 120 and out["dur"]):
+        raise ValueError("отрезки шага seg — от 5 до 120 с, только на шаге с длительностью на агенте (dur)")
     if out["ping"] != 0 and not 10 <= out["ping"] <= 200:          # 0 — без пинга (CSI только с маяков)
         raise ValueError("пинг для CSI от 10 до 200 в секунду")
     if not 500 <= out["tp"] <= 5000:
@@ -1253,6 +1353,35 @@ def apply_control(targets, cfg, own=None, force=False, remember=True, label=None
         eff = {m: validate_cfg({**cfg, **own.get(m, {})}) for m in targets}
         old = [agents[m].get("id") or m[-5:] for m in targets
                if eff[m]["ss"] and eff[m]["role"] == 0 and agents[m]["gen"] and agents[m]["gen"].get("ss") is None]
+        old_sg = [agents[m].get("id") or m[-5:] for m in targets if eff[m]["sg"] and eff[m]["role"] == 2
+                  and agents[m].get("stel") and agents[m]["stel"].get("sg") is None]
+        if old_sg:
+            raise ValueError("датчик-участник (sg): прошивка не умеет у " + ", ".join(f"№{i}" for i in old_sg)
+                             + " — обновите по Wi-Fi (⇪ прошивка)")
+        # новое смешивание и проверка счёта: старая прошивка отвергла бы raw 3/4 и регистр, а det молча пропустила
+        old_mix = [agents[m].get("id") or m[-5:] for m in targets
+                   if eff[m]["role"] == 0 and (eff[m]["raw"] >= 3 or eff[m]["src"] & 128 or eff[m]["det"])
+                   and agents[m]["gen"] and agents[m]["gen"].get("xf") is None]
+        if old_mix:
+            raise ValueError("смешивание raw 3/4, регистр ГСЧ и проверка счёта (det): прошивка не умеет у "
+                             + ", ".join(f"№{i}" for i in old_mix) + " — обновите по Wi-Fi (⇪ прошивка)")
+        # rw: старая прошивка ключ молча пропустит и возьмёт 4 слова на бит
+        old_rw = [agents[m].get("id") or m[-5:] for m in targets if eff[m]["role"] == 0
+                  and (eff[m]["rw"] != 4 and agents[m]["gen"] and agents[m]["gen"].get("rw") is None
+                       or eff[m]["sq"] and agents[m]["gen"] and agents[m]["gen"].get("sq") is None)]
+        if old_rw:
+            raise ValueError("слов регистра на бит SHA-256 (rw) или квадрат умножением (sq): прошивка не умеет у "
+                             + ", ".join(f"№{i}" for i in old_rw) + " — обновите по Wi-Fi (⇪ прошивка)")
+        old_seg = [agents[m].get("id") or m[-5:] for m in targets if eff[m]["seg"] and eff[m]["role"] in (0, 1)
+                   and agents[m]["gen"] and agents[m]["gen"].get("seg") is None]
+        if old_seg:
+            raise ValueError("отрезки шага (seg): прошивка не умеет у " + ", ".join(f"№{i}" for i in old_seg)
+                             + " — обновите по Wi-Fi (⇪ прошивка)")
+        bad_det = [agents[m].get("id") or m[-5:] for m in targets if eff[m]["det"] and eff[m]["role"] == 0
+                   and (eff[m]["mode"] or eff[m]["dc"] or eff[m]["bits"] < 128)]
+        if bad_det:
+            raise ValueError("проверка счёта (det): только «каждый сам», одно ядро (dc 0) и длина от 128 бит — у "
+                             + ", ".join(f"№{i}" for i in bad_det))
         if old:
             raise ValueError("своё рассеяние (ss): прошивка не умеет у " + ", ".join(f"№{i}" for i in old)
                              + " — обновите по Wi-Fi (⇪ прошивка)")
@@ -1553,7 +1682,7 @@ def adopt_static(mac):
 
 APPLIED_KEYS = ("cid", "src", "bits", "nb", "all", "td", "tmax", "mode", "grp", "nr", "run", "k", "pre", "cpu", "txp", "hb",
                 "txr", "ping", "led", "tp", "role", "sm", "sf", "cf", "sh", "bgr", "ss", "tl", "tq", "tls", "rmm", "afs", "avg",
-                "pl", "dc", "gv", "rk", "pw", "raw", "dur", "ro", "rt")
+                "pl", "dc", "gv", "rk", "pw", "raw", "xf", "rw", "sq", "sx", "det", "seg", "dur", "ro", "rt", "sg")
 
 
 # ---------------- прошивка по Wi-Fi (OTA) ----------------
@@ -2007,14 +2136,14 @@ batteries = Batteries(lambda: os.path.join(DATA, "battery.json"), log=lambda tex
 rimcal = RimCal(lambda: os.path.join(DATA, "rim_cal.json"), log=lambda text: print(text, flush=True))
 
 
-rig = {"gap_cm": None, "t": None, "hist": [], "radius": {}, "swap": False, "mirror": False}   # установка руками: расстояние между колёсами, см, радиусы агентов, мм, колесо 1 на мосту b; история
+rig = {"gap_cm": None, "t": None, "hist": [], "radius": {}, "swap": False, "mirror": False, "angle": 0}   # установка руками: расстояние между колёсами, см, радиусы агентов, мм, колесо 1 на мосту b, угол между осями (0 — соосно, 90 — поперёк); история
 
 
 def rig_load():
     try:
         d = json.load(open(RIG_FILE, encoding="utf-8"))
         rig.update(gap_cm=d.get("gap_cm"), t=d.get("t"), hist=d.get("hist") or [], radius=d.get("radius") or {},
-                   swap=bool(d.get("swap")), mirror=bool(d.get("mirror")))
+                   swap=bool(d.get("swap")), mirror=bool(d.get("mirror")), angle=d.get("angle") or 0)
     except (OSError, ValueError):
         pass
 
@@ -2115,9 +2244,25 @@ def run_extras(t0, t1):
     return out
 
 
+def rig_angle_set(angle):
+    """Угол между осями колёс, градусы (ставится руками): 0 — колёса друг напротив друга (соосно), 90 — поперёк
+    (07.11: смена геометрии). В историю и в каждый шаг программы (rig)."""
+    a = round(float(angle))
+    if not 0 <= a <= 180:
+        raise ValueError("угол между осями: 0–180°")
+    with lock:
+        was = rig.get("angle") or 0
+        rig["angle"] = a
+        rig["hist"] = (rig["hist"] + [{"t": round(time.time(), 1), "angle": a, "was": was}])[-500:]
+        body = json.dumps(rig, ensure_ascii=False)
+    with open(RIG_FILE, "w", encoding="utf-8") as f:
+        f.write(body)
+    print(f"[rig] угол между осями колёс: {was} → {a}°", flush=True)
+
+
 def rig_brief():
     return {"gap_cm": rig["gap_cm"], "t": rig["t"], "radius": dict(rig.get("radius") or {}), "swap": bool(rig.get("swap")),
-            "mirror": bool(rig.get("mirror"))}
+            "mirror": bool(rig.get("mirror")), "angle": rig.get("angle") or 0}
 
 
 def battery_label(key, addr=None, wire=None):
@@ -2393,7 +2538,7 @@ def state():
                 "dev": (a.get("stel") or {}).get("dev") or "",   # статический: adxl355 / icm42688 / phone
                 "ph": (a.get("stel") or {}).get("ph"),           # телефон: фон 50 Гц, радио, батарея
                 "mot": (a.get("mtel") or {}).get("mot"),         # агент моторов: цель, ШИМ, состояние
-                "plog": plog_brief(a, now), "ota": a.get("ota"), "ota_cmd": a.get("ota_cmd"), "rbt": a.get("rbt"),
+                "plog": plog_brief(a, now), "ota": a.get("ota"), "ota_cmd": a.get("ota_cmd"), "rbt": a.get("rbt"), "ws": a.get("ws"),
                 "nbr": a.get("nbr"),                  # кого слышит по пульсу ESP-NOW и с каким сигналом
                 "rating": rb.get(a["mac"]) or {"score": 100, "cat": "ok", "sys": [], "n": 0, "recent": []},
             })
@@ -2442,8 +2587,19 @@ def wheel_rpm(wheel):
     now = time.time()
     with lock:
         wheels = compose_state()["wheels"]
-        ws = [abs(a["imu"].get("w") or 0) * 60 / (2 * math.pi) for m, a in agents.items()
-              if wheels.get(m) == wheel and a.get("imu") and now - (a["imu"].get("t_rx") or 0) < 3]
+        ws = []
+        for m, a in agents.items():
+            if wheels.get(m) != wheel or not a.get("imu") or now - (a["imu"].get("t_rx") or 0) >= 3:
+                continue
+            w = abs(a["imu"].get("w") or 0) * 60 / (2 * math.pi)
+            # 06.11: под счётом 64 бит на 240 МГц датчик обода теряет ось на десятки секунд и шлёт w = 0, хотя колесо
+            # крутится (обороты целиком за последние 15 с есть) — это «нет данных», а не «стоит»
+            last = (a.get("wrevs") or [None])[-1]
+            if w < 2 and last and now - last["ts"] < 15 and (last.get("rpm") or 0) > 5:
+                continue
+            ws.append(w)
+    if any(w > 5 for w in ws):                      # один датчик колеса потерял ось (0), другой крутится — ноль не в среднее
+        ws = [w for w in ws if w >= 2]
     return sum(ws) / len(ws) * rimcal.factor(wheel) if ws else None
 
 
@@ -2644,7 +2800,8 @@ def rimcal_state():
 
 motors = Motors(motor_agents, lambda line, ip: send_line(line, ip), wheel_rpm, radius_fn=wheel_radius,
                 rmm_fn=lambda: (control.get("common") or DEFAULT_CFG).get("rmm", 450), swap_fn=lambda: rig.get("swap"), mirror_fn=lambda: rig.get("mirror"),
-                log=lambda text: print(text, flush=True))
+                log=lambda text: print(text, flush=True),
+                reboot_fn=None)   # 06.11: автоперезапуск выключен — ложное срабатывание по нулям обода; REBOOT руками: /api/reboot
 
 
 def motors_state():
@@ -3017,6 +3174,8 @@ def snapshot_results(macs):
         for m in macs:
             a = agents[m]
             g = {k: v for k, v in (a["gen"] or {}).items() if k != "rate"}
+            if not g and (a.get("sgen") or {}).get("run"):          # статический датчик-участник: его счёт «каждый сам»
+                g = {k: a["sgen"][k] for k in ("cid", "pr", "cand", "age", "mode", "run")}
             in_group = g.get("mode") == 1 and not g.get("role")      # сет B в группе не участвует
             gst = a["gstat"] if in_group else None
             out[m] = {"id": a["id"], "label": a["label"], "gen": g, "gstat": gst,
@@ -3270,6 +3429,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_json(state())
         if u.path == "/api/static":
             return self.send_json(static_summary())
+        if u.path == "/api/static/seg":                # показатели статики по отрезку [t0, t1] — как у отрезков программы
+            if not watch:
+                return self.send_json({})
+            return self.send_json(watch.seg_metrics(float(q["t0"]), float(q.get("t1") or time.time())))
         if u.path == "/api/static/spectrum":
             if not watch:
                 return self.send_json({"f": [], "axes": []})
@@ -3387,7 +3550,7 @@ class Handler(BaseHTTPRequestHandler):
                           "/api/program/start", "/api/program/stop", "/api/program/again", "/api/program/resume",
                           "/api/program/pause", "/api/program/continue",
                           "/api/static/baseline", "/api/ota",
-                          "/api/usb", "/api/rest_rot", "/api/telemetry", "/api/ident", "/api/motors", "/api/coils",
+                          "/api/usb", "/api/rest_rot", "/api/telemetry", "/api/ident", "/api/reboot", "/api/cmd", "/api/motors", "/api/coils",
                           "/api/battery", "/api/rig", "/api/fleet", "/api/clientlog", "/api/rimcal"):
             return self.send_error(404)
         try:
@@ -3414,7 +3577,9 @@ class Handler(BaseHTTPRequestHandler):
                     rig_swap_set(body["swap"])
                 if "mirror" in body:
                     rig_mirror_set(body["mirror"])
-                if "gap_cm" in body or not ({"radius", "swap", "mirror"} & set(body)):
+                if "angle" in body:
+                    rig_angle_set(body["angle"])
+                if "gap_cm" in body or not ({"radius", "swap", "mirror", "angle"} & set(body)):
                     rig_set(body.get("gap_cm"))
                 return self.send_json({"ok": True, **rig_brief()})
             if u.path == "/api/rimcal":                 # {wheel, tach} — точка; {wheel, del: i}; {wheel, clear}; {wheel, tach_on, fit_on}
@@ -3467,6 +3632,28 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json({"ok": True})
             if u.path == "/api/fleet":                  # состав и назначения: убрать плату из списка или вернуть
                 return self.send_json({"ok": True, **fleet_action(body)})
+            if u.path == "/api/reboot":                 # перезапустить плату моторов или катушки (роль M): {mac}
+                mac = str(body.get("mac", "")).lower()
+                with lock:
+                    a = agents.get(mac)
+                    ip = a["ip"] if a and a.get("ip") else None
+                if not ip:
+                    raise ValueError("нет такой платы на связи")
+                send_line("REBOOT", ip)
+                print(f"[mot] перезапуск платы {_agent_name(mac)} по команде", flush=True)
+                return self.send_json({"ok": True, "mac": mac})
+            if u.path == "/api/cmd":                    # строка-команда плате как есть: {mac, line} (INFO …, INFOLEN — «информация» в шум)
+                mac = str(body.get("mac", "")).lower()
+                line = str(body.get("line", ""))
+                if not line or len(line) > 1460 or not line.split()[0].isalpha():
+                    raise ValueError("line: команда до 1460 знаков")
+                with lock:
+                    a = agents.get(mac)
+                    ip = a["ip"] if a and a.get("ip") else None
+                if not ip:
+                    raise ValueError("нет такой платы на связи")
+                send_line(line, ip)
+                return self.send_json({"ok": True, "mac": mac})
             if u.path == "/api/ident":                  # найти плату: светодиод агента мигает secs секунд (0 — перестать)
                 mac = str(body.get("mac", "")).lower()
                 secs = max(0, min(120, int(body.get("secs", 20))))
@@ -3540,6 +3727,44 @@ def _prog_targets(spec):
             return [m for m, a in agents.items() if (a["gen"] is not None or a.get("stel"))
                     and a["last"] and now - a["last"] < 10]
         return [m.lower() for m in spec if m.lower() in agents]
+
+
+def _prog_stage(sx, applied, fixed, src):
+    """Этап внутри шага программы (08.11): источник шума всем генераторам командой NS — без нового номера настройки,
+    без сброса счёта и без ответа платы (в тишине ни кадра); телеметрия генераторов (tl) и статика (sx — не читать
+    датчик, stl — телеметрия статического) — мягкой настройкой, как молчание на исполнении."""
+    fixed = set(fixed or [])
+    gens = [m for a in applied for m in a["targets"] if m not in fixed]
+    if sx.get("ns") is not None:
+        with lock:
+            ips = [agents[m]["ip"] for m in gens if agents.get(m) and agents[m].get("ip")]
+        for ip in ips:
+            send_line(f"NS {int(sx['ns'])}", ip)
+    words = [f"источник {sx['ns']}"] if sx.get("ns") is not None else []
+    for a in applied:
+        tg = a["targets"]
+        stat = all(m in fixed for m in tg)
+        cfg, own = dict(a["cfg"]), {m: dict(o) for m, o in (a["own"] or {}).items()}
+        changed = False
+        if stat:
+            for key, val in (("sx", sx.get("sx")), ("tl", sx.get("stl"))):
+                if val is not None:
+                    cfg[key] = val
+                    for m in tg:
+                        own.setdefault(m, {})[key] = val
+                    changed = True
+        elif sx.get("tl") is not None and not any(m in fixed for m in tg):
+            cfg["tl"] = sx["tl"]
+            for m in tg:
+                own.setdefault(m, {})["tl"] = sx["tl"]
+            changed = True
+        if changed:
+            apply_control(tg, cfg, own, remember=False, keep_own=False)
+    if sx.get("tl") is not None:
+        words.append("генераторы " + ("молчат" if sx["tl"] == 2 else "на связи"))
+    if sx.get("sx") is not None or sx.get("stl") is not None:
+        words.append("статика " + ("не мерит" if sx.get("sx") else "меряет"))
+    print(f"[prog] {src}: {' · '.join(words)}", flush=True)
 
 
 def _prog_confirmed(macs, cid, timeout):
@@ -3617,10 +3842,16 @@ def _prog_baseline(minutes, stop):
 runner = Runner({"apply": lambda t, c, o, f: apply_all(t, c, o, f), "confirmed": _prog_confirmed,
                  "apply_once": lambda t, c, o: apply_control(t, c, o, remember=False, keep_own=False),   # молчание: не запоминать
                  "targets": _prog_targets, "snapshot": lambda macs: snapshot_results(macs),
+                 "plog": prm_stats,                 # биты простых журнала и номера проверки счёта по (mac, cid)
+                 "segtab": seg_table,               # таблица отрезков шага (плата сдаёт после шага)
+                 "seg_metrics": lambda t0, t1: watch.seg_metrics(t0, t1) if watch else {},
+                 # частота вращения колёс сейчас, Гц (обод, пока телеметрия есть) — для ∿ «на частоте вращения»
+                 "rot_hz": lambda: (lambda v: sum(v) / len(v) / 60 if v else None)([r for r in (wheel_rpm("1"), wheel_rpm("2")) if r]),
                  "verdict": lambda t0, t1: watch.verdict(t0, t1) if watch else None,
                  "metrics": lambda t0, t1: watch.metrics(t0, t1) if watch else {},
                  "field": field_step, "extras": run_extras,
                  "coil": lambda field, src: coils.set_field(field, src),
+                 "stage": _prog_stage,              # этапы внутри шага: источник шума, телеметрия, статика (08.11)
                  "coil_off": lambda src: coils.all_off(src),
                  "motor": lambda spec, src: motors.apply_spec(spec, src),
                  "motor_off": lambda src: (motors.set({"stop": True}), print(f"[mot] {src}: стоп", flush=True)),

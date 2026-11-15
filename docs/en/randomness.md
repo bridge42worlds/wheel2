@@ -5,7 +5,8 @@ Labels inside the diagrams are in Russian.*
 
 The noises from which the agents build numbers: how they are taken, how much we credit, how they are mixed, at what
 speed. On the main screen each noise has its own icon: ⚄ chip RNG, Σ all available, ≋ pulse CSI, ↯ router ping CSI,
-⏚ ADC D0, ⧖ RC jitter, ↺ reverse noise, ↕ accelerometer, 🧲 magnetometer. How noise is chosen in an experiment —
+⏚ ADC D0, ⧖ RC jitter, ⚂ RNG register, ↺ reverse noise, ↕ accelerometer, 🧲 magnetometer. How noise is chosen in an
+experiment —
 [modes.md](modes.md).
 
 Board XIAO ESP32-S3, Arduino-ESP32 core 3.3.7 (ESP-IDF 5.5). Raw measurement logs — `logs/probe*.log`, analysis —
@@ -22,7 +23,8 @@ In the compiled library (`libesp_hw_support.a`, examined with a disassembler):
 * the function reads the generator register `0x6003507C` (`WDEV_RND_REG`);
 * between words it waits **1778 bus clocks** (22.2 µs) and XORs together all reads during the wait;
   hence the limit of **~45,000 words/s** (measured: 44,800), the same in any Wi-Fi state;
-* the register itself, without waiting, reads at 10.5 million words/s.
+* the register itself, without waiting, reads at 10.5 million words/s — this is a separate source ⚂ (below): the
+  register word as it is, without the folding.
 
 To keep radio noise going into the generator all the time, the firmware keeps Wi-Fi on and **without sleep**
 (`WiFi.setSleep(false)`); the telemetry reports this with the field `rf=1`.
@@ -42,6 +44,7 @@ documentation and the function code; Wi-Fi noise can be observed directly throug
 | ≋ ↯ Wi-Fi CSI | the channel state (LLTF, 64 subcarriers) from pulse frames of neighbouring agents (ESP-NOW, 10 per second from each) or from the router's ping replies: 104 numbers per frame | with a 100 Hz ping ~95 frames | ~1.5 bits per number, ~150 per frame | 32 bits per frame |
 | ⏚ ADC | pin D0 (GPIO1) with pull-up and pull-down — the middle of the supply; connect nothing to D0 | 21,000 samples | 2.9 bits per sample, but neighbours are correlated (pickup) | ¼ bit per sample |
 | ⧖ RC jitter | crystal clocks over 8 periods of the internal 136 kHz RC (`rtc_clk_cal_ratio`) | 16,000 samples | ~1 bit per sample, slow drift | ¼ bit per sample |
+| ⚂ RNG register directly (`src` 128) | one read of `WDEV_RND_REG` — without the folding that `esp_random()` does | ~10 million words | neighbouring words are correlated: the register is a generator into which noise is mixed at 2 bits per bus clock | 1 bit per `rw` words (1–4, 4 by default) |
 | ↕ rim accelerometer | low bytes of the ICM-42688 acceleration and gyro axes | 200 samples | — | 1 bit per byte |
 | 🧲 rim magnetometer | low bytes of the MLX90393 axes | 20 measurements | — | 2 bits per byte |
 | ↺ reverse noise | contents of the frames of the other wheel's absorbers (their noise with our primes mixed in) — a loop through the air; only with absorption | — | — | 4 bits per byte |
@@ -78,7 +81,20 @@ Without the hash one can see whether the physics of the source shows through in 
   — whole words; set B air — whole bytes;
 * `raw` = 2 — the same with von Neumann debiasing: the pair 01 → 0, 10 → 1, 00 and 11 are dropped. It removes the
   bias between zeros and ones, but not the correlation of neighbouring samples; four times fewer bits;
-* several ticked sources are combined bitwise (XOR) — the structure of a source is visible when it is ticked alone.
+* `raw` = 3 — a bit of the number is the XOR of `xf` consecutive raw bits (`xf` from 2 to 16, 4 by default). By the
+  piling-up lemma a bias e of independent bits drops to 2^(xf−1)·e^xf: for the ADC with 54 % ones (e = 0.04) and
+  xf = 4 — to 50.0005 %. XOR does not remove the correlation of neighbours, and for an even xf it creates a bias by
+  itself: a source whose neighbours agree in 60 % of cases gives 48 % ones when folded by 4. xf times fewer bits;
+* `raw` = 4 — a **Toeplitz extractor**: xf·256 raw bits (as in `raw` = 1) are multiplied over GF(2) by a
+  256 × xf·256 matrix that is constant along its diagonals; the matrix comes from a public seed (splitmix64 with
+  the start word 0x243F6A8885A308D3 — the first digits of π). The leftover hash lemma: if the xf·256 raw bits hold
+  at least 256 + 2·log₂(1/ε) bits of min-entropy, the output is within ε of uniform — for any seed chosen
+  independently of the noise. This is a checkable replacement for SHA-256: the transform is linear and public, any
+  block can be recomputed (`server/nullmodel.py`), and the guarantee is a theorem. At start-up the board checks its
+  extractor against the Python reference (the `st` self-test in telemetry);
+* several ticked sources are combined bitwise (XOR) — the structure of a source is visible when it is ticked alone;
+* ⚂ the RNG register alone with `raw` = 1 — the register words go into the number as they are, like the RNG, but
+  without the folding.
 
 Without the hash the slow sources are faster: on four boards the ADC gives 253 candidates/s (with the hash ~70), CSI
 about three times more, jitter four times more. The yield of primes without the hash may differ from theory simply
@@ -116,7 +132,38 @@ The run `tools/anomaly_run.py 3` (four boards, 256 bits, 3 min per step, report
 * In the relay ~9 % of the candidates that survive the sieve go untested when the turn is handed over, so the yield
   is computed on the tested ones (on the survivors there would be an apparent "shortfall", z −6.8).
 
-## 5. The primality test
+## 5. The predicted null
+
+A comparison with controls catches a difference between modes, but does not say whether the computation itself is
+right. Three checks whose expectation is known without controls (`server/nullmodel.py`; in the program totals —
+`null`, in the series report — the last section):
+
+* **The yield of primes and the sieve** (`z_yield`, `z_td`): the share of primes among odd 256-bit numbers is
+  1/88.57 (the integral of 1/ln x over [2²⁵⁵, 2²⁵⁶)), the share of numbers without divisors below 1000 is 16.19 %.
+  Only "each on its own": in the relay and the cascade, sieved but untested candidates (the turn ended) are already
+  counted as candidates.
+* **The bits of the primes** (`z_pq`, `z_ps`): the share of ones and of agreeing neighbouring bits in the logged
+  primes (except the two bits the sieve sets) against the prediction from the raw counters and the mixing method.
+  SHA-256 and Toeplitz — ½; without hashing — the XOR of the sources (the mean signs multiply); von Neumann and
+  folding — by a Markov chain with the measured shares of ones and agreements. Why bits and not residues: for
+  256-bit numbers the residues modulo small primes hardly depend on the bit bias (its contribution decays as
+  |q + (1 − q)·ω|^256); only an almost frozen source would shift them.
+* **The computation check** (`det`): the candidates are not from noise but consecutive — 2²⁵⁵ + 1 + 2·(det·2³² + k),
+  k being the candidate number. Which of them are prime and how many the divisors sieve out, the server knows
+  exactly: `det_dpr`, `det_dtd` — the difference from the board (exactly 0 when the computation is right),
+  `det_miss`, `det_extra` — gaps and extras in the log (`det_gap` — the log did not fully arrive, it is not
+  compared). This separates "the field or the rotation disturb the computation itself" from "they affect the
+  noise". Only "each on its own", one core, length from 128 bits.
+
+The null was checked on earlier data (RNG with hashing, programs before 03.11.2026): over 89 "each on its own"
+runs the yield z has mean −0.09 and spread 0.96, the sieve −0.04 and 0.87; the bits of the primes over 29 settings —
+−0.11 and 0.98, +0.03 and 1.10; in programs 20–24 (cascade) not a single finding after the correction. The theory
+describes the computation as it is — it can be used as a yardstick.
+
+The approach follows the public randomness beacons (the CURBy beacon, a Popular Science article): first estimate
+the entropy of the raw data, then extract in a checkable way with a public seed, and keep checks running live.
+
+## 6. The primality test
 
 A candidate of the required length (the top bit and oddness are set) → sieve by small divisors below the threshold
 `td` (default 1000) → Miller–Rabin on the first `nb` prime bases (default 8: 2, 3, 5, 7, 11 …). 32 bits — our own
@@ -127,7 +174,7 @@ code, longer — `mbedtls_mpi` with the hardware accelerator. For 32 bits every 
 Residues by small divisors are computed with our own code: `mbedtls_mpi_mod_int` gives a correct residue only for
 divisors below 2^16 (it divides by half-words); on products of primes up to 2^31 it would lose 84 % of the primes.
 
-## 6. Speed
+## 7. Speed
 
 One board (`tools/gen_sweep.py`); sieve by divisors below 1000, 8 bases, testing until the first "composite" unless
 stated otherwise.

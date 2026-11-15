@@ -170,9 +170,9 @@ label.inl { display:inline-flex; align-items:center; gap:4px; margin:2px 10px 2p
   --w-gen:#007A5E; --w-abs:#A8457F; --w-sta:#9A6400; --w-sky:#1F6E9E; --w-yel:#7A7100; --w-blue:#0072B2; --w-int:#4a525d; --w-bad:#B84F00;
   --disc-a:.16; --cell-a:.14; --u-a:.16; --node-mix:24%;
   /* шумы: цвет помогает, узнаётся источник по значку, штриху и месту дорожки (порядок SOURCES) */
-  --n-rng:var(--w-int); --n-jit:var(--w-int); --n-adc:var(--w-yel); --n-csi:var(--w-sky); --n-csip:var(--w-sky);
+  --n-rng:var(--w-int); --n-jit:var(--w-int); --n-rrg:var(--w-int); --n-adc:var(--w-yel); --n-csi:var(--w-sky); --n-csip:var(--w-sky);
   --n-acc:var(--w-sta); --n-mag:var(--w-blue); --n-bc:var(--w-abs);
-  --d-rng:none; --d-jit:5 3; --d-adc:2 3; --d-csi:1 4; --d-csip:6 3 1 3; --d-acc:9 4; --d-mag:12 3 3 3; --d-bc:1 7;
+  --d-rng:none; --d-jit:5 3; --d-rrg:3 2 1 2; --d-adc:2 3; --d-csi:1 4; --d-csip:6 3 1 3; --d-acc:9 4; --d-mag:12 3 3 3; --d-bc:1 7;
   --e-out:cubic-bezier(.2, .8, .2, 1);
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
@@ -492,16 +492,18 @@ function noiseLabel(name) { const i = noiseIconByName(name); return name ? (i ? 
 // Источник — бит src прошивки (config.h). Шум шага — смесь отмеченных источников (через SHA-256, как «все доступные»);
 // CSI — с пульса соседей или с пинга роутера, одно из двух. Смесь хранится ключом «m:rng+csi+adc» (порядок — SOURCES).
 // Старые ключи (rng, all, csi…) в сохранённых планах понимаются по-прежнему.
-const SOURCES = [["rng", "⚄", "ГСЧ", 1], ["csi", "≋", "CSI", 2], ["adc", "⏚", "АЦП", 4], ["jit", "⧖", "RC", 8],
+const SOURCES = [["rng", "⚄", "ГСЧ", 1], ["csi", "≋", "CSI", 2], ["adc", "⏚", "АЦП", 4], ["jit", "⧖", "RC", 8], ["rrg", "⚂", "регистр", 128],
                  ["acc", "↕", "акс.", 32], ["mag", "🧲", "магн.", 64], ["bc", "↺", "обратный", 16]];
 const SRC_ALL = ["rng", "csi", "adc", "jit"];                 // «Σ все доступные» — src 15
-const SRC_ICON = { rng: "⚄", csi: "≋", csip: "↯", adc: "⏚", jit: "⧖", acc: "↕", mag: "🧲", bc: "↺" };
-const SRC_SHORT = { rng: "ГСЧ", csi: "CSI", csip: "CSI-пинг", adc: "АЦП", jit: "RC", acc: "акс.", mag: "магн.", bc: "обр." };
-const SRC_NAME1 = { rng: "ГСЧ чипа", csi: "CSI с пульса", csip: "CSI с пинга роутера", adc: "АЦП D0", jit: "дрожание RC",
+const SRC_ICON = { rng: "⚄", csi: "≋", csip: "↯", adc: "⏚", jit: "⧖", rrg: "⚂", acc: "↕", mag: "🧲", bc: "↺" };
+const SRC_SHORT = { rng: "ГСЧ", csi: "CSI", csip: "CSI-пинг", adc: "АЦП", jit: "RC", rrg: "регистр", acc: "акс.", mag: "магн.", bc: "обр." };
+const SRC_NAME1 = { rng: "ГСЧ чипа", csi: "CSI с пульса", csip: "CSI с пинга роутера", adc: "АЦП D0", jit: "дрожание RC", rrg: "регистр ГСЧ",
                     acc: "акселерометр", mag: "магнитометр", bc: "обратный шум" };
 const nDesc = k => (NOISES.find(n => n[0] === k) || [])[2] || "";
 const SRC_DESC = { rng: nDesc("rng"), csi: nDesc("csi") + " Вариант — с пульса или с пинга роутера (переключатель рядом).", adc: nDesc("adc"),
-                   jit: nDesc("jit"), acc: nDesc("acc").replace(/ Подмешать.*$/, "") + " В смеси — добавка у агентов с датчиком (№6).",
+                   jit: nDesc("jit"),
+                   rrg: "Регистр того же генератора напрямую, одно чтение — одно слово, без складывания: esp_random() складывает (XOR) все чтения за 1778 тактов шины. ~10 млн слов/с, соседние слова связаны — 1 бит на 4 слова. Один и без хеша — слова как есть.",
+                   acc: nDesc("acc").replace(/ Подмешать.*$/, "") + " В смеси — добавка у агентов с датчиком (№6).",
                    mag: nDesc("mag").replace(/ Подмешать.*$/, "") + " В смеси — добавка у агентов с датчиком (№7).",
                    bc: "Содержимое кадров, которые выпустили поглотители другого колеса (их шум со смешанными нашими простыми) — петля через эфир. Только в шаге, где другое колесо поглощает." };
 const mixKey = (set, csi) => "m:" + SOURCES.map(x => x[0]).filter(k => set.includes(k)).map(k => k === "csi" && csi === "ping" ? "csip" : k).join("+");
@@ -558,10 +560,11 @@ const MAX_GROUP = 16;                       // предел участников
 const DEF = { merge: false, quiet: true, quietDef: 1, repeat: 2, shuffle: false,
               restMode: "stable", restMin: 2, restBelow: 45, restMax: 6, tmax: 73, agentStep: false, radioOff: false,
               idleStep: true, baseline: 0, confirm: 0, diagMin: 1, diagId: null,
-              again: 0, sound: true, pauseRepeat: false, pauseLost: true };   // пауза между повторами — замена аккумуляторов                  // ❗ отклонение статики: повторить шаг (раз), звук тревоги
+              again: 0, sound: false, pauseRepeat: false, pauseLost: true };   // звук тревоги по умолчанию выкл (06.11): зовёт исследователь, не планшетка   // пауза между повторами — замена аккумуляторов                  // ❗ отклонение статики: повторить шаг (раз), звук тревоги
 let P = (() => { try { return { ...DEF, ...JSON.parse(localStorage.getItem("plan.v2") || "{}") }; } catch (e) { return { ...DEF }; } })();
 if (!P.quietDef) { P.quiet = true; P.quietDef = 1; }
 if (!P.dockV3) { if (P.dock === "rail") P.dock = "pin"; P.dockV3 = 1; }   // графики статики всегда видны: свёрнутую колонку раскрыть один раз   // молчание на исполнении стало обычным: прежний сохранённый «выкл» — сбросить один раз
+if (!P.soundV2) { P.sound = false; P.soundV2 = 1; }   // 06.11: сохранённый ранее «звук вкл» — сбросить один раз
 function save() { try { localStorage.setItem("plan.v2", JSON.stringify(P)); } catch (e) { /* без памяти */ } }
 let D = null, prog = null, progT = 0, diag = null, diagT = 0, dlg = null, identMode = false, ribbonMode = "auto";
 // Вопрос «точно?» — окном на странице, а не диалогом браузера: в Edge диалоги с этой страницы бывают отключены
@@ -625,7 +628,9 @@ const MOT_SHORT = ["стоит", "разгон", "едет", "торможени
 // Вращение колеса сейчас: мост агента моторов (колесо 1 — a, 2 — b) и обороты по ободу (сервер или датчик на колесе)
 function spinOf(d, w) {
   const M = MOTS || {}, key = w === "1" ? "a" : "b", all = M.agents || [], ag = all.find(x => x.alive) || all[0] || null;
-  const s = (M.wheels || {})[key] || {}, br = ag && ag.alive && ag.mot ? ag.mot[key] : null;
+  // колесо 1 — всегда wheels.a у сервера, но на плате при swap оно на мосту b: мост берём с учётом перестановки (06.11)
+  const bkey = M.swap ? (key === "a" ? "b" : "a") : key;
+  const s = (M.wheels || {})[key] || {}, br = ag && ag.alive && ag.mot ? ag.mot[bkey] : null;
   const now = Date.now() / 1000, rim = (d.wheel || []).find(x => wheelMacs(d, w).includes(x.mac) && x.t_rx && now - x.t_rx < 10);
   const meas = s.meas != null ? Math.abs(s.meas) : rim ? Math.abs(rim.rpm_now || 0) : null;
   const dirv = br ? (br[1] || br[0]) : 0;
@@ -636,7 +641,10 @@ function spinOf(d, w) {
 function spinWords(sp) {
   const glyph = sp.dir < 0 ? "⟲" : "⟳", moving = sp.meas != null && sp.meas >= 0.5;
   if (!moving && !sp.on) return { main: "■ стоит", sub: "", glyph: "■", on: false };
-  const main = moving ? `${glyph} ${fmt(sp.meas, 1)} об/мин` : `${glyph} ${sp.target != null ? fmt(sp.target, 1) + " об/мин" : "ШИМ " + fmt(sp.pwm, 0) + " %"}`;
+  // 06.11: три состояния словами — крутится (обод видит), ШИМ подан, но обод молчит (обороты неизвестны), ШИМ подан, а обод видит ноль (колесо стоит!)
+  const main = moving ? `${glyph} ${fmt(sp.meas, 1)} об/мин · обод ✓`
+    : sp.meas != null ? `✗ ШИМ ${fmt(sp.pwm, 0)} % — колесо стоит`
+    : `${glyph} ШИМ ${fmt(sp.pwm, 0)} %${sp.target != null ? " · цель " + fmt(sp.target, 0) + " об/мин" : ""} · обод молчит (на шаге платы обода не шлют телеметрию)`;
   const sub = [sp.dir > 0 ? "вперёд" : sp.dir < 0 ? "назад" : "", sp.st, sp.zerog ? `невесомость${sp.zg ? " " + zgWord(sp.zg) : ""}` : sp.target != null && moving ? "цель " + fmt(sp.target, 1) : ""].filter(Boolean).join(" · ");
   return { main, sub, glyph, on: true };
 }
@@ -773,7 +781,7 @@ function motNow(s, br) {
 }
 function motWheelHTML(d, M, w, ag) {
   const s = M.wheels[w], lead = M.pair === "free" || w === "a";
-  const br = ag && ag.mot ? motBridge(ag.mot[w]) : "агента моторов нет";
+  const br = ag && ag.mot ? motBridge(ag.mot[M.swap ? (w === "a" ? "b" : "a") : w]) : "агента моторов нет";   // мост колеса с учётом swap
   const title = M.pair === "free" ? `колесо ${s.wheel}` : w === "a" ? `колесо 1 — задаёт ${M.pair === "only2" ? "колесо 2" : M.pair === "only1" ? "себя" : "оба"}` : "колесо 2";
   if (!lead) {                                          // связаны: колесо 2 только показывает, что делает
     const how = M.pair === "same" ? "так же, как колесо 1" : M.pair === "opposite" ? "как колесо 1, но в обратную сторону" : M.pair === "only1" ? "стоит" : "по настройкам колеса 1";
@@ -956,8 +964,8 @@ function srcOf(d, m) {
   const g = d.gen[m] || {}, r = g.rate || {}, sens = agentById(d, m).sens || g.sens || 0;
   const on = SOURCES.filter(x => (g.src || 0) & x[3]), bits = on.map(x => r["g_bits_" + x[0]] || 0), tot = bits.reduce((s, x) => s + x, 0);
   return on.map((x, i) => ({ k: x[0] === "csi" && g.ping > 0 ? "csip" : x[0], base: x[0], bit: x[3], bits: bits[i], share: tot > 0 ? bits[i] / tot : null,
-    subst: ((x[0] === "acc" && !(sens & 1)) || (x[0] === "mag" && !(sens & 2))) && !!(g.raw || !((g.src || 0) & 0x1F)),   // датчика нет: один или без хеша — ГСЧ вместо него
-    none: ((x[0] === "acc" && !(sens & 1)) || (x[0] === "mag" && !(sens & 2))) && !(g.raw || !((g.src || 0) & 0x1F)),     // в смеси через хеш — бит не даёт
+    subst: ((x[0] === "acc" && !(sens & 1)) || (x[0] === "mag" && !(sens & 2))) && !!(g.raw || !((g.src || 0) & 0x9F)),   // датчика нет: один или без хеша — ГСЧ вместо него
+    none: ((x[0] === "acc" && !(sens & 1)) || (x[0] === "mag" && !(sens & 2))) && !(g.raw || !((g.src || 0) & 0x9F)),     // в смеси через хеш — бит не даёт
     wait: x[0] === "bc" && !(r.g_heard_s > 0) }));
 }
 function wheelNoise(d, macs) {                               // полоска долей в середине колеса и подпись словами
@@ -1438,9 +1446,12 @@ function renderPic(d) {
     if (gensM.length) { const pr = gensM.reduce((s, m) => s + primesOf(d.gen[m]), 0), ps = gensM.reduce((s, m) => s + prRateOf(d.gen[m]), 0);
       L7 += T(x0, cy + Y.sum, 15.5, `Σ ${fmt(pr)} простых · ${fmt(ps, ps < 10 ? 1 : 0)}/с`, 'font-weight="700"'); }
     else if (absM.length) L7 += T(x0, cy + Y.sum, 15, `≋ в эфир ${fmt(L.stx_s, 0)}${L.sbg_s ? ` + фон ${fmt(L.sbg_s, 0)}` : ""} кадр/с · принял ≈ ${fmt(L.prx_s / absM.length, 0)}/с`, 'font-weight="700" fill="var(--w-abs)"');
-    L7 += T(x0, cy + Y.rpm, one ? 15 : 17, spinning ? `${dir < 0 ? "⟲" : "⟳"} ${rpm ? fmt(rpm, 1) + " об/мин" : sp.target != null ? "→ " + fmt(sp.target, 1) + " об/мин" : "ШИМ " + fmt(sp.pwm, 0) + " %"}` : "■ без вращения", spinning ? 'font-weight="700"' : 'fill="var(--mut)"');
+    const rimKnown = (rim && !rim.silent && rim.rpm != null) || sp.meas != null;   // обод видит колесо (а не молчит)
+    const spinTxt = !spinning ? "■ без вращения" : rpm ? `${dir < 0 ? "⟲" : "⟳"} ${fmt(rpm, 1)} об/мин · обод ✓`
+      : rimKnown ? `✗ ШИМ ${fmt(sp.pwm, 0)} % — колесо стоит` : `${dir < 0 ? "⟲" : "⟳"} ШИМ ${fmt(sp.pwm, 0)} %${sp.target != null ? ` · цель ${fmt(sp.target, 0)} об/мин` : ""} · обод молчит`;
+    L7 += T(x0, cy + Y.rpm, one ? 15 : 17, spinTxt, !spinning ? 'fill="var(--mut)"' : rpm ? 'font-weight="700"' : rimKnown ? 'font-weight="700" fill="var(--bad)"' : 'fill="var(--mut)"');
     const fs = fd.sense, fMk = fs && fs.agree === true ? " ✓" : fs && fs.agree === false ? ` ◐ датчик: ${FW[fs.seen] || "?"}` : "";
-    L7 += T(x0, cy + Y.fld, 13.5, fd.ag ? (fd.ag.alive ? `${fd.on ? "⇉ " : ""}поле ${esc(fd.word)}${fMk}` : "катушка: нет связи") : "катушки нет", fd.on ? 'font-weight="700" fill="var(--on)"' : 'fill="var(--mut)"');
+    L7 += T(x0, cy + Y.fld, 13.5, fd.ag ? (fd.ag.alive ? `${fd.on ? "⇉ катушка: поле " : "катушка: поле "}${esc(fd.word)}${fMk}` : "катушка: нет связи") : "катушки нет", fd.on ? 'font-weight="700" fill="var(--on)"' : 'fill="var(--mut)"');
     if (Y.b != null && mag && !mag.silent) L7 += T(x0, cy + Y.b, 11.5, `|B| ${fmt(mag.b, mag.b < 100 ? 1 : 0)} мкТл · №${mag.id}`, 'fill="var(--mut)"');
     L7 += `</g>`;
     // имя колеса — снаружи, в верхнем углу (в середине колеса тесно)
@@ -1617,7 +1628,7 @@ function renderStatic(d) {
     return `<div class="sens" data-act="live" data-mac="${a.mac}" tabindex="0" role="button" aria-label="${esc(`${nameOf(d, a.mac)}: ${sw.word} — вживую`)}" data-tt="нажмите — ∿ вживую: оси, окна 10 с … 15 мин, события">
       <div class="sl"><b>${a.dev === "phone" ? "📱" : "◆"} ${nameOf(d, a.mac)}</b><span class="mut">${esc(devName(a))}${s.temp != null ? ` · ${fmt(s.temp, 0)}°` : ""}</span><span class="${sw.cls}">${sw.icon} ${esc(sw.word)}</span></div>
       ${g || `<div class="small mut">${r && r.error ? "✗ " + esc(r.error) : "∩ жду данные датчика…"}</div>`}
-      ${stt ? `<div class="sl"><span>${gaussWord(stt)}</span><span class="mut">СКО ${fx(stt.sd, 3)} ${esc(r.unit || "мg")} · асимм. ${fx(stt.skew, 2)} · эксц. ${fx(stt.kurt, 2)}</span></div><div class="sl">${ev}${rs.length ? `<span>${reasonHTML(rs[0])}</span>` : ""}</div>` : ""}</div>`;
+      ${stt ? `<div class="sl"><span>${gaussWord(stt)}</span><span class="mut">СКО ${fx(stt.sd, 3)} ${esc(r.unit || "мg")} · асимм. ${fx(stt.skew, 2)} · эксц. ${fx(stt.kurt, 2)}${gdevText(r && r.hist ? r.hist[SV.ax] : null, stt)}</span></div><div class="sl">${ev}${rs.length ? `<span>${reasonHTML(rs[0])}</span>` : ""}</div>` : ""}</div>`;
   }).join("");
   let ctl;
   if (rec) ctl = `<span>⏺ эталон ${fmtDur(Math.max(0, Date.now() / 1000 - rec.t0))} из ${fmtDur(rec.t1 - rec.t0)}</span><button class="btn tiny" data-act="basestop">закончить</button>${(rec.busy || []).length ? `<span class="warn">◐ считали ${esc(rec.busy.join(", "))}</span>` : ""}`;
@@ -3207,6 +3218,37 @@ function chart(series, o) {
   }
   return g + `</svg>`;
 }
+// 08.11: насколько распределение не гаусс — половина площади между гистограммой и гауссом той же ширины (0 % — гаусс);
+// «шум» — сколько даёт сам случайный разброс при этом числе отсчётов; «горб» — середина гистограммы к середине гаусса
+function erfA(x) { const s = x < 0 ? -1 : 1; x = Math.abs(x); const t = 1 / (1 + 0.3275911 * x);
+  return s * (1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x)); }
+function gaussDev(hs, st) {
+  if (!hs || !st || !(st.sd > 0) || !hs.n || hs.n.length < 3) return null;
+  const e = hs.edges, n = hs.n, N = n.reduce((a, b) => a + b, 0);
+  if (N < 50) return null;
+  const P = x => 0.5 * (1 + erfA(x / (st.sd * Math.SQRT2)));
+  let l1 = 0, fl = 0, hc = 0, he = 0, inside = 0;
+  for (let i = 0; i < n.length; i++) {
+    const E = N * (P(e[i + 1]) - P(e[i]));
+    inside += E;
+    l1 += Math.abs(n[i] - E);
+    fl += Math.sqrt(2 * Math.max(E, 0) / Math.PI);
+    const c = (e[i] + e[i + 1]) / 2;
+    if (Math.abs(c) <= 0.35 * st.sd) { hc += n[i]; he += E; }
+  }
+  l1 += Math.max(0, N - inside);                       // хвосты гаусса за краями гистограммы
+  return { tv: 100 * l1 / (2 * N), floor: 100 * fl / (2 * N), hump: he > 0 ? hc / he : null };
+}
+function gdevText(hs, st) {
+  const g = gaussDev(hs, st);
+  return g ? ` · ≠ гаусс ${fx(g.tv, 1)} % (шум ~${fx(g.floor, 1)} %)${g.hump ? ` · горб ×${fx(g.hump, 2)}` : ""}` : "";
+}
+function gdevCell(hs, st) {
+  const g = gaussDev(hs, st);
+  if (!g) return "—";
+  const cls = g.tv <= 1.5 * g.floor + 0.5 ? "ok" : g.tv <= 3 * g.floor + 1 ? "warn" : "bad";
+  return `<span class="${cls}">${fx(g.tv, 1)} %</span> <span class="small mut">(шум ~${fx(g.floor, 1)})</span>${g.hump ? ` · горб ×${fx(g.hump, 2)}` : ""}`;
+}
 function gaussWord(st) {
   if (!st) return "—";
   const sk = Math.abs(st.skew), ku = st.kurt;
@@ -3231,10 +3273,10 @@ function liveHTML(d, m) {
   }
   if (!r) return h + `<div class="mut">жду данные…</div>`;
   const st = r.stats, sn = r.since;
-  h += `<div style="overflow:auto"><table class="t"><tr><th></th><th>сейчас, ${U}</th><th>среднее</th><th>СКО</th><th>мин</th><th>макс</th><th>размах</th><th>асимметрия</th><th>эксцесс</th><th>распределение</th>${sn ? `<th>с ⟲: среднее</th><th>СКО</th><th>размах</th>` : ""}</tr>
+  h += `<div style="overflow:auto"><table class="t"><tr><th></th><th>сейчас, ${U}</th><th>среднее</th><th>СКО</th><th>мин</th><th>макс</th><th>размах</th><th>асимметрия</th><th>эксцесс</th><th title="насколько распределение не гаусс: половина площади между гистограммой и гауссом той же ширины (0 % — гаусс); в скобках — сколько даёт сам случайный разброс при таком числе отсчётов; горб — высота середины к гауссу (меньше 1 — середина просела)">≠ гаусс · горб</th><th>распределение</th>${sn ? `<th>с ⟲: среднее</th><th>СКО</th><th>размах</th>` : ""}</tr>
     ${cols.map(c => `<tr><td><b>${c}</b></td><td class="num">${fx(r.cur[c], 2)}</td><td class="num">${fx(st[c] && st[c].mean, 2)}</td><td class="num"><b>${fx(st[c] && st[c].sd, 3)}</b></td>
       <td class="num">${fx(st[c] && st[c].min, 2)}</td><td class="num">${fx(st[c] && st[c].max, 2)}</td><td class="num">${fx(st[c] && st[c].p2p, 2)}</td>
-      <td class="num">${fx(st[c] && st[c].skew, 2)}</td><td class="num">${fx(st[c] && st[c].kurt, 2)}</td><td>${gaussWord(st[c])}</td>
+      <td class="num">${fx(st[c] && st[c].skew, 2)}</td><td class="num">${fx(st[c] && st[c].kurt, 2)}</td><td class="num">${gdevCell(r.hist && r.hist[c], st[c])}</td><td>${gaussWord(st[c])}</td>
       ${sn ? `<td class="num">${fx(sn[c] && sn[c].mean, 2)}</td><td class="num">${fx(sn[c] && sn[c].sd, 3)}</td><td class="num">${fx(sn[c] && sn[c].p2p, 2)}</td>` : ""}</tr>`).join("")}</table></div>
     <div class="small mut">${mag ? "мкТл — микротесла; |B| — модуль поля (Земля даёт 25–65, у компьютера и железа больше)." : "мg — тысячные доли g; |a| — модуль (у неподвижного ≈ 1000)."} Эксцесс > 1 — «хвосты»: толчки и выбросы; < −1 — шум ступенчатый или ровный сигнал. ${sn ? `«С ⟲» — с момента сброса, ${fmt(r.since_n)} отсчётов.` : ""}</div>`;
   const w = r.wave;
@@ -3249,7 +3291,7 @@ function liveHTML(d, m) {
     const sd = st[c] ? st[c].sd : 1, gx = [], gy = [];
     for (let k = 0; k <= 80; k++) { const xv = e[0] + (e[e.length - 1] - e[0]) * k / 80; gx.push(xv); gy.push(tot * bw * Math.exp(-xv * xv / (2 * sd * sd)) / (sd * Math.sqrt(2 * Math.PI))); }
     h += `<div>${chart([{ x: ctr, y: hs.n, col: LCOL[c][0], bars: true }, { x: gx, y: gy, col: "var(--ink)", dash: "4 3", wd: 1 }],
-      { title: `${c}: распределение отклонений и гаусс (пунктир), ${U}`, xlabel: U })}</div>`;
+      { title: `${c}: распределение и гаусс (пунктир), ${U}${gdevText(hs, st[c])}`, xlabel: U })}</div>`;
   }
   h += `</div>`;
   if (r.spec) {
@@ -4075,7 +4117,7 @@ const POP = {
     if (!N.length) return null;
     return { h: `∿ шум ${nameOf(d, m)}`, wide: true, b: N.map(x => `<div class="nsh" data-hl="src|${x.bit}"><span>${SRC_ICON[x.k]} ${esc(SRC_NAME1[x.k])}</span><span class="bar"><i style="width:${x.share != null ? Math.max(1, Math.round(x.share * 100)) : 0}%;background:var(--n-${x.k})"></i></span><b>${x.share != null ? fmt(x.share * 100, x.share < 0.01 ? 1 : 0) + " %" : "—"}</b>
         <span class="small mut" style="grid-column:1 / -1">${x.bits ? bitsW(x.bits) : "бит: нет данных"}${r["g_units_" + x.base] ? ` · ${fmt(r["g_units_" + x.base], 0)} отсчётов/с` : ""}${r["g_time_" + x.base] ? ` · сбор ${fmt(r["g_time_" + x.base], 1)} % времени` : ""}${x.subst ? " · ◐ датчика нет — вместо него ГСЧ" : x.none ? " · ◐ датчика нет — бит не даёт" : ""}${x.wait ? " · ждёт кадров поглотителей" : ""}</span></div>`).join("")
-      + `<div class="small mut">${g.raw ? `без хеша (${g.raw === 2 ? "фон Нейман" : "сырьё"})` : "смешано хешем SHA-256"}${g.ping ? " · CSI с пинга роутера" : (g.src & 2) ? " · CSI с пульса соседей" : ""}${g.cf === 0 && (g.src & 2) ? " · CSI и с кадров поглотителей" : ""}</div>` };
+      + `<div class="small mut">${g.raw ? (g.raw === 4 ? `экстрактор Тёплица ×${g.xf || 4}` : `без хеша (${({ 1: "сырьё", 2: "фон Нейман", 3: `XOR каждых ${g.xf || 4}` })[g.raw] || "сырьё"})`) : "смешано хешем SHA-256"}${g.det ? ` · проверка счёта (окно ${g.det})` : ""}${g.ping ? " · CSI с пинга роутера" : (g.src & 2) ? " · CSI с пульса соседей" : ""}${g.cf === 0 && (g.src & 2) ? " · CSI и с кадров поглотителей" : ""}</div>` };
   },
   flow(d, ab) {
     const [a, b] = ab.split(">"), M = CM || commModel(d), gens = Object.keys(M.wheel).filter(m => M.wheel[m] === a && !M.abs.includes(m)), abs = M.abs.filter(m => M.wheel[m] === b);

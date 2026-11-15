@@ -145,6 +145,17 @@ alarms and the verdict "continue / repeat / check" are computed by the server �
   the mean over 1 s — 0.014–0.017 mg against 0.06–0.10; a single sample is the same for both — it is set by the table's
   vibration.
 
+**◆ Sensor as a participant** (setting `sg`, off by default, switched on only explicitly). The static agent also counts:
+"each on its own" from the chip RNG, without groups, prime log or scattering, on the same core 1 as the measurement but
+at a lower priority — the measurement pre-empts counting, the sensor FIFO is collected on time. The count goes in the
+short static telemetry (`sg`: on, counting, settings number, primes, candidates, seconds since the setting, work share);
+in a program it is a generation channel (`gen:№8`) on a par with the wheels, while the sensor stays static. Why: to
+measure directly how much the board's own work (heat, current, radio) leaks into its readings — a calibration of the whole
+static channel. Caveat: in runs with a participant, a deviation of this sensor is first explained by its own counting; it
+can only be compared with controls where it counts as well. The clock is the agent's own (№8 runs at 80 MHz, no heatsink).
+Series: `python tools/series_search.py --sensor-part`. A firmware without `sg` does not know the setting — the server
+refuses it.
+
 ## The phone (app `phone/`, version 1.1)
 
 The Android phone №9 is one more static detector. The app «Колесо-2 датчики» (Wheel-2 sensors; Kotlin, no third-party

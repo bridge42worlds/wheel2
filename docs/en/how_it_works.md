@@ -20,7 +20,8 @@ test](coil_test.md), the [toroid field calculator](../toroid_field.html) (Russia
 
 * **Wheels** — two, facing each other. Each rim is a tube wound with a coil; on the rim, six **agents**
   run on a 5.1 V bus from their own batteries. Wheel 1: #3, #5, #6 (rim sensor ICM-42688), #11, #12,
-  #20 (magnetometer MLX90393); wheel 2: #14–#19.
+  #20 (magnetometer MLX90393); wheel 2: #14 (rim sensor ICM-42688), #15, #16, #17, #18 (magnetometer
+  MLX90393), #19.
 * **Coil** of a wheel — its own batteries, a DRV8871 bridge and a **coil agent**: field "+", "−" or off.
   Wheel 1 has #13; wheel 2 has no coil agent yet. The coil agent is not part of the wheel's groups.
 * **Frame**: 36GP-555 motors on the wheel axles, two DRV8871 bridges, a 12 V supply and the **motor

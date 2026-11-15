@@ -1,4 +1,7 @@
+// 07.11: набор шума и слова регистра — горячий путь производителя кандидатов; -Os здесь жмёт скорость
+#pragma GCC optimize ("O3")
 #include "entropy.h"
+#include "psram.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include "esp_cpu.h"
@@ -6,6 +9,7 @@
 #include "esp_timer.h"
 #include "mbedtls/sha256.h"
 #include "soc/rtc.h"
+#include "soc/wdev_reg.h"
 #include "driver/gpio.h"
 #include "freertos/queue.h"
 #include "lwip/sockets.h"
@@ -24,6 +28,9 @@ static const uint32_t JIT_SAMPLES_PER_BIT = 4;
 static const uint32_t JIT_PERIODS = 8;     // отсчёт — тактов кварца за 8 периодов RC 136 кГц
 static const int      ADC_PIN = 1;         // D0 = GPIO1 = ADC1_CH0; ничего к ней не подключать
 static const uint32_t BLOCK_BITS = 256;
+// Регистр ГСЧ напрямую (SRC_RRG): соседние чтения связаны — в SHA-256 засчитываем 1 бит на rw слов (настройка rw,
+// 1..4; было всегда 4).
+static inline uint32_t rrg_word() { return REG_READ(WDEV_RND_REG); }
 
 static inline uint32_t cyc() { return esp_cpu_get_cycle_count(); }
 
@@ -135,7 +142,31 @@ void entropy_feed_bcast(const uint8_t* d, size_t n) {
 
 uint32_t bcast_lost() { return s_bc_lost; }
 
+// ---------- «информация» (07.11): файл с сервера (код, музыка) по кругу — вместо эфира B в источнике SRC_BC ----------
+// INFO off|clr|on|<смещение> <hex>: блок до INFO_CAP байт в PSRAM; пока on и блок не пуст — bc_take читает его по кругу,
+// эфир B не нужен. Чистая информация: src = 16; смесь с регистром ГСЧ: src = 144 (XOR байт в байт, raw 1).
+static const uint32_t    INFO_CAP = 256 * 1024;
+static uint8_t*          s_info = nullptr;
+static volatile uint32_t s_info_len = 0, s_info_r = 0;
+static volatile bool     s_info_on = false;
+
+bool entropy_info_put(uint32_t off, const uint8_t* d, size_t n) {
+  if (!s_info) s_info = (uint8_t*)big_alloc(INFO_CAP);
+  if (!s_info || off + n > INFO_CAP) return false;
+  memcpy(s_info + off, d, n);
+  if (off + n > s_info_len) s_info_len = off + n;
+  return true;
+}
+void entropy_info_clear() { s_info_len = 0; s_info_r = 0; s_info_on = false; }
+void entropy_info_on(bool on) { s_info_on = on; s_info_r = 0; }
+uint32_t entropy_info_len() { return s_info_len; }
+bool entropy_info_active() { return s_info_on && s_info_len > 0; }
+
 static size_t bc_take(uint8_t* out, size_t want) {
+  if (s_info_on && s_info_len > 0) {                 // информация по кругу — всегда есть, сколько просят
+    for (size_t i = 0; i < want; ++i) out[i] = s_info[s_info_r++ % s_info_len];
+    return want;
+  }
   portENTER_CRITICAL(&s_bc_mux);
   size_t n = s_bc_w - s_bc_r;
   if (n > want) n = want;
@@ -146,17 +177,25 @@ static size_t bc_take(uint8_t* out, size_t want) {
 
 // ---------- датчики на ободе: запас младших байт показаний (пишет задача датчиков, читает ядро 1) ----------
 struct SensRing {
-  uint8_t           b[1024];
+  uint8_t           b[4096];                         // 09.11: записи целиком (18 байт на отсчёт акселерометра) — запас больше
   volatile uint32_t w = 0, r = 0, lost = 0;
   volatile bool     present = false;
+  volatile uint16_t bpb256 = 256;                    // зачёт, 1/256 бита на байт запаса (entropy_sensor_format)
 };
 static SensRing     s_sr[2];                         // 0 — акселерометр, 1 — магнитометр
 static portMUX_TYPE s_sr_mux = portMUX_INITIALIZER_UNLOCKED;
-static const uint32_t SENS_BITS_PER_BYTE[2] = {1, 2};   // зачёт: ICM — 1 бит на байт, MLX — 2
+static const uint32_t SENS_BITS_PER_BYTE[2] = {1, 2};   // зачёт младших байт (без хеша): ICM — 1 бит на байт, MLX — 2
+static volatile bool s_hashed = true;                // шум через SHA-256 (raw 0) — записи датчиков целиком
 
 static inline int sr_idx(int si) { return si == SI_MAG ? 1 : 0; }
 
 void entropy_sensor_present(int si, bool present) { s_sr[sr_idx(si)].present = present; }
+
+static volatile bool s_share_rx = false;            // поток датчиков колеса принимается (WS): датчик «есть» всегда
+void entropy_share_rx(bool on) { s_share_rx = on; }
+void entropy_sensor_format(int si, uint16_t bpb256) { if (bpb256) s_sr[sr_idx(si)].bpb256 = bpb256; }
+bool entropy_hashed() { return s_hashed; }
+static inline bool sens_here(int si) { return s_share_rx || s_sr[sr_idx(si)].present; }
 
 void entropy_feed_sensor(int si, const uint8_t* d, size_t n) {
   SensRing& q = s_sr[sr_idx(si)];
@@ -294,6 +333,22 @@ static void add_rng(mbedtls_sha256_context& ctx, EntropyStats& st) {
   s.us += esp_timer_get_time() - t0;
 }
 
+static void add_rrg(mbedtls_sha256_context& ctx, EntropyStats& st, uint32_t wpb) {
+  SourceStats& s = st.s[SI_RRG];
+  int64_t t0 = esp_timer_get_time();
+  uint32_t w[64];
+  for (uint32_t k = 0; k < BLOCK_BITS * wpb; k += 64) {
+    for (uint32_t& x : w) {
+      x = rrg_word();
+      lsb(s, SI_RRG, x);
+    }
+    mbedtls_sha256_update(&ctx, (const uint8_t*)w, sizeof w);
+  }
+  s.units += BLOCK_BITS * wpb;
+  s.bits += BLOCK_BITS;
+  s.us += esp_timer_get_time() - t0;
+}
+
 static bool add_csi(mbedtls_sha256_context& ctx, EntropyStats& st, volatile bool* abort, void (*tick)()) {
   SourceStats& s = st.s[SI_CSI];
   int64_t t0 = esp_timer_get_time();
@@ -363,6 +418,7 @@ static void add_jit(mbedtls_sha256_context& ctx, EntropyStats& st) {
 // Эфир сета B: байты услышанных кадров рассеяния. Засчитываем 4 бита на байт —
 // в кадре шум агента B, но он мог пройти через функцию рассеяния вместе с числом.
 static const uint32_t BC_BITS_PER_BYTE = 4;
+static bool s_bc_mixed = false;                      // эфир B не единственный источник блока — не ждать его
 
 static bool add_bc(mbedtls_sha256_context& ctx, EntropyStats& st, volatile bool* abort, void (*tick)()) {
   SourceStats& s = st.s[SI_BC];
@@ -373,7 +429,8 @@ static bool add_bc(mbedtls_sha256_context& ctx, EntropyStats& st, volatile bool*
   while (got < BLOCK_BITS) {
     size_t need = (BLOCK_BITS - got + BC_BITS_PER_BYTE - 1) / BC_BITS_PER_BYTE;
     size_t n = bc_take(b, need < sizeof b ? need : sizeof b);
-    if (!n) {                                        // эфир молчит — ждём
+    if (!n) {                                        // эфир молчит — ждём; с другими источниками — берём что есть
+      if (s_bc_mixed) break;                         // (07.11: иначе «круг» ждёт соседей, а соседи — его)
       vTaskDelay(pdMS_TO_TICKS(5));
       if (tick) tick();
       if (*abort) { ok = false; break; }
@@ -390,21 +447,22 @@ static bool add_bc(mbedtls_sha256_context& ctx, EntropyStats& st, volatile bool*
 }
 
 // Датчик на ободе в блок. need — блок ждёт 256 зачтённых бит (датчик — единственный источник блока);
-// иначе — подмешать накопленное (не больше 256 бит). Датчика нет и ждать нечего — вместо него ГСЧ.
+// иначе — подмешать накопленное (не больше 256 бит). Датчика нет и ждать нечего — вместо него ГСЧ;
+// при раздаче шума колеса (WS) ждём поток с датчиков колеса, ГСЧ не подставляем.
 static bool add_sensor(int si, bool need, mbedtls_sha256_context& ctx, EntropyStats& st, volatile bool* abort,
                        void (*tick)()) {
-  if (need && !s_sr[sr_idx(si)].present) {
+  if (need && !sens_here(si)) {
     add_rng(ctx, st);
     return true;
   }
   SourceStats& s = st.s[si];
-  const uint32_t bpb = SENS_BITS_PER_BYTE[sr_idx(si)];
+  const uint32_t bpb = s_sr[sr_idx(si)].bpb256;        // 1/256 бита на байт: записи целиком — 6 бит на запись
   const int64_t t0 = esp_timer_get_time();
-  uint32_t got = 0;
+  uint32_t got = 0;                                    // в 1/256 бита
   uint8_t b[64];
   bool ok = true;
-  while (got < BLOCK_BITS) {
-    const size_t want = (BLOCK_BITS - got + bpb - 1) / bpb;
+  while (got < BLOCK_BITS * 256) {
+    const size_t want = (BLOCK_BITS * 256 - got + bpb - 1) / bpb;
     const size_t n = sr_take(si, b, want < sizeof b ? want : sizeof b);
     if (!n) {
       if (!need) break;                              // подмешать — сколько есть
@@ -418,24 +476,29 @@ static bool add_sensor(int si, bool need, mbedtls_sha256_context& ctx, EntropySt
     s.units += n;
     got += n * bpb;
   }
+  got /= 256;
   if (ok) s.bits += got < BLOCK_BITS ? got : BLOCK_BITS;
   s.us += esp_timer_get_time() - t0;
   return ok;
 }
 
-static bool make_block(uint16_t mask, EntropyStats& st, volatile bool* abort, void (*tick)()) {
+static bool make_block(uint16_t mask, uint32_t rw, EntropyStats& st, volatile bool* abort, void (*tick)()) {
+  s_bc_mixed = (mask & SRC_MASK & ~SRC_BC) != 0;
   mbedtls_sha256_context ctx;
   mbedtls_sha256_init(&ctx);
   mbedtls_sha256_starts(&ctx, 0);
   bool ok = true;
   if (mask & SRC_RNG) add_rng(ctx, st);
+  if (mask & SRC_RRG) add_rrg(ctx, st, rw);
   if (mask & SRC_CSI) ok = add_csi(ctx, st, abort, tick);
   if (ok && (mask & SRC_ADC)) { add_adc(ctx, st); if (tick) tick(); }
   if (ok && (mask & SRC_JIT)) { add_jit(ctx, st); if (tick) tick(); }
   if (ok && (mask & SRC_BC)) ok = add_bc(ctx, st, abort, tick);
-  const bool alone = !(mask & (SRC_RNG | SRC_CSI | SRC_ADC | SRC_JIT | SRC_BC));   // только датчики
+  const bool alone = !(mask & (SRC_RNG | SRC_CSI | SRC_ADC | SRC_JIT | SRC_BC | SRC_RRG));   // только датчики
   if (ok && (mask & SRC_ACC)) ok = add_sensor(SI_ACC, alone, ctx, st, abort, tick);
-  if (ok && (mask & SRC_MAG)) ok = add_sensor(SI_MAG, alone, ctx, st, abort, tick);
+  // 09.11: с акселерометром магнитометр — добавка (кладёт накопленное): блок ждёт только акселерометр, иначе счёт
+  // шёл бы по 2 с на блок (магнитометр — 20 замеров в секунду)
+  if (ok && (mask & SRC_MAG)) ok = add_sensor(SI_MAG, alone && !(mask & SRC_ACC), ctx, st, abort, tick);
   if (ok) {
     mbedtls_sha256_finish(&ctx, s_pool);
     s_pool_left = sizeof s_pool;
@@ -450,6 +513,9 @@ static bool make_block(uint16_t mask, EntropyStats& st, volatile bool* abort, vo
 // в числе остаётся структура источника (перекосы, связь соседних отсчётов), которую хеш размешал бы.
 // raw = 2: то же с выравниванием фон Неймана — пара бит 01 → 0, 10 → 1, 00 и 11 — мимо: снимает
 // перекос единиц и нулей, но не связь соседних отсчётов. Несколько источников — побитный XOR.
+// raw = 3: бит числа — XOR xf бит сырья подряд (лемма о накоплении: перекос e → 2^(xf-1)·e^xf у независимых
+// бит); связь соседних при чётном xf сама даёт перекос — сервер это предсказывает (nullmodel.py).
+// raw = 4: экстрактор Тёплица — xf·256 бит сырья (как в raw = 1) → 256 бит числа (ниже, tz_block).
 static inline void bq_push(int si, uint32_t v, int nbits) {   // младшие nbits из v, младший первым
   BitQ& q = s_rq[si];
   for (int i = 0; i < nbits && q.n < 256; ++i) {
@@ -516,9 +582,17 @@ static bool raw_refill(int si, EntropyStats& st, volatile bool* abort, void (*ti
       s.units += 64;
       break;
     }
+    case SI_RRG:                                     // регистр ГСЧ — слова целиком, как ГСЧ
+      for (int k = 0; k < 4; ++k) {
+        const uint32_t w = rrg_word();
+        lsb(s, SI_RRG, w);
+        bq_push(si, w, 32);
+      }
+      s.units += 4;
+      break;
     case SI_ACC:
     case SI_MAG: {
-      if (!s_sr[sr_idx(si)].present) {               // датчика нет — вместо него ГСЧ
+      if (!sens_here(si)) {                          // датчика нет (и потока колеса нет) — вместо него ГСЧ
         const uint32_t w = esp_random();
         lsb(s, si, w);
         bq_push(si, w, 32);
@@ -587,17 +661,84 @@ static bool raw_bit(int si, bool vn, EntropyStats& st, volatile bool* abort, voi
   }
 }
 
-static bool raw_fill(uint8_t* out, size_t n, uint16_t mask, bool vn, EntropyStats& st,
+// raw = 3: XOR k бит сырья подряд.
+static bool fold_bit(int si, int k, EntropyStats& st, volatile bool* abort, void (*tick)(), uint8_t& bit) {
+  uint8_t x = 0;
+  for (int i = 0; i < k; ++i) {
+    uint8_t b;
+    if (!raw_bit(si, false, st, abort, tick, b)) return false;
+    x ^= b;
+  }
+  bit = x;
+  return true;
+}
+
+static const uint8_t BIT_OF[SI_N] = {SRC_RNG, SRC_CSI, SRC_ADC, SRC_JIT, SRC_BC, SRC_ACC, SRC_MAG, SRC_RRG};
+
+// 08.11: медленные источники (дрожание часов, АЦП) в смеси с быстрым (ГСЧ, регистр, информация) не держат темп:
+// у каждого — 64-битное состояние, в которое по одному отсчёту на SLOW_EVERY чисел вплетается новый бит; состояние
+// входит в каждое число. Каждое число зависит от всех включённых источников, скорость задают быстрые. В одиночку
+// медленный источник идёт честно, бит за битом (raw_bit).
+static const uint32_t SLOW_EVERY = 8;
+static uint64_t s_slow_state[SI_N];
+static bool     s_slow_init[SI_N];
+static uint32_t s_slow_n = 0;
+
+static uint8_t slow_sample(int si, EntropyStats& st) {
+  SourceStats& s = st.s[si];
+  const int64_t t0 = esp_timer_get_time();
+  uint16_t x;
+  if (si == SI_ADC) {
+    if (!s_adc_ready) adc_prepare();
+    x = analogRead(ADC_PIN);
+  } else {
+    x = (uint16_t)(rtc_clk_cal_ratio(RTC_CAL_RTC_MUX, JIT_PERIODS) >> (19 - __builtin_ctz(JIT_PERIODS)));
+  }
+  lsb(s, si, x);
+  ++s.units;
+  s.us += esp_timer_get_time() - t0;
+  return x & 1;
+}
+
+static bool raw_fill(uint8_t* out, size_t n, uint16_t mask, uint8_t raw, uint8_t xf, EntropyStats& st,
                      volatile bool* abort, void (*tick)()) {
-  static const uint8_t BIT_OF[SI_N] = {SRC_RNG, SRC_CSI, SRC_ADC, SRC_JIT, SRC_BC, SRC_ACC, SRC_MAG};
   memset(out, 0, n);
+  const bool fast = (mask & (SRC_RNG | SRC_RRG)) || ((mask & SRC_BC) && entropy_info_active());
+  const bool fresh = (s_slow_n++ % SLOW_EVERY) == 0;
   for (int si = 0; si < SI_N; ++si) {
     if (!(mask & BIT_OF[si])) continue;
+    if (fast && (si == SI_JIT || si == SI_ADC)) {     // медленный в смеси: текущее состояние, новый бит — раз в SLOW_EVERY
+      uint64_t& z = s_slow_state[si];
+      if (!s_slow_init[si]) {
+        for (int k = 0; k < 64; ++k) z = (z << 1) | slow_sample(si, st);
+        s_slow_init[si] = true;
+      } else if (fresh) {
+        z = ((z << 1) | (z >> 63)) ^ slow_sample(si, st);
+      }
+      for (size_t i = 0; i < n; ++i) out[i] ^= (uint8_t)(z >> (8 * (i & 7)));
+      st.s[si].bits += n * 8;
+      continue;
+    }
+    if (si == SI_BC && (mask & SRC_MASK & ~SRC_BC)) {   // эфир B вместе с другими источниками: подмешиваем, что есть,
+      SourceStats& s = st.s[SI_BC];                    // не ждём (07.11: «круг» ждал байты соседей, соседи — его: 0 простых)
+      uint8_t b[64];
+      size_t got = 0;
+      while (got < n) {
+        const size_t k = bc_take(b, (n - got) < sizeof b ? (n - got) : sizeof b);
+        if (!k) break;
+        for (size_t i = 0; i < k; ++i) { lsb(s, SI_BC, b[i]); out[got + i] ^= b[i]; }
+        got += k;
+      }
+      s.units += got;
+      s.bits += got * 8;
+      continue;
+    }
     for (size_t i = 0; i < n; ++i) {
       uint8_t byte = 0;
       for (int k = 0; k < 8; ++k) {
         uint8_t bit;
-        if (!raw_bit(si, vn, st, abort, tick, bit)) return false;
+        const bool ok = raw == 3 ? fold_bit(si, xf, st, abort, tick, bit) : raw_bit(si, raw == 2, st, abort, tick, bit);
+        if (!ok) return false;
         byte |= (uint8_t)(bit << k);
       }
       out[i] ^= byte;
@@ -607,29 +748,157 @@ static bool raw_fill(uint8_t* out, size_t n, uint16_t mask, bool vn, EntropyStat
   return true;
 }
 
-bool entropy_fill(uint8_t* out, size_t n, uint16_t mask, EntropyStats& st,
-                  volatile bool* abort, void (*tick)()) {
-  const uint8_t raw = (mask >> 8) & 3;               // как брать шум — в старших битах маски (noise_mask)
-  mask &= SRC_MASK;
-  if (raw && !(raw == 1 && mask == SRC_RNG))         // без хеша (один ГСЧ без выравнивания — и так как есть)
-    return raw_fill(out, n, mask, raw == 2, st, abort, tick);
-  if (mask == SRC_RNG) {                 // быстрый путь: слова генератора как есть
-    SourceStats& s = st.s[SI_RNG];
-    uint32_t c0 = cyc();
-    for (size_t i = 0; i < n; i += 4) {
-      uint32_t w = esp_random();
-      memcpy(out + i, &w, 4);
-      lsb(s, SI_RNG, w);
+// ---------- экстрактор Тёплица (raw = 4) ----------
+// y = T·x над GF(2): x — m = xf·256 бит сырья (как в raw = 1: младшие биты, несколько источников — XOR), y — 256
+// бит. T — матрица Тёплица 256×m, T[i][j] = s[i - j + m - 1] (по диагоналям постоянна), s — открытое зерно: m + 255
+// бит splitmix64 с начальным словом 0x243F6A8885A308D3 (цифры π), бит i — бит (i % 64) слова i / 64. Лемма об
+// остатке хеширования: если в m битах сырья не меньше 256 + 2·log2(1/ε) бит мин-энтропии, y отличается от
+// равномерного не больше чем на ε — при любом зерне, выбранном независимо от шума. Зерно открыто: любой блок
+// можно пересчитать (server/nullmodel.py, toeplitz).
+static const int TZ_MAX_M = 16 * BLOCK_BITS;
+static uint32_t  s_tz_seed[(TZ_MAX_M + BLOCK_BITS) / 32 + 2];   // + запас: окно читает слово за краем
+static bool      s_tz_ready = false;
+
+static uint64_t splitmix64(uint64_t& x) {
+  uint64_t z = (x += 0x9E3779B97F4A7C15ULL);
+  z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+  z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+  return z ^ (z >> 31);
+}
+
+static void tz_prepare() {
+  uint64_t x = 0x243F6A8885A308D3ULL;
+  for (size_t i = 0; i + 1 < sizeof s_tz_seed / sizeof s_tz_seed[0]; i += 2) {
+    const uint64_t w = splitmix64(x);
+    s_tz_seed[i] = (uint32_t)w;
+    s_tz_seed[i + 1] = (uint32_t)(w >> 32);
+  }
+  s_tz_ready = true;
+}
+
+static inline void tz_xor_window(uint32_t acc[8], int o) {   // acc ^= s[o … o + 255] — столбец m - 1 - o
+  const uint32_t* p = s_tz_seed + (o >> 5);
+  const int r = o & 31;
+  if (!r) {
+    for (int i = 0; i < 8; ++i) acc[i] ^= p[i];
+    return;
+  }
+  for (int i = 0; i < 8; ++i) acc[i] ^= (p[i] >> r) | (p[i + 1] << (32 - r));
+}
+
+// Тёплиц по словам: один источник — ГСЧ или регистр ГСЧ. Те же биты в том же порядке, что raw_bit (слово за словом,
+// младший бит первым; сначала — остаток очереди), но окно матрицы — только на единичные биты, без очереди по биту.
+static void tz_words(int si, int m, uint32_t acc[8], EntropyStats& st) {
+  SourceStats& s = st.s[si];
+  BitQ& q = s_rq[si];
+  int j = 0;
+  for (; q.n && j < m; ++j) {                       // остаток очереди от прежнего блока
+    const uint8_t a = q.b[q.r];
+    q.r = (q.r + 1) & 255;
+    --q.n;
+    if (a) tz_xor_window(acc, m - 1 - j);
+  }
+  const int64_t t0 = esp_timer_get_time();
+  uint32_t nw = 0;
+  while (j < m) {
+    uint32_t w = si == SI_RRG ? rrg_word() : esp_random();
+    lsb(s, si, w);
+    ++nw;
+    const int k = m - j < 32 ? m - j : 32;           // слово не целиком — лишние биты в очередь, как у raw_bit
+    if (k < 32) bq_push(si, w >> k, 32 - k);
+    w = k < 32 ? w & ((1u << k) - 1) : w;
+    while (w) {
+      const int b = __builtin_ctz(w);
+      w &= w - 1;
+      tz_xor_window(acc, m - 1 - (j + b));
     }
-    s_rng_cyc_rest += cyc() - c0;
-    s.us += s_rng_cyc_rest / s_cpu_mhz;
-    s_rng_cyc_rest %= s_cpu_mhz;
-    s.units += n / 4;
-    s.bits += n * 8;
+    j += k;
+  }
+  s.units += nw;
+  s.us += esp_timer_get_time() - t0;
+}
+
+static bool tz_block(uint16_t mask, int xf, EntropyStats& st, volatile bool* abort, void (*tick)()) {
+  if (!s_tz_ready) tz_prepare();
+  const int m = xf * BLOCK_BITS;
+  if (mask == SRC_RRG || mask == SRC_RNG) {          // один источник-генератор — по словам
+    uint32_t acc[8] = {};
+    tz_words(mask == SRC_RRG ? SI_RRG : SI_RNG, m, acc, st);
+    memcpy(s_pool, acc, sizeof acc);
+    s_pool_left = sizeof s_pool;
+    st.s[mask == SRC_RRG ? SI_RRG : SI_RNG].bits += BLOCK_BITS;
     return true;
   }
-  for (size_t off = 0; off < n;) {
-    if (s_pool_left == 0 && !make_block(mask, st, abort, tick)) return false;
+  uint32_t acc[8] = {};
+  for (int j = 0; j < m; ++j) {
+    uint8_t x = 0;
+    for (int si = 0; si < SI_N; ++si) {
+      if (!(mask & BIT_OF[si])) continue;
+      uint8_t b;
+      if (!raw_bit(si, false, st, abort, tick, b)) return false;
+      x ^= b;
+    }
+    if (x) tz_xor_window(acc, m - 1 - j);
+  }
+  memcpy(s_pool, acc, sizeof acc);                   // бит i выхода — бит (i % 8) байта i / 8, как в raw = 1
+  s_pool_left = sizeof s_pool;
+  for (int si = 0; si < SI_N; ++si)
+    if (mask & BIT_OF[si]) st.s[si].bits += BLOCK_BITS;
+  return true;
+}
+
+bool entropy_selftest() {
+  // эталон: python server/nullmodel.py — вход — биты splitmix64 с начальным словом 0x0123456789ABCDEF
+  static const uint32_t WANT[2][8] = {
+    {0x73B35AE1, 0xE8DC34E0, 0xAAD0151A, 0x8FCDE12D, 0x2CE4DC76, 0xEAE8119A, 0x1DC55D9C, 0xC85AFBD5},   // xf = 4
+    {0x71BA7801, 0xCD4B63B8, 0xE2D94789, 0x4B97C311, 0x7C6BC13C, 0xFBACDC32, 0xBDADF8AD, 0x2F447590}};  // xf = 16
+  if (!s_tz_ready) tz_prepare();
+  static const int XF[2] = {4, 16};
+  for (int t = 0; t < 2; ++t) {
+    const int m = XF[t] * BLOCK_BITS;
+    uint32_t acc[8] = {};
+    uint64_t x = 0x0123456789ABCDEFULL, w = 0;
+    for (int j = 0; j < m; ++j) {
+      if ((j & 63) == 0) w = splitmix64(x);
+      if ((w >> (j & 63)) & 1) tz_xor_window(acc, m - 1 - j);
+    }
+    if (memcmp(acc, WANT[t], sizeof acc)) return false;
+  }
+  return true;
+}
+
+// Слова генератора как есть: ГСЧ (esp_random) или регистр ГСЧ напрямую.
+static void words_fill(uint8_t* out, size_t n, int si, EntropyStats& st) {
+  SourceStats& s = st.s[si];
+  uint32_t c0 = cyc();
+  for (size_t i = 0; i < n; i += 4) {
+    uint32_t w = si == SI_RRG ? rrg_word() : esp_random();
+    memcpy(out + i, &w, 4);
+    lsb(s, si, w);
+  }
+  s_rng_cyc_rest += cyc() - c0;
+  s.us += s_rng_cyc_rest / s_cpu_mhz;
+  s_rng_cyc_rest %= s_cpu_mhz;
+  s.units += n / 4;
+  s.bits += n * 8;
+}
+
+bool entropy_fill(uint8_t* out, size_t n, uint32_t mask, EntropyStats& st,
+                  volatile bool* abort, void (*tick)()) {
+  const uint8_t raw = (mask >> 8) & 7;               // как брать шум и во сколько сжимать — в старших битах маски
+  const uint8_t xf = (mask >> 12) & 31;              // (noise_mask)
+  const uint16_t src = mask & SRC_MASK;
+  const uint32_t rw = (mask >> 17) & 7 ? (mask >> 17) & 7 : 4;   // слов регистра ГСЧ на бит SHA-256
+  s_want = (uint8_t)src;                             // и по команде NS: датчики кладут то, что берёт счёт
+  s_hashed = raw == 0;
+  if (raw <= 1 && (src == SRC_RNG || (raw == 1 && src == SRC_RRG))) {   // быстрый путь: слова генератора как есть
+    words_fill(out, n, src == SRC_RRG ? SI_RRG : SI_RNG, st);
+    return true;
+  }
+  if (raw >= 1 && raw <= 3) return raw_fill(out, n, src, raw, xf, st, abort, tick);   // без хеша
+  for (size_t off = 0; off < n;) {                  // блоки SHA-256 (raw 0) или Тёплица (raw 4); остаток — дальше
+    if (s_pool_left == 0 && !(raw == 4 ? tz_block(src, xf, st, abort, tick) : make_block(src, rw, st, abort, tick)))
+      return false;
     size_t take = min((size_t)s_pool_left, n - off);
     memcpy(out + off, s_pool + (sizeof s_pool - s_pool_left), take);
     s_pool_left -= take;

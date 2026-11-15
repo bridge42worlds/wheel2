@@ -39,6 +39,7 @@ import time
 RPM_FULL = 112.0          # об/мин на выходе редуктора при 100 % ШИМ без нагрузки (36GP-555, 12 В); колесо на валу мотора
 KP, KI = 4.0, 2.0         # ПИ: ‰ ШИМ на 1 об/мин ошибки; ‰ на (об/мин · с)
 I_MAX = 300.0             # предел накопленной поправки, ‰
+DUTY_MAX = 790.0          # потолок ШИМ с обратной связью, ‰: ниже сторожа 820 (73 об/мин — около 705 ‰)
 G = 9.80665
 WHEELS = {"a": "1", "b": "2"}
 PAIRS = ("free", "same", "opposite", "only1", "only2")
@@ -51,7 +52,8 @@ def zero_g_rpm(r_mm):
 
 
 class Motors:
-    def __init__(self, agents_fn, send_fn, rpm_fn, radius_fn=None, rmm_fn=None, swap_fn=None, mirror_fn=None, log=print):
+    def __init__(self, agents_fn, send_fn, rpm_fn, radius_fn=None, rmm_fn=None, swap_fn=None, mirror_fn=None, log=print,
+                 reboot_fn=None):
         self.agents_fn = agents_fn            # () -> [(mac, ip, alive)] агентов роли M
         self.send_fn = send_fn                # (line, ip)
         self.rpm_fn = rpm_fn                  # (колесо "1"/"2") -> обороты с обода или None
@@ -68,6 +70,12 @@ class Motors:
                        "i": 0.0, "duty": 0, "meas": None, "fb": False, "target": None, "r": None, "k": None,
                        "r_src": None, "eff": "off", "edir": 1, "hold": False, "dprev": 1, "mprev": "off"} for w in WHEELS}
         self.sent = None
+        self.reboot_fn = reboot_fn            # (ip) -> перезапустить плату моторов: мост «ведёт», а колесо стоит
+        self.stuck = {w: 0 for w in WHEELS}   # секунд подряд: ШИМ > 300 ‰, обод свежий, оборотов нет
+        self.t_reboot = 0.0
+        # 08.11: качание оборотов — ШИМ режима pwm умножается на 1 + a·sin(2π(t − t0)/T), у обоих колёс в фазе (зеркало):
+        # каждая плата на ободе дважды за период проходит свою невесомость (радиусы ±1 см — ±3 % по оборотам)
+        self.mod = None                       # {"a": доля, "T": с, "t0": эпоха}
 
     # ---------- команды ----------
     def set(self, body):
@@ -78,6 +86,17 @@ class Motors:
                     s["mode"], s["i"], s["flip"] = "off", 0.0, 0.0
                 self.log("[mot] стоп")
                 return self.brief_locked()
+            if "mod" in body:                         # {"a": 0.05, "T": 20} — качание ШИМ синусом; пусто — выкл
+                m = body["mod"]
+                if m:
+                    a, T = float(m.get("a", 0.05)), float(m.get("T", 20.0))
+                    if not (0.0 < a <= 0.10 and 5.0 <= T <= 600.0):
+                        raise ValueError("mod: a 0…0,10, T 5…600 с")
+                    self.mod = {"a": a, "T": T, "t0": float(m.get("t0") or time.time())}
+                    self.log(f"[mot] качание ШИМ ±{a * 100:.1f} %, период {T:g} с")
+                else:
+                    self.mod = None
+                    self.log("[mot] качание выкл")
             if "ramp" in body:
                 self.ramp = int(min(5000, max(50, float(body["ramp"]))))
             if "wd" in body:
@@ -165,6 +184,19 @@ class Motors:
             out = {}
             for w, s in self.st.items():
                 mode, d, pwm, rpm_set, zg = self._eff(w)
+                # 06.11: обод под счётом теряет ось и шлёт «0 об/мин», хотя колесо под ШИМ > 300 ‰ шло к цели секунду
+                # назад — за один такт колесо не останавливается: это «нет данных», держать ШИМ, а не сбрасывать на разгон
+                if meas[w] is not None and meas[w] > 10:
+                    s["t_spin"] = now                                     # когда колесо точно крутилось
+                spun = now - s.get("t_spin", 0.0) < 60
+                if meas[w] is not None and meas[w] < 2 and spun and abs(s["duty"]) > 300:
+                    meas[w] = None
+                # и внезапное «вдвое медленнее» за один-два такта под ШИМ — тоже обод (среднее с нулём), не колесо
+                if meas[w] is not None and abs(s["duty"]) > 300 and s.get("m_prev") and now - s.get("t_m", 0.0) < 60 \
+                        and meas[w] < 0.8 * s["m_prev"]:
+                    meas[w] = None
+                if meas[w] is not None and meas[w] > 10:
+                    s["m_prev"], s["t_m"] = meas[w], now
                 s["meas"], s["eff"], s["edir"], s["ezg"] = meas[w], mode, d, zg if mode == "zerog" else 0.0
                 r_meas, k, r_src = (tuple(rad[w]) + (None,))[:3]
                 s["k"] = k
@@ -174,11 +206,13 @@ class Motors:
                     duty, s["fb"], s["target"] = 0.0, False, None
                 elif mode == "pwm":
                     duty, s["fb"], s["target"] = float(pwm), False, None
+                    if self.mod:                                       # качание: синус, у обоих колёс в фазе; не выше 790 ‰
+                        duty = min(DUTY_MAX, duty * (1.0 + self.mod["a"] * math.sin(2 * math.pi * (now - self.mod["t0"]) / self.mod["T"])))
                 else:
                     if mode == "zerog":
                         if r_meas and 100 <= r_meas <= 2000:
                             r_use, s["r_src"] = r_meas, r_src or "обод"
-                        elif held is not None and meas[w] is None and s["r"]:   # обод молчит (молчание на опыте): радиус —
+                        elif meas[w] is None and s["r"] and (held is not None or spun):   # обод молчит (молчание на опыте,
                             r_use = s["r"]                                     # последний, иначе цель ушла бы на настройки
                         else:
                             r_use, s["r_src"] = rmm, "настройки"
@@ -191,8 +225,11 @@ class Motors:
                     # Обратная связь — только когда колесо и вправду едет к цели (обод ≥ 60 % цели): на разгоне и после
                     # смены направления (агент тормозит до нуля, пауза 1 с, разгон) интегратор иначе накапливал бы
                     # ошибку «стоящего» колеса и давал перерегулирование 10–20 % на четверть минуты
-                    if meas[w] is None and held is not None and abs(held - tgt) <= 0.005 * tgt:
-                        duty, s["fb"], s["hold"] = float(abs(s["duty"])), False, True   # оборотов нет — держать ШИМ
+                    dh = [x for x in s.get("dh") or [] if now - x[0] < 20]            # ШИМ с обратной связью за 20 с
+                    if meas[w] is None and (held is not None or (spun and dh)) and (held is None or abs(held - tgt) <= 0.005 * tgt):
+                        # оборотов нет — держать ШИМ: медиану последних 20 с с обратной связью (06.11: последний такт
+                        # перед молчанием обода бывал с выбросом — колесо держало 780 ‰ полминуты), иначе последний
+                        duty, s["fb"], s["hold"] = (sorted(x[1] for x in dh)[len(dh) // 2] if dh else float(abs(s["duty"]))), False, True
                     elif meas[w] is None or abs(s["duty"]) < 50 or abs(meas[w]) < 0.6 * tgt:
                         duty, s["fb"] = ff, False
                         if meas[w] is not None and abs(meas[w]) < 0.3 * tgt:
@@ -200,10 +237,17 @@ class Motors:
                     else:
                         err = tgt - meas[w]
                         raw = ff + KP * err + s["i"]
-                        if 0.0 < raw < 1000.0 or (raw >= 1000.0 and err < 0) or (raw <= 0.0 and err > 0):
+                        # интеграл — только у цели (±15 %): на разгоне к 73 об/мин (невесомость датчика на 170 мм) он
+                        # набирал 300 ‰ и давал 950 ‰ — сторож ШИМ (06.11, №46)
+                        if abs(err) <= 0.15 * tgt and (0.0 < raw < 1000.0 or (raw >= 1000.0 and err < 0) or (raw <= 0.0 and err > 0)):
                             s["i"] = max(-I_MAX, min(I_MAX, s["i"] + KI * err * dt))   # не копить, упёршись в предел ШИМ
                         duty, s["fb"] = ff + KP * err + s["i"], True
-                duty = max(0.0, min(1000.0, duty))
+                        s["dh"] = dh + [(now, max(0.0, min(1000.0, duty)))]
+                if mode != "pwm" and abs(s["duty"]) > 300 and s["dprev"] == d and s["mprev"] == mode:
+                    duty = max(abs(s["duty"]) - 40.0, min(abs(s["duty"]) + 40.0, duty))   # не быстрее 40 ‰ за такт: выброс обода
+                if mode != "pwm":
+                    duty = min(duty, DUTY_MAX)                                              # с обратной связью — ниже сторожа 820
+                duty = max(0.0, min(1000.0, duty))                                          # не станет выбросом ШИМ
                 s["duty"] = int(round(duty)) * d
                 s["dprev"], s["mprev"] = d, mode
                 out[w] = s["duty"]
@@ -213,6 +257,24 @@ class Motors:
             if alive and ip:
                 self.send_fn(line, ip)
         self.sent = (round(now, 1), line)
+        # зависание платы моторов (06.11, дважды): ШИМ идёт, плата довольна, колесо стоит. Обод свежий (не молчание) и
+        # оборотов нет 25 с подряд при ШИМ > 300 ‰ — перезапустить плату командой, не чаще раза в 2 мин
+        for w in self.st:
+            s = self.st[w]
+            self.stuck[w] = self.stuck[w] + dt if (abs(s["duty"]) > 300 and meas[w] is not None and meas[w] < 2) else 0
+        bad = [WHEELS[w] for w in self.st if self.stuck[w] >= 25]
+        if bad and now - self.t_reboot > 120:
+            self.t_reboot = now
+            for w in self.st:
+                self.stuck[w] = 0
+            # 06.11 11:00: сработал ложно (обод давал нули при 78 об/мин), а REBOOT ушёл всем платам M — и катушкам;
+            # без reboot_fn — только запись в журнал
+            self.log(f"[mot] колесо {', '.join(bad)}: ШИМ есть, оборотов нет 25 с"
+                     + (" — перезапуск платы моторов" if self.reboot_fn else " (перезапуск выключен)"))
+            if self.reboot_fn:
+                for mac, ip, alive in self.agents_fn():
+                    if alive and ip:
+                        self.reboot_fn(ip)
 
     def run(self, stop=None):
         while not (stop and stop.is_set()):
@@ -231,7 +293,7 @@ class Motors:
             lead = self.st[w] if self.pair == "free" else self.st["a"]
             out[w] = {**{k: v for k, v in s.items() if k != "t_flip"}, "wheel": WHEELS[w],
                       "flip_left": round(max(0.0, lead["flip"] * 60 - (now - lead["t_flip"])), 0) if lead["flip"] else None}
-        return {"ramp": self.ramp, "wd": self.wd, "pair": self.pair, "rpm_full": RPM_FULL, "sent": self.sent,
+        return {"ramp": self.ramp, "wd": self.wd, "pair": self.pair, "rpm_full": RPM_FULL, "sent": self.sent, "mod": self.mod,
                 "swap": bool(self.swap_fn()), "mirror": bool(self.mirror_fn()),
                 "zerog_set": round(zero_g_rpm(float(self.rmm_fn() or 450.0)), 2), "wheels": out}
 

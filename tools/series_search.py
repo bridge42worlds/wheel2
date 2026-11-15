@@ -4,6 +4,7 @@
     python tools/series_search.py --dry          план, проверка программы, время — без запуска
     python tools/series_search.py                запустить на 8090 (все платы на связи), сторож ШИМ
     python tools/series_search.py --only F4,F1   только эти семьи;  --sec 30 — измерение опыта, с
+    python tools/series_search.py --sensor-part  статический датчик (ADXL355) — участник: считает там, где считают
 
 Семьи (вращение — глазами наблюдателя: «навстречу» — колёса в разные стороны, нужна настройка установки mirror):
   F4  стоят · никто не считает (только статика): поле + −, + +, ∿ 1, ∿ 5, ∿ 17 Гц, ⊓ 1 Гц — поле на статику без радио
@@ -12,6 +13,13 @@
   F2  навстречу k = 1 · К2 генерирует, К1 поглощает (смешать): + −, − +, + +, − −, ∿ 1, ⟳ ×1, ⟳ ×2, ∿ 5 Гц
   F3  навстречу k = 1 · петля ↺+: К2 — ГСЧ + кадры поглотителей К1 (фон 50/с; главный показатель — кандидаты): + −, ⟳ ×1, ∿ 1 Гц + +, − −
   F5  обороты: навстречу 30 об/мин, k = 1 −3 %, +3 % — поле выкл против + − (разведка, без контролей)
+  F7  стоят · смешивание: каждый сам из регистра ГСЧ напрямую (128), способ свой у каждой платы — без хеша (слова как
+      есть), фон Нейман, XOR ×4, Тёплиц ×4, SHA-256: + −, ∿ 1, ∿ 5 Гц; главные показатели — сырьё (q_rrg, s_rrg) и
+      биты простых против предсказания (z_pq, z_ps)
+  F8  стоят · проверка счёта (det 1): все считают одни и те же числа подряд — простых и отсеянных ровно столько, сколько
+      знает сервер, журнал без пропусков и лишних: + −, ∿ 1, ∿ 17 Гц
+  F9  навстречу k = 1 · проверка счёта: + −, ⟳ ×1
+Предсказанный ноль (z против теории и проверка счёта) сводится по всей программе — series_report.py.
 Колесо-пустышка (№22, №23) в каждом опыте работает тем же способом своей группой — опора. Статика меряет всё время
 и опыт не портит (static_spoil false); эталон статики — записанный заранее (baseline_min 0).
 """
@@ -20,9 +28,11 @@ import argparse, json, os, sys, time, urllib.request
 ap = argparse.ArgumentParser()
 ap.add_argument("--url", default="http://127.0.0.1:8090")
 ap.add_argument("--sec", type=float, default=30, help="измерение опыта, с (статике нужно ≥ 20: два окна по 10 с)")
-ap.add_argument("--only", default="", help="семьи через запятую: F4,F1,F6,F2,F3,F5")
+ap.add_argument("--only", default="", help="семьи через запятую: F4,F1,F6,F2,F3,F5,F7,F8,F9")
 ap.add_argument("--dry", action="store_true", help="только план и проверка программы, без запуска")
 ap.add_argument("--guard", type=int, default=820, help="ШИМ, ‰: выше дольше 10 с — стоп всего")
+ap.add_argument("--sensor-part", action="store_true",
+                help="статический датчик-участник (sg): считает «каждый сам» в опытах с генерацией, стоит в «никто не считает»")
 A = ap.parse_args()
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "server"))
 import program as P  # noqa: E402  проверка программы до запуска
@@ -46,6 +56,8 @@ for b in sorted(fleet, key=lambda b: b["id"]):
         W[str(b["wheel"])].append(b["mac"])
 ID = {b["mac"]: b["id"] for b in fleet}
 D = W["3"]
+# статические датчики-платы (не телефон) — участники при --sensor-part
+SP = [a["mac"] for a in live.values() if a.get("kind") == "S" and a.get("dev") != "phone" and a.get("status") == "online"]     if A.sensor_part else []
 if not A.dry and (len(W["1"]) < 6 or len(W["2"]) < 6 or len(D) < 2):
     sys.exit(f"не все на связи: К1 {len(W['1'])}, К2 {len(W['2'])}, пустышка {len(D)}")
 if not req("/api/rig").get("mirror"):
@@ -77,6 +89,29 @@ def g_absorb(cfg):
     return out
 
 
+MIX = (1, 2, 3, 4, 0, 1)      # смешивание по платам колеса: без хеша, фон Нейман, XOR ×4, Тёплиц ×4, SHA-256, без хеша
+
+
+def g_mix():
+    """Каждый сам из регистра ГСЧ напрямую — способ смешивания свой у каждой платы (MIX); пустышка — без хеша и Тёплиц.
+    Контроль — те же способы у тех же плат при выключенном поле."""
+    out = []
+    for w in ("1", "2", "3"):
+        mix = MIX if w != "3" else (1, 4)
+        if W[w]:
+            out.append({"targets": W[w], "cfg": {"mode": 0, "dc": 0, **COMMON, "src": 128, "xf": 4},
+                        "own": {m: {"role": 0, "src": 128, "raw": mix[i % len(mix)], "xf": 4} for i, m in enumerate(W[w])},
+                        "label": f"{'колесо ' + w if w != '3' else 'колесо-пустышка'} · смешивание по платам"})
+    return out
+
+
+def g_det():
+    """Проверка счёта: все считают одни и те же числа подряд от 2^255 (det 1) — какие простые, сервер знает заранее."""
+    m = W["1"] + W["2"] + D
+    return [{"targets": m, "cfg": {"mode": 0, "dc": 0, **COMMON, "src": 1, "det": 1, "bits": 256},
+             "own": {x: {"role": 0, "det": 1} for x in m}, "label": "каждый сам · проверка счёта (det 1)"}]
+
+
 def g_idle():
     m = W["1"] + W["2"] + D
     return [{"targets": m, "cfg": {"mode": 0, "dc": 0, "run": 0}, "own": {}, "label": "никто не считает — только статика"}]
@@ -98,7 +133,18 @@ FOFF = F("выкл", "выкл")
 STEPS, SETTLE = [], {"field": 6, "mode": 8, "spin": 25, "speed": 15}
 
 
+def part(groups):
+    """Датчик-участник: считает там, где кто-то считает, и стоит, где никто не считает (никогда не теряет роль S)."""
+    if not SP:
+        return groups
+    run = any((g["cfg"].get("run") != 0) for g in groups)
+    return groups + [{"targets": SP, "cfg": {"mode": 0, "dc": 0, "run": 1 if run else 0, "sg": 1 if run else 0, "src": 1},
+                      "own": {m: {"role": 2, "cpu": 80, "sg": 1 if run else 0} for m in SP},
+                      "label": f"◆ статика {'считает' if run else 'стоит'} (участник)"}]
+
+
 def step(fam, name, groups, mot, coil, settle, ctrl=None, control=False, rot="■■ стоят"):
+    groups = part(groups)
     STEPS.append({"name": name[:100], "minutes": round(A.sec / 60, 3), "control": control,
                   **({"control_for": ctrl} if ctrl else {}), "groups": groups, "settle_s": settle, "mot": mot,
                   "coil": coil, "layers": {"rot": rot, "field": {"1": coil["1"], "2": coil["2"]}, "family": fam}})
@@ -119,7 +165,7 @@ def family(fam, ctrl_name, groups, mot, variants, first_settle, rot):
 
 
 NA = "⟳⟲ навстречу · невесомость"
-want = [f.strip() for f in A.only.split(",") if f.strip()] or ["F4", "F1", "F6", "F2", "F3", "F5"]
+want = [f.strip() for f in A.only.split(",") if f.strip()] or ["F4", "F1", "F6", "F2", "F3", "F5", "F7", "F8", "F9"]
 for fam in want:
     if fam == "F4":
         family("F4", "контроль F4: стоят · никто не считает · поле выкл", g_idle, OFF,
@@ -144,6 +190,17 @@ for fam in want:
         family("F3", f"контроль F3: {NA} · петля ↺+ К2 ← К1 · поле выкл", lambda: g_absorb(LOOPP), ZG(),
                [("+ −", F("+", "−")), ("⟳ ×1 + −", F("+", "−", SYNC(1))), ("∿ 1 Гц + +", F("+", "+", AC(1))),
                 ("− −", F("−", "−"))], SETTLE["mode"], NA)
+    elif fam == "F7":
+        family("F7", "контроль F7: стоят · смешивание по платам · поле выкл", g_mix, OFF,
+               [("+ −", F("+", "−")), ("∿ 1 Гц + −", F("+", "−", AC(1))), ("∿ 5 Гц + −", F("+", "−", AC(5)))],
+               SETTLE["mode"], "■■ стоят")
+    elif fam == "F8":
+        family("F8", "контроль F8: стоят · проверка счёта · поле выкл", g_det, OFF,
+               [("+ −", F("+", "−")), ("∿ 1 Гц + −", F("+", "−", AC(1))), ("∿ 17 Гц + −", F("+", "−", AC(17)))],
+               SETTLE["mode"], "■■ стоят")
+    elif fam == "F9":
+        family("F9", f"контроль F9: {NA} · проверка счёта · поле выкл", g_det, ZG(),
+               [("+ −", F("+", "−")), ("⟳ ×1 + −", F("+", "−", SYNC(1)))], SETTLE["spin"], NA)
     elif fam == "F5":                                       # разведка оборотов: пары «поле выкл / + −»
         for nm, mot in (("навстречу 30 об/мин", RPM(30)), ("навстречу k = 1 −3 %", ZG(-3)), ("навстречу k = 1 +3 %", ZG(3))):
             step("F5", f"{nm} · генерация двумя группами · поле выкл", g_cascade(), mot, FOFF, SETTLE["speed"], rot=nm)
@@ -157,7 +214,7 @@ for s in STEPS:
             s["name"] = f"{s['name'][:94]} · №{seen[s['name']]}"
 PROG = {"name": f"серия поиска: {', '.join(want)} · {len(STEPS)} опытов по {A.sec:g} с", "baseline_min": 0, "repeat": 1,
         "shuffle": False, "rest": 0, "z": 4, "confirm": 0, "redo": 0, "again": 0, "static_spoil": False, "metrics": [],
-        "targets": W["1"] + W["2"] + D, "steps": STEPS, **({"dummy": D, "dummy_tmax": 75} if D else {})}
+        "targets": W["1"] + W["2"] + D + SP, "steps": STEPS, **({"dummy": D, "dummy_tmax": 75} if D else {})}
 P.validate(json.loads(json.dumps(PROG)))                  # ошибка программы — до запуска
 est = sum(s["settle_s"] + A.sec + (0 if s["groups"] and s["groups"][0]["cfg"].get("run") == 0 else 10) + 6 for s in STEPS)
 fams = {}

@@ -11,6 +11,7 @@
 #include "entropy.h"
 #include "prime_log.h"
 #include "psram.h"
+#include "rim_sensors.h"
 
 namespace group {
 
@@ -23,7 +24,8 @@ enum : uint8_t { M_REQ = 1, M_PCS = 2, M_NUM = 3, M_RES = 4, M_NXT = 5, M_ASK = 
                  M_PRIME = 7, M_SCAT = 8, M_CHAIN = 9,    // рассеяние: простое A, кадр B, шаг эстафеты B
                  M_TURN = 10,                             // эстафета, каскад: ход, сверка, подтверждение
                  M_REST = 11,                             // эстафета, каскад: «отдыхаю» / «снова в деле»
-                 M_ALIVE = 12 };                          // «пульс»: раз в секунду всем, в любом режиме
+                 M_ALIVE = 12,                            // «пульс»: раз в секунду всем, в любом режиме
+                 M_WSH = 13 };                            // раздача шума колеса: младшие байты датчиков обода (09.11)
 
 #pragma pack(push, 1)
 struct Hdr { uint8_t m0, m1, type, from; uint32_t gs, cycle; uint8_t round; };
@@ -49,6 +51,9 @@ struct Chn { Hdr h; uint8_t step, ofrom; uint16_t len; uint8_t data[1]; };   // 
 struct Trn { Hdr h; uint8_t next, primes, has_prime, rn; uint16_t bits; uint32_t span; uint8_t data[1]; };
 struct Rst { Hdr h; uint8_t on, pad; uint16_t secs; };   // отдых по очереди: on 1 — ушёл, 0 — вернулся
 struct Alv { Hdr h; uint8_t run; int8_t temp; uint32_t up_s; };   // пульс: считает ли, кристалл °C, с запуска
+// Раздача шума колеса: tag — номер колеса, k — 0 акселерометр, 1 магнитометр; rl — длина записи; seq — номер кадра
+// этого датчика; в data — n байт целых записей.
+struct Wsh { Hdr h; uint8_t tag, k, rl; uint16_t seq, n; uint8_t data[1]; };
 #pragma pack(pop)
 
 static const size_t  PCS_HDR = sizeof(Pcs) - 1;
@@ -58,6 +63,7 @@ static const size_t  PRM_HDR = sizeof(Prm) - 1;
 static const size_t  SCT_HDR = sizeof(Sct) - 1;
 static const size_t  CHN_HDR = sizeof(Chn) - 1;
 static const size_t  TRN_HDR = sizeof(Trn) - 1;
+static const size_t  WSH_HDR = sizeof(Wsh) - 1;
 static const size_t  MSG_MAX = 600;            // наш предел длины сообщения
 static const int     K_MAX = 64;               // кандидатов за один сбор
 static const char    VER = '5';
@@ -2100,11 +2106,124 @@ static void b_on_chain(const Hdr& h, const uint8_t* d, size_t len) {
   b_push(true, c.ofrom, h.cycle, c.data, c.len);
 }
 
+// ---------- раздача шума колеса (09.11) ----------
+// Плата с датчиком обода (акселерометр-гироскоп ICM-42688 или магнитометр MLX90393) отдаёт записи его показаний
+// целиком (оси, время отсчёта, температура) всем платам своего колеса — широковещательно, кадр до 216 байт; платы
+// колеса кладут их в запас SI_ACC / SI_MAG, как свой датчик. Так всё колесо считает на шуме своего места
+// (WS <колесо> <что>), без ГСЧ и внутренних источников. Что из записи идёт в шум — wheel_record.
+static volatile uint8_t s_ws_tag = 0;            // 0 — выкл; иначе номер колеса
+static volatile uint8_t s_ws_sel = 0;            // в шум, кроме осей: 1 — время отсчёта, 2 — температура
+static const int WS_CAP[2] = {12 * REC_ACC, 10 * REC_MAG};   // кадр: 12 записей акселерометра (~60 мс), 10 магнитометра (~0,5 с)
+static uint8_t  s_ws_buf[2][12 * REC_ACC];       // накоплено к отправке: 0 — акселерометр, 1 — магнитометр
+static uint16_t s_ws_len[2] = {};
+static uint16_t s_ws_seq[2] = {};
+static int64_t  s_ws_t[2] = {};
+static uint16_t s_ws_rseq[2] = {};               // последний принятый номер кадра (по датчику)
+static bool     s_ws_rhave[2] = {};
+static uint32_t s_ws_st[7] = {};                 // кадров отдано, принято, пропусков, байт принято (акс., магн.), не влезло, чужих колёс
+static portMUX_TYPE s_ws_mux = portMUX_INITIALIZER_UNLOCKED;
+
+void share(uint8_t tag, uint8_t sel) {
+  portENTER_CRITICAL(&s_ws_mux);
+  s_ws_tag = tag;
+  s_ws_sel = sel & 3;
+  s_ws_len[0] = s_ws_len[1] = 0;
+  s_ws_rhave[0] = s_ws_rhave[1] = false;
+  memset(s_ws_st, 0, sizeof s_ws_st);
+  portEXIT_CRITICAL(&s_ws_mux);
+  entropy_share_rx(tag != 0);
+}
+uint8_t share_tag() { return s_ws_tag; }
+uint8_t share_sel() { return s_ws_sel; }
+
+void share_put(int k, const uint8_t* rec) {      // задача датчиков: запись целиком — к раздаче
+  if (!s_ws_tag || k < 0 || k > 1) return;
+  const int rl = k ? REC_MAG : REC_ACC;
+  portENTER_CRITICAL(&s_ws_mux);
+  if (s_ws_len[k] + rl > WS_CAP[k]) s_ws_st[5] += rl;   // кадр не ушёл вовремя — запись не влезла
+  else {
+    memcpy(s_ws_buf[k] + s_ws_len[k], rec, rl);
+    s_ws_len[k] += rl;
+  }
+  portEXIT_CRITICAL(&s_ws_mux);
+}
+
+// Запись датчика — в свой шум. Через SHA-256: оси целиком (16 бит: и положение, и вращение, и поле) и по выбору
+// время отсчёта и температура; засчитываем как прежде — 6 бит на запись (акселерометр-гироскоп — 1 бит на ось,
+// магнитометр — 2), остальное входит в блок без зачёта. Без хеша (raw 1–4) — только младшие байты осей, как прежде:
+// старшие байты сделали бы число неслучайным.
+void wheel_record(int k, const uint8_t* rec) {
+  const int na = k ? 3 : 6;
+  uint8_t out[REC_ACC];
+  int n = 0;
+  if (entropy_hashed()) {
+    memcpy(out, rec, 2 * na);
+    n = 2 * na;
+    const uint8_t sel = s_ws_sel;
+    if (sel & 1) { memcpy(out + n, rec + 2 * na, 4); n += 4; }
+    if (sel & 2) { memcpy(out + n, rec + 2 * na + 4, 2); n += 2; }
+    entropy_sensor_format(k ? SI_MAG : SI_ACC, (uint16_t)(6 * 256 / n));
+  } else {
+    for (int j = 0; j < na; ++j) out[n++] = rec[2 * j];   // младший байт оси (запись — младшим байтом вперёд)
+    entropy_sensor_format(k ? SI_MAG : SI_ACC, k ? 512 : 256);
+  }
+  entropy_feed_sensor(k ? SI_MAG : SI_ACC, out, n);
+}
+
+void share_stats(uint32_t out[7]) {
+  portENTER_CRITICAL(&s_ws_mux);
+  memcpy(out, s_ws_st, sizeof s_ws_st);
+  portEXIT_CRITICAL(&s_ws_mux);
+}
+
+static void ws_tick() {                          // задача связи: накопленное — кадром всем
+  if (!s_ws_tag || s_radio_off) return;
+  const int64_t now = now_us();
+  for (int k = 0; k < 2; ++k) {
+    if (!s_ws_len[k]) continue;
+    const int rl = k ? REC_MAG : REC_ACC;
+    if (s_ws_len[k] + rl <= WS_CAP[k] && now - s_ws_t[k] < (k ? 600000 : 80000)) continue;   // полный кадр или пора
+    static uint8_t buf[WSH_HDR + sizeof s_ws_buf[0]];
+    Wsh& m = *(Wsh*)buf;
+    hdr(m.h, M_WSH);
+    m.tag = s_ws_tag;
+    m.k = (uint8_t)k;
+    m.rl = (uint8_t)rl;
+    portENTER_CRITICAL(&s_ws_mux);
+    m.n = s_ws_len[k];
+    memcpy(m.data, s_ws_buf[k], m.n);
+    s_ws_len[k] = 0;
+    portEXIT_CRITICAL(&s_ws_mux);
+    m.seq = ++s_ws_seq[k];
+    s_ws_t[k] = now;
+    send_all(buf, WSH_HDR + m.n);
+    ++s_ws_st[0];
+  }
+}
+
+static void ws_on_rx(const uint8_t* d, size_t len) {
+  if (!s_ws_tag || len < WSH_HDR) return;
+  const Wsh& m = *(const Wsh*)d;
+  if (m.k > 1 || len < WSH_HDR + (size_t)m.n || m.rl != (m.k ? REC_MAG : REC_ACC)) return;
+  if (m.tag != s_ws_tag) { ++s_ws_st[6]; return; }        // поток другого колеса
+  if (rim::present() & (m.k ? rim::HAS_MAG : rim::HAS_IMU)) return;   // свой такой датчик есть — кладёт сам
+  if (s_ws_rhave[m.k] && (uint16_t)(m.seq - s_ws_rseq[m.k]) > 1) s_ws_st[2] += (uint16_t)(m.seq - s_ws_rseq[m.k]) - 1;
+  s_ws_rseq[m.k] = m.seq;
+  s_ws_rhave[m.k] = true;
+  ++s_ws_st[1];
+  s_ws_st[3 + m.k] += m.n;
+  for (int o = 0; o + m.rl <= m.n; o += m.rl) wheel_record(m.k, m.data + o);
+}
+
 // Все принятые кадры: рассеяние — здесь, протокол группы A — в on_msg.
 static void on_rx(const uint8_t* mac, int8_t rssi, const uint8_t* d, size_t len) {
   const Hdr& h = *(const Hdr*)d;
   if (h.type == M_ALIVE) {           // пульс соседа — в таблицу, в любом режиме и при любой настройке
     if (len >= sizeof(Alv)) alive_note(*(const Alv*)d, mac, rssi);
+    return;
+  }
+  if (h.type == M_WSH) {             // шум колеса — при любой настройке
+    ws_on_rx(d, len);
     return;
   }
   if (h.type == M_SCAT) {            // кадр рассеяния своей настройки: считаем; эфир B — в шум, если отмечен
@@ -2553,6 +2672,7 @@ static void task(void*) {
       }
     }
     alive_tick();                      // пульс — в любом режиме
+    ws_tick();                         // раздача шума колеса — в любом режиме
     tx_kick();                         // и очередь отправки живёт всегда, не только в группе
     if (s_on || s_b_on || s_ann) {
       if (s_on && relay() && !s_resting) {

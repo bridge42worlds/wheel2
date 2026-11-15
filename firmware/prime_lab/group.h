@@ -188,4 +188,19 @@ void radio_pause(bool off);                    // Wi-Fi выключен на ш
                                                // Wi-Fi: ESP-NOW и адресаты поднимаются заново, если сброшены вместе с ним
 int  neighbors(Neighbor* out, int max);        // снимок таблицы соседей
 
+// ---------- раздача шума колеса (09.11, команда WS) ----------
+// share(n, sel) — плата в колесе n: свой датчик обода отдаёт всем платам колеса, поток датчиков колеса — в свой шум
+// (SRC_ACC / SRC_MAG); n = 0 — не раздавать. sel — что из записи датчика класть в шум, кроме осей: 1 — время отсчёта,
+// 2 — температура датчика (и для своего датчика, и для потока колеса). Запись датчика (задача датчиков, k 0 —
+// акселерометр-гироскоп, 1 — магнитометр): оси int16 (6 или 3), время отсчёта мкс uint32, температура int16 (сырьё).
+// share_put — запись к раздаче, wheel_record — запись в свой шум. share_stats: кадров отдано, принято, пропущено,
+// байт принято (акс., магн.), не влезло, кадров чужого колеса.
+static const int REC_ACC = 18, REC_MAG = 12;
+void    share(uint8_t tag, uint8_t sel);
+uint8_t share_tag();
+uint8_t share_sel();
+void    share_put(int k, const uint8_t* rec);
+void    wheel_record(int k, const uint8_t* rec);
+void    share_stats(uint32_t out[7]);
+
 }  // namespace group

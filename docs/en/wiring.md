@@ -20,8 +20,8 @@ Wi‑Fi, a common ground between the circuits is not needed.
   wheels, on the fixed frame, are the static sensors: №8 and the phone №9.
 - Each wheel has two independent circuits: the agent bus (6 boards) and the coil with its own power. The bus along the
   rim is not closed into a ring.
-- Wheel 1: №3, №5, №6 (rim sensor ICM-42688), №11, №12, №20 (magnetometer MLX90393), coil agent №13. Wheel 2: №14–№19,
-  no coil agent.
+- Wheel 1: №3, №5, №6 (rim sensor ICM-42688), №11, №12, №20 (magnetometer MLX90393), coil agent №13. Wheel 2: №14 (rim sensor ICM-42688), №15,
+  №16, №17, №18 (magnetometer MLX90393), №19, coil agent №21.
 - The motors are controlled from the frame: agent №10, two DRV8871 bridges, 12 V supply.
 - There are no wires between the wheels, the frame and the server: the agents use Wi‑Fi through the experiment router,
   the laptop server is connected to the router by cable (["Experiment network"](#experiment-network-wi-fi)).

@@ -4,6 +4,7 @@
 #include <mlx90393.h>
 #include "esp_timer.h"
 #include "entropy.h"
+#include "group.h"
 
 namespace rim {
 
@@ -69,10 +70,16 @@ static void task(void*) {
     if (s_present & HAS_IMU) {
       Icm42688::Sample smp;
       if (s_imu.read(smp)) {
-        if (entropy_wants(SI_ACC)) {           // шум с акселерометра выбран: младшие байты шести осей — в запас
-          uint8_t lo[6];
-          for (int j = 0; j < 6; ++j) lo[j] = (uint8_t)smp.raw[j];
-          entropy_feed_sensor(SI_ACC, lo, sizeof lo);
+        const bool share = group::share_tag() != 0;   // раздача шума колеса: запись — и всем платам колеса
+        if (entropy_wants(SI_ACC) || share) {  // шум с акселерометра-гироскопа выбран: запись отсчёта целиком
+          uint8_t rec[group::REC_ACC];         // шесть осей, время отсчёта, температура (сырьё) — младшим байтом вперёд
+          memcpy(rec, smp.raw, 12);
+          const uint32_t tus = (uint32_t)now;
+          memcpy(rec + 12, &tus, 4);
+          const int16_t tr = (int16_t)lroundf((smp.temp - 25.0f) * 132.48f);
+          memcpy(rec + 16, &tr, 2);
+          if (entropy_wants(SI_ACC)) group::wheel_record(0, rec);
+          if (share) group::share_put(0, rec);
         }
         const float dt = (now - t_prev) / 1e6f;
         t_prev = now;
@@ -131,9 +138,15 @@ static void task(void*) {
       } else if (ph == 6) {
         Mlx90393::Sample m;
         if (s_mag.fetch(m)) {
-          if (entropy_wants(SI_MAG)) {         // шум с магнитометра выбран: младшие байты трёх осей
-            uint8_t lo[3] = {(uint8_t)m.raw[0], (uint8_t)m.raw[1], (uint8_t)m.raw[2]};
-            entropy_feed_sensor(SI_MAG, lo, sizeof lo);
+          if (entropy_wants(SI_MAG) || group::share_tag()) {   // шум с магнитометра выбран: запись замера целиком
+            uint8_t rec[group::REC_MAG];       // три оси, время замера, температура (сырьё)
+            memcpy(rec, m.raw, 6);
+            const uint32_t tus = (uint32_t)esp_timer_get_time();
+            memcpy(rec + 6, &tus, 4);
+            const int16_t tr = (int16_t)(uint16_t)lroundf((m.temp - 35.0f) * 45.2f + 46244.0f);
+            memcpy(rec + 10, &tr, 2);
+            if (entropy_wants(SI_MAG)) group::wheel_record(1, rec);
+            if (group::share_tag()) group::share_put(1, rec);   // и всем платам колеса
           }
           const float a = sqrtf(m.b[0] * m.b[0] + m.b[1] * m.b[1] + m.b[2] * m.b[2]);
           portENTER_CRITICAL(&s_mux);

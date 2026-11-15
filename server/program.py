@@ -25,9 +25,18 @@
 Шаг, на котором кто-то из агентов не подтвердил настройку, испорчен так же, как
 шаг с толчком: он не идёт в сравнение и повторяется.
 
+Предсказанный ноль (nullmodel.py) — показатели, ожидание которых известно без контроля:
+сырьё по источникам (q_…, s_… — доля единиц младшего бита и совпадений соседних, ‰ от
+половины: прозрачный канал, сравнивается с контролем, как всё остальное), выход простых
+и отсев делителями против теории (z_yield, z_td), биты простых журнала против
+предсказания по сырью и способу смешивания (z_pq, z_ps), проверка счёта (det_… — ровно
+0 при верном счёте). Сводка по всей программе — null_checks: z с поправкой Бонферрони
+на все такие показатели, их среднее и разброс (у верного нуля около 0 и 1).
+
 Модуль не знает внутренностей сервера: всё нужное передаётся в Runner (hooks).
 """
 import json, math, os, random, threading, time
+from nullmodel import yield_z, predict_bits, bits_z, det_check
 
 TEST_S = 10         # проверка режима перед исполнением: столько секунд с телеметрией — счёт идёт, режим работает
 
@@ -38,13 +47,21 @@ COVARIATES = ("temp", "work", "rssi")
 # Опорная поправка: колесо-пустышка работает тем же режимом в то же время, поэтому отношение «колёса на агента /
 # пустышка на агента» сравнивается с тем же отношением в контроле — без дрейфа, общего у колёс и опоры.
 REF = "все/опора"
+# Предсказанный ноль: источники в порядке массива "e" телеметрии (бит маски источника — 1 << номер)
+SRC_KEYS = ("rng", "csi", "adc", "jit", "bc", "acc", "mag", "rrg")
+RAW_MIN = 1000          # отсчётов сырья источника за шаг — меньше доля единиц ничего не скажет
+PRIME_MIN = 20          # простых журнала за шаг — меньше биты простых не сравнивать
+DET_MAX_K = 8_000_000   # проверка счёта: дальше кандидатов сервер не пересчитывает (память, время)
+NULL_Z = ("z_yield", "z_td", "z_pq", "z_ps")            # без аномалии — N(0, 1)
+DET_ERR = ("det_dpr", "det_dtd", "det_miss", "det_extra")   # при верном счёте — ровно 0
+INFO = ("det_n", "det_gap", "drop")                     # справка: в сравнение не идут (drop — секунд статики с толчком)
 DUMMY_TMAX = 75         # потолок температуры плат колеса-пустышки, °C: радиаторов у них нет, частота та же, что у колёс
 
 
 def metric_keys(m):
     """Показатели за шаг, которые сравниваются с контролем: статические (полосы, разброс, среднее,
     форма шума) и генерация; без служебного n и без ковариат."""
-    return [k for k in m if k != "n" and k not in COVARIATES]
+    return [k for k in m if k != "n" and k not in COVARIATES and k not in INFO]
 
 
 # ---------- критерий аномалии ----------
@@ -124,12 +141,69 @@ def gen_name(a, mac):
     return f"№{(a or {}).get('id') or mac[-5:]}"
 
 
-def gen_metrics(snap, dur, snap0=None, dummy=()):
+def raw_stats(g, g0):
+    """Сырьё за шаг по источникам: {ключ: (доля единиц младшего бита, доля совпадений соседних)} — разность счётчиков
+    e (у того же номера настройки); у источника меньше RAW_MIN отсчётов — мимо."""
+    e = g.get("e") or []
+    e0 = (g0.get("e") or []) if g0.get("cid") == g.get("cid") else []
+    out = {}
+    for i, k in enumerate(SRC_KEYS[:len(e)]):
+        x, x0 = e[i], e0[i] if i < len(e0) else [0] * 7
+        tot, pairs = x[4] - x0[4], x[6] - x0[6]
+        if tot >= RAW_MIN:
+            out[k] = ((x[3] - x0[3]) / tot, (x[5] - x0[5]) / pairs if pairs > 0 else 0.5)
+    return out
+
+
+def null_metrics(g, g0, pr, cand, tdr, pll, st):
+    """Показатели с известным ожиданием (nullmodel). Сырьё по источникам: q_… и s_… — ‰ от половины. «Каждый сам»
+    у генератора: выход простых и отсев против теории (z_yield, z_td); биты простых журнала против предсказания по
+    сырью и режиму (z_pq, z_ps); проверка счёта (det_…: простых и отсеянных у платы минус ожидание, пропуски и
+    лишние в журнале; det_gap — журнал дошёл не весь, сверка его не делается). st — счётчики журнала или None."""
+    m = {}
+    rs = raw_stats(g, g0)
+    for k, (q, s) in rs.items():
+        m["q_" + k] = 1000 * (q - 0.5)
+        m["s_" + k] = 1000 * (s - 0.5)
+    bits = g.get("bits")
+    if g.get("role") or not bits or cand <= 0:
+        return m
+    det, solo = g.get("det") or 0, not g.get("mode")
+    # в эстафете и каскаде отсеянных, но не проверенных (ход кончился) считают в кандидатах; у проверки счёта числа
+    # одни и те же — ей вместо z точная сверка
+    if solo and not det:
+        m.update(yield_z(cand, pr, tdr, bits, g.get("td") or 0))
+    if det and solo:
+        k1 = g.get("cand") or 0
+        if k1 <= DET_MAX_K:
+            logged, gap = None, 0
+            if st is not None:
+                gap = (g.get("pln") or 0) - (g.get("pll") or 0) - st["n"]
+                if gap <= 0:
+                    logged = st["det"].get(det, [])
+            m.update(det_check(bits, det, g.get("td") or 0, g.get("nb") or 8, k1 - cand, k1, pr, tdr, logged, pll))
+            if gap > 0:
+                m["det_gap"] = gap
+        return m
+    if st and st["n"] >= PRIME_MIN and (solo or not g.get("raw")):   # в группе число из кусочков всех: только с хешем
+        src, raw = g.get("src") or 0, g.get("raw") or 0
+        words = raw <= 1 and (src == 1 or (raw == 1 and src == 128))     # слова генератора как есть
+        q, s, r = predict_bits(raw, g.get("xf") or 4, [k for i, k in enumerate(SRC_KEYS) if src >> i & 1], rs, words)
+        zq, zs = bits_z(st["free"], st["ones"], st["pairs"], st["same"], q, s, r)
+        if zq is not None:
+            m["z_pq"] = zq
+        if zs is not None:
+            m["z_ps"] = zs
+    return m
+
+
+def gen_metrics(snap, dur, snap0=None, dummy=(), null=False, plog=None):
     """Показатели генерации за шаг по каждому агенту и всем вместе. Счётчики агентов идут с момента
     применения настройки, а меряется шаг с t0 (после установления) — поэтому берётся разность со
     снимком на t0 (snap0), если он есть. Температура и доля работы — ковариаты (COVARIATES).
     dummy — агенты пустышки (неподвижная группа без мотора и поля): в «все» не входят, их сумма — «колесо-пустышка».
-    Есть и колёса, и пустышка — ещё опорная поправка REF: колёса на агента к пустышке на агента в том же шаге."""
+    Есть и колёса, и пустышка — ещё опорная поправка REF: колёса на агента к пустышке на агента в том же шаге.
+    null — ещё показатели с известным ожиданием (null_metrics); plog(mac, cid) — счётчики бит журнала простых."""
     out, tot, dt = {}, {"pr_s": 0.0, "cand_s": 0.0}, {"pr_s": 0.0, "cand_s": 0.0}
     dur = max(dur, 1e-6)
     for mac, a in (snap or {}).items():
@@ -159,6 +233,13 @@ def gen_metrics(snap, dur, snap0=None, dummy=()):
             m["mr_us"] = d(g, g0, "mrus") / cand
         if g.get("role") == 1 or g.get("ss"):          # поглотитель или генератор, рассеивающий своё
             m["stx_s"] = d(g, g0, "stx") / du
+        if null:
+            st = plog(mac, g.get("cid")) if plog and g.get("pl") else None
+            qb, q0 = g.get("qb"), (g0 or {}).get("qb") or [0, 0, 0, 0]
+            if isinstance(qb, list) and qb[0] - q0[0] > 0:  # плата сама считает биты простых (таблица отрезков) —
+                st = {"n": pr, "free": qb[0] - q0[0], "ones": qb[1] - q0[1], "pairs": qb[2] - q0[2],   # полнее журнала
+                      "same": qb[3] - q0[3], "det": (st or {}).get("det") or {}}
+            m.update(null_metrics(g, g0, pr, cand, d(g, g0, "tdr"), d(g, g0, "pll"), st))
         if a.get("temp") is not None:
             m["temp"] = a["temp"]
         if a.get("work") is not None:
@@ -241,6 +322,117 @@ def anomalies(runs, z_thr, only=None):
             found[idx] = hits
     return found
 
+
+def null_checks(runs, z_thr):
+    """Предсказанный ноль за всю программу. z_… без аномалии — N(0, 1): поправка Бонферрони на все такие показатели
+    всех шагов (ложная тревога на программу — как |Z| ≥ z у нормального); сводка по показателю — среднее и разброс
+    (у верного нуля около 0 и 1). det_… при верном счёте ровно 0 — любое отличие записывается. Испорченные — мимо."""
+    rows, det = [], []
+    for idx, r in enumerate(runs):
+        if r.get("spoiled"):
+            continue
+        for ch, m in chans(r).items():
+            if not ch.startswith("gen:"):
+                continue
+            for k in NULL_Z:
+                if m.get(k) is not None:
+                    rows.append({"run": idx, "step": r.get("name"), "mac": ch, "metric": k, "z": m[k]})
+            for k in DET_ERR:
+                if m.get(k):
+                    det.append({"run": idx, "step": r.get("name"), "mac": ch, "metric": k, "value": m[k]})
+    n, p_thr = len(rows), norm_p(z_thr)
+    for x in rows:
+        x["p"] = norm_p(x["z"])
+        x["p_adj"] = min(1.0, x["p"] * n)
+    fmt = lambda x: {**x, "z": round(x["z"], 2), "p": f"{x['p']:.2g}", "p_adj": f"{x['p_adj']:.2g}"}
+    summ = {}
+    for k in NULL_Z:
+        v = [x["z"] for x in rows if x["metric"] == k]
+        if len(v) >= 2:
+            mu = sum(v) / len(v)
+            summ[k] = {"n": len(v), "mean": round(mu, 3), "sd": round(math.sqrt(sum((a - mu) ** 2 for a in v) / (len(v) - 1)), 3)}
+    return {"tests": n, "hits": [fmt(x) for x in rows if x["p_adj"] <= p_thr],
+            "worst": [fmt(x) for x in sorted(rows, key=lambda x: x["p"])[:3]], "det": det, "summary": summ}
+
+
+
+# ---------- поле внутри опыта ----------
+# Шаг с расписанием поля (fseq): плата молчит весь шаг, а счётчики на каждой границе k·seg снимает сама (настройка
+# seg) и сдаёт таблицу после шага. Отрезок 0 — установление (настройка подтверждается, поле выкл, в разбор не идёт),
+# дальше — состояния поля по расписанию. Статика по отрезку — без первых SEG_GUARD с: поле встаёт.
+SEG_GUARD = 3.0
+
+
+def _fseq(f, i):
+    if f is None:
+        return None
+    if not isinstance(f, dict) or not isinstance(f.get("states"), list) or not f["states"]:
+        raise ValueError(f"шаг {i + 1}: fseq — {{seg: с, states: [{{name, coil, set}}, …]}}")
+    seg = int(f.get("seg") or 15)
+    if not 5 <= seg <= 120:
+        raise ValueError(f"шаг {i + 1}: fseq.seg от 5 до 120 с")
+    if len(f["states"]) > 60:
+        raise ValueError(f"шаг {i + 1}: fseq — не больше 60 состояний")
+    # tab: False — «без фиксации»: плата не снимает счётчики по отрезкам (только итог шага); статика — по отрезкам
+    def stage(x):                                    # 08.11: этапы внутри шага — ns (маска источника), tl, sx, stl
+        out = {}
+        if x.get("ns") is not None:
+            ns = int(x["ns"])
+            if not 1 <= ns <= 255 or ns & 2:
+                raise ValueError(f"шаг {i + 1}: fseq.ns — маска источников 1…255 без CSI")
+            out["ns"] = ns
+        for k in ("tl", "stl"):
+            if x.get(k) is not None:
+                if int(x[k]) not in (0, 1, 2):
+                    raise ValueError(f"шаг {i + 1}: fseq.{k} — 0, 1 или 2")
+                out[k] = int(x[k])
+        if x.get("sx") is not None:
+            out["sx"] = 1 if x["sx"] else 0
+        return out
+    return {"seg": seg, "tab": f.get("tab", True) is not False, "states": [{"name": str(x.get("name") or "")[:40],
+                                    "coil": x.get("coil") if isinstance(x.get("coil"), dict) else {"1": "выкл", "2": "выкл"},
+                                    "set": {str(k)[:12]: str(v)[:40] for k, v in (x.get("set") or {}).items()}, **stage(x)}
+                                   for x in f["states"] if isinstance(x, dict)]}
+
+
+def _seg_rows(row, base):
+    """Строка таблицы отрезков платы — как снимок телеметрии для gen_metrics (счётчики и сырьё e по источникам)."""
+    e = [[0] * 7 for _ in SRC_KEYS]
+    for x in row[4] if len(row) > 4 else []:
+        if isinstance(x, list) and len(x) >= 5 and 0 <= x[0] < len(e):
+            e[x[0]] = [0, 0, 0, x[1], x[2], x[3], x[4]]
+    qb = row[5] if len(row) > 5 and isinstance(row[5], list) and len(row[5]) == 4 else None   # биты простых — платой
+    return {**base, "cand": row[1], "tdr": row[2], "pr": row[3], "age": row[0] / 1000.0, "e": e, "pln": None, "pll": None,
+            **({"qb": qb} if qb else {})}
+
+
+def seg_gen(snap, tabs, plog, dummy, k):
+    """Генерация отрезка k по таблицам плат (их счётчики на границах k и k + 1) и журналу (простые по времени агента):
+    те же показатели, что у шага, — и отношение колёс к опоре. tabs — {mac: таблица}."""
+    s1, s0, parts = {}, {}, {}
+    for mac, a in snap.items():
+        t = tabs.get(mac)
+        if not t or len(t["rows"]) <= k + 1:
+            continue
+        base = {x: v for x, v in (a.get("gen") or {}).items() if x not in ("e", "cand", "tdr", "pr", "age", "mrus", "stx")}
+        r0, r1 = t["rows"][k], t["rows"][k + 1]
+        s0[mac] = {**a, "gen": _seg_rows(r0, base)}
+        th = r1[6] if len(r1) > 6 and isinstance(r1[6], list) and len(r1[6]) >= 2 else None   # тепло на границе: 0,1 °C, 0,1 %
+        s1[mac] = {**a, "gen": _seg_rows(r1, base), "temp": th[0] / 10.0 if th and th[0] > -32768 else None,
+                   "work": th[1] / 10.0 if th else None}
+        parts[mac] = (r0[0], r1[0])
+
+    def plog_k(mac, cid):
+        st = plog(mac, cid) if plog else None
+        if not st or mac not in parts:
+            return None
+        lo, hi = parts[mac]
+        ms, n, ones, pairs, same = st["pts"]
+        sel = [i for i, v in enumerate(ms) if lo <= v < hi]
+        return {"n": len(sel), "free": sum(n[i] for i in sel), "ones": sum(ones[i] for i in sel),
+                "pairs": sum(pairs[i] for i in sel), "same": sum(same[i] for i in sel), "det": st["det"]}
+    dur = [(hi - lo) / 1000.0 for lo, hi in parts.values()]
+    return gen_metrics(s1, sum(dur) / len(dur) if dur else 1.0, s0, dummy, null=True, plog=plog_k) if s1 else {}
 
 # ---------- колесо-пустышка ----------
 # Неподвижная группа без мотора и поля, записанная в программу как колесо: в каждом шаге она работает тем же
@@ -381,7 +573,12 @@ def validate(prog):
            "dummy_tmax": int(prog.get("dummy_tmax", DUMMY_TMAX) or 0),
            # вывод статики «повторить» (толчок, сдвиг, сбой прибора) портит шаг; false — статика меряется и пишется,
            # но шаг в сравнение идёт (поиск отклонений генерации, когда рядом ходят люди)
-           "static_spoil": bool(prog.get("static_spoil", True))}
+           "static_spoil": bool(prog.get("static_spoil", True)),
+           # эталон при вращении: колёса раскручиваются (поле выкл), потом пишется эталон — у программ, где колёса
+           # крутятся всегда, отклонение «от неподвижного эталона» было бы в каждом опыте
+           "baseline_mot": _mot(prog.get("baseline_mot"), -1),
+           # план, записанный и запечатанный хешем до запуска (серия): только запомнить
+           "plan_sha": str(prog.get("plan_sha") or "")[:64]}
     if out["dummy_tmax"] and not 40 <= out["dummy_tmax"] <= 75:
         raise ValueError("потолок колеса-пустышки: dummy_tmax от 40 до 75 °C (0 — как у всех)")
     if 0 < out["baseline_min"] < 1:
@@ -397,6 +594,9 @@ def validate(prog):
         step = {"name": str(s.get("name") or f"шаг {i + 1}")[:100], "cfg": dict(s.get("cfg") or {}),
                 "own": s.get("own"), "minutes": minutes, "control": bool(s.get("control")),
                 "quiet": bool(s.get("quiet", True)),          # молчание на исполнении — обычный режим опыта
+                # когда молчать: prep — после установления (обычно); start — сразу после подтверждения; never — сами
+                # этапы внутри шага (fseq.tl) решают, но итоги — как у молчащего шага (агент сам вернёт телеметрию)
+                "quiet_at": s.get("quiet_at") if s.get("quiet_at") in ("prep", "start", "never") else "prep",
                 # шаг на агенте: длительность уходит в настройку (dur), агент сам останавливается и сдаёт итоги
                 # (done = cid); сервер ждёт «сдали все». Радио выкл на шаге (ro в cfg группы) — только так
                 "agent": bool(s.get("agent")),
@@ -411,8 +611,11 @@ def validate(prog):
                 # серия с планшетки: вращение колёс на шаге (агент моторов), своё установление (смена вращения
                 # дольше смены поля) и отдых только там, где меняется внешний уровень серии
                 "mot": _mot(s.get("mot"), i),
+                # поле по расписанию внутри опыта: шаг на агенте с отрезками (seg), плата молчит весь шаг
+                "fseq": _fseq(s.get("fseq"), i),
                 "settle_s": max(0.0, min(300.0, float(s["settle_s"]))) if s.get("settle_s") is not None else None,
                 "rest": bool(s["rest"]) if s.get("rest") is not None else None,
+                "keep_field": bool(s.get("keep_field")),   # 08.11: поле не выключать в конце шага (идёт в следующий)
                 # параметры опыта ключами (эксперимент с планшетки): {"rot": "rl", "speed": "rpm:30", "field": "p0", …}
                 "set": {str(k)[:12]: (None if v is None else str(v)[:60]) for k, v in list(s["set"].items())[:12]}
                        if isinstance(s.get("set"), dict) else None}
@@ -694,6 +897,11 @@ class Runner:
                             "baseline": True}
                 self.store(x)
                 self.h["apply"](macs, {**x["base"]["cfg"], "run": 0}, x["base"]["own"], False)
+                if prog.get("baseline_mot") and self.h.get("motor"):   # эталон при вращении: разгон, поле выкл
+                    if self.h.get("coil_off"):
+                        self.h["coil_off"]("эталон при вращении")
+                    self.h["motor"](prog["baseline_mot"], "эталон при вращении")
+                    self.stop.wait(30)
                 self.stop.wait(3)
                 x["baseline"] = self.h["baseline"](prog["baseline_min"], self.stop)
                 self.store(x)
@@ -785,6 +993,7 @@ class Runner:
                 real, fake = split_dummy(found)          # тревога колеса-пустышки — не аномалия колёс, но проверяется так же
                 x["anomalies"] = {str(k): v for k, v in real.items()}
                 x["verdicts"] = verdicts(x["runs"], real, prog["z"])
+                x["null"] = null_checks(x["runs"], prog["z"])
                 if prog.get("dummy"):
                     fvd = verdicts(x["runs"], fake, prog["z"])
                     x["placebo"] = {**placebo(x["runs"], real, fake, fvd), "anomalies": {str(k): v for k, v in fake.items()},
@@ -844,6 +1053,8 @@ class Runner:
 
     def _one(self, macs, st, item, base):
         t_apply = time.time()
+        mono0 = time.monotonic()                               # границы отрезков — по монотонным часам: подводка системных
+        clock = lambda: t_apply + (time.monotonic() - mono0)   # часов (служба времени) не сдвинет расписание поля
         self._phase("start")
         fixed = self.h["static_macs"]()
         prog = (self.active or {}).get("program") or {}
@@ -856,7 +1067,12 @@ class Runner:
         # План шага: одна настройка всем (как раньше) или несколько групп, каждая со своей настройкой и
         # своим номером (планшетка: колесо 1 — генерация, колесо 2 — поглощение или своя генерация).
         # шаг на агенте: срок — длительность плюс установление (измерение начинается после него)
-        dur = {"dur": min(7200, int(st["minutes"] * 60 + settle))} if st.get("agent") else {}
+        fs = st.get("fseq")
+        if fs:                                                 # поле внутри опыта: отрезок 0 — установление
+            settle = fs["seg"]
+        dur = {"dur": min(7200, int(st["minutes"] * 60 + settle))} if st.get("agent") or fs else {}
+        if fs:
+            dur = {"dur": fs["seg"] * (1 + len(fs["states"])), **({"seg": fs["seg"]} if fs.get("tab", True) else {})}
         plan = []
         if st.get("groups"):
             for g in st["groups"]:
@@ -875,7 +1091,9 @@ class Runner:
             own = st["own"] if st["own"] is not None else base["own"]
             plan.append((list(macs), {**base["cfg"], **st["cfg"], "run": 1, **dur}, own, None))
             idle = []
-        if ((st.get("coil") or {}).get("ac") or {}).get("sync"):   # поле с вращением: метка верха — и при молчании
+        if ((st.get("coil") or {}).get("ac") or {}).get("sync") or any(((x["coil"].get("ac") or {}).get("sync"))
+                                                                        for x in (fs or {}).get("states", [])):
+            # поле с вращением: метка верха — и при молчании (это пакеты обода во время опыта)
             plan = [(tg, {**cfg, "rt": 1}, own, label) for tg, cfg, own, label in plan]
         if hot:                                                # потолок плат колеса-пустышки — в любой группе шага
             plan = [(tg, cfg, {**(own or {}), **{m: {**((own or {}).get(m) or {}), "tmax": hot[m]} for m in tg if m in hot}},
@@ -905,8 +1123,15 @@ class Runner:
         if bad:                                                # кто-то считал не то: шаг испорчен — не ждать его целиком
             now = round(time.time(), 3)
             return {**head, "t0": now, "t1": now, "not_confirmed": bad, "agents": {}, "gen": {}, "static": {}, "watch": None}
+        if st["quiet"] and st.get("quiet_at") == "start":     # 08.11: тишина сразу после подтверждения настройки — шаг
+            for a in applied:                                  # продолжает тишину прошлого (этапы B → C), не ждёт отрезка 0
+                own_q = {m: {**(a["own"] or {}).get(m, {}), "tl": (a["own"] or {}).get(m, {}).get("tl", 2)} for m in a["targets"]}
+                (self.h.get("apply_once") or (lambda t, c, o: self.h["apply"](t, c, o, False)))(
+                    a["targets"], {**a["cfg"], "tl": a["cfg"].get("tl", 2) if all(m in fixed for m in a["targets"]) else 2}, own_q)
         self._phase("prep", settle)                            # подготовка: колёса разгоняются, поле встаёт, агенты греются
-        self.stop.wait(settle)
+        # поле внутри опыта: отрезок 0 кончается ровно через seg после настройки — границы плат по её часам
+        self.stop.wait(max(0.0, t_apply + settle - time.time()) if fs else settle)
+        f_rot = self.h["rot_hz"]() if fs and self.h.get("rot_hz") else None   # обод ещё говорит — частота вращения
         # проверка режима: TEST_S секунд с телеметрией — генераторы считают? (шаг на агенте и «все стоят» — без неё)
         gens = [m for a in applied if a["cfg"].get("run") for m in a["targets"] if m not in fixed]
         test, ta = None, None
@@ -921,9 +1146,13 @@ class Runner:
                           and not (v.get("pr_s") or v.get("cand_s") or v.get("cycles_s")))
             test = {"s": round(time.time() - ta, 1), "pr_s": round((gm.get("все") or {}).get("pr_s") or 0, 2), "idle": idle,
                     "ok": bool((gm.get("все") or {}).get("pr_s") or (gm.get("все") or {}).get("cand_s"))}
-        if st["quiet"]:                                        # продуктовый режим: на исполнение молчат генераторы;
+        if st["quiet"] and st.get("quiet_at", "prep") == "prep":   # продуктовый режим: на исполнение молчат генераторы;
             for a in applied:                                  # статические меряют и шлют всё время
-                own_q = {m: {**(a["own"] or {}).get(m, {}), "tl": (a["own"] or {}).get(m, {}).get("tl", 0) if m in fixed else 2}
+                # 07.11: у платы может быть своё tl в own (датчик на колесе — №6/№14 с акселерометром — не молчит, шлёт обычную
+                # телеметрию, по нему смотрим как по статике на колесе); иначе статические — своё, остальные — молчание
+                own_q = {m: {**(a["own"] or {}).get(m, {}),
+                             "tl": (a["own"] or {}).get(m, {}).get("tl", 0 if m in fixed else 2) if (m in fixed or "tl" in ((a["own"] or {}).get(m) or {}))
+                             else 2}
                          for m in a["targets"]}
                 (self.h.get("apply_once") or (lambda t, c, o: self.h["apply"](t, c, o, False)))(a["targets"], {**a["cfg"], "tl": 2}, own_q)
         self._phase("run", (dur["dur"] - settle) if dur else st["minutes"] * 60)
@@ -931,15 +1160,36 @@ class Runner:
         snap0 = self.h["snapshot"](macs)                       # счётчики на начало измерения: итог шага — разность
         if self.active and self.active.get("now"):
             self.active["now"]["t_meas"] = round(t0, 3)        # с этого момента шаг меряется
-        not_done = []
+        not_done, segs = [], []
         if dur:                                                # шаг на агенте: ждать «сдали все», но не дольше срока + минута
             pairs = [(m, a["cid"]) for a in applied if a["cfg"].get("run") for m in a["targets"] if m not in fixed]
             deadline = t_apply + dur["dur"] + 60
+            k = 0
             while not self.stop.is_set():
+                if fs and k < len(fs["states"]):               # поле по расписанию: граница k + 1 по часам настройки
+                    t_b = t_apply + (k + 1) * fs["seg"]
+                    if clock() >= t_b:
+                        sx = fs["states"][k]
+                        coil = dict(sx["coil"])
+                        if (coil.get("ac") or {}).get("f") == "rot":   # ∿ на частоте вращения (замерена до молчания)
+                            coil["ac"] = {**coil["ac"], "f": round(f_rot or 1.2, 3)}
+                        if self.h.get("coil"):
+                            self.h["coil"](coil, f"шаг «{st['name']}» · отрезок {k + 1}")
+                        # 08.11: этапы внутри шага — источник шума (NS), телеметрия генераторов (tl), статика (sx, stl)
+                        if self.h.get("stage") and any(key in sx for key in ("ns", "tl", "sx", "stl")):
+                            self.h["stage"](sx, applied, fixed, f"шаг «{st['name']}» · отрезок {k + 1}")
+                        segs.append({"k": k + 1, "name": sx["name"], "set": sx["set"], "t0": round(t_b, 3),
+                                     "t1": round(t_b + fs["seg"], 3), "t_cmd": round(time.time(), 3), "coil": coil})
+                        k += 1
+                        continue
+                    self.stop.wait(min(2.0, max(0.05, t_b - clock())))
+                    continue
                 not_done = self.h["done"](pairs) if self.h.get("done") else []
                 if not not_done or time.time() >= deadline:
                     break
                 self.stop.wait(2)
+            if fs and self.h.get("coil") and not st.get("keep_field"):   # keep_field: поле идёт и в следующий шаг (08.11)
+                self.h["coil"]({"1": "выкл", "2": "выкл"}, f"шаг «{st['name']}» · конец")
         else:
             self.stop.wait(st["minutes"] * 60)
         t1 = time.time()
@@ -963,8 +1213,39 @@ class Runner:
         if dur:                                                # шаг на агенте: окно — ровно срок агента, от применения до его
             t0, t1, snap0 = t_apply, t_apply + dur["dur"], None   # остановки; счётчики с нуля — снимок на t0 не нужен
         snap = self.h["snapshot"](macs)
+        plog = self.h.get("plog")
+        if plog and not cut:                                   # журнал простых идёт с опозданием: дождаться (до 15 с),
+            until = time.time() + (60 if fs else 15)           # пока придёт всё, что плата записала к снимку (pln − pll);
+            # после молчания всего опыта плата сдаёт тысячи простых, сервер проверяет каждое; пока журнал прибывает —
+            # ждать дольше (долгий опыт — десятки тысяч на плату), но не больше 5 мин
+            hard, got, moved = time.time() + 300, -1, time.time()
+            while not self.stop.is_set() and time.time() < max(until, min(hard, moved + 20)):
+                have = {m: ((plog(m, a["gen"].get("cid")) or {}).get("n") or 0) for m, a in snap.items()
+                        if (a.get("gen") or {}).get("pl")}
+                late = [m for m, a in snap.items() if m in have and have[m] < (a["gen"].get("pln") or 0) - (a["gen"].get("pll") or 0)]
+                if not late:
+                    break
+                if sum(have.values()) != got:
+                    got, moved = sum(have.values()), time.time()
+                self.stop.wait(0.5)
+        tabs = {}
+        if fs and fs.get("tab", True) and self.h.get("segtab"):   # таблицы отрезков: плата шлёт их после шага, трижды
+            gens = [(m, a["cid"]) for a in applied if a["cfg"].get("run") for m in a["targets"] if m not in fixed]
+            until = time.time() + 20
+            while not self.stop.is_set():
+                tabs = {m: t for m, c in gens if (t := self.h["segtab"](m, c))}
+                if len(tabs) == len(gens) or time.time() >= until:
+                    break
+                self.stop.wait(1)
+        for x in segs:                                         # отрезки: статика без первых секунд, генерация по таблицам
+            x["static"] = self.h["seg_metrics"](x["t0"] + SEG_GUARD, x["t1"]) if self.h.get("seg_metrics") else {}
+            x["gen"] = seg_gen(snap, tabs, plog, dummy, x["k"]) if tabs else {}   # «без фиксации» — только статика
         stat = self.h["metrics"](t0, t1)
-        gen = gen_metrics(snap, t1 - t0, snap0, dummy)
+        for m, t in tabs.items():                              # итог шага — и биты простых, посчитанные платой
+            qb = t["rows"][-1][5] if t["rows"] and len(t["rows"][-1]) > 5 else None
+            if m in snap and isinstance(qb, list):
+                snap[m] = {**snap[m], "gen": {**(snap[m].get("gen") or {}), "qb": qb}}
+        gen = gen_metrics(snap, t1 - t0, snap0, dummy, null=True, plog=plog)
         fake = ["gen:" + gen_name(a, m) for m, a in snap.items() if m in dummy and gen_name(a, m) in gen]
         if "колесо-пустышка" in gen:
             fake.append("gen:колесо-пустышка")
@@ -972,6 +1253,7 @@ class Runner:
         w0, w1 = (ta, time.time()) if st["quiet"] and not dur and ta else (t0, t1)
         return {**head, "t0": round(t0, 3), "t1": round(t1, 3), "not_confirmed": bad, "not_seen": not_seen, "not_done": not_done,
                 "cut": cut, "silent": silent, "test": test,
+                **({"segs": segs, "seg_tabs": len(tabs), "f_rot": f_rot} if fs else {}),
                 "agents": snap, "gen": gen, **({"dummy_ch": fake} if fake else {}),
                 "static": stat, "watch": self.h["verdict"](t0, t1),
                 "snames": {m: self.h["name"](m) for m in (stat or {})} if self.h.get("name") else {},

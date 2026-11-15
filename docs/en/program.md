@@ -110,6 +110,14 @@ common and own parameters at the moment of the start; after the program the agen
   (`cand_s`), Miller–Rabin time per candidate (`mr_us`), group cycles (`cycles_s`), scattering frames (`stx_s`);
   temperature and work share are **covariates**: they lie alongside and are not counted as anomalies (the modes
   obviously heat differently);
+* there too — **the raw data per source** (the transparent channel): `q_rng`, `s_rng`, `q_jit` … — the share of ones
+  in the low bit and the share of agreeing neighbouring samples over the window, ‰ from one half; computed with any
+  mixing, compared with the controls like everything else;
+* and **the predicted null** ([randomness.md](randomness.md), section 5): `z_yield`, `z_td` — the yield of primes and
+  the sieve against theory, `z_pq`, `z_ps` — the bits of the logged primes against the prediction from the raw data
+  and the mixing method (without an anomaly — around 0 with spread 1), `det_…` — the computation check (exactly 0
+  when the computation is right); `det_n`, `det_gap` — for reference, not compared. The program gives the prime log
+  up to 15 s to arrive;
 * `static` — for each static sensor over the measurement window, for the vertical and the horizontal
   ([axes by gravity](static_watch.md)): octave power (`p0_v`, `p0_h` …, dB), spread (`sd_v`, `sd_h`), kurtosis,
   skewness; the mean — `mean_v`, `mean_h1`, `mean_h2`, µg; `watch` — the static verdict for the run;
@@ -235,6 +243,79 @@ deviation then comes from the instrument or from the new position — a new base
   program that was running when the server restarted is marked "interrupted" — it can be continued too. On the main
   screen — «↻ Продолжить №… · ещё N опытов» (continue №… · N more runs).
 
+## The factorial series
+
+Many combinations run once each give nothing: each has a single repeat, none can be confirmed. The factorial series
+(`tools/series_factor.py`) keeps constant what changes slowly and varies the field **within a run**: the wheels always
+counter-rotate at weightlessness; within a run the mode, the noise (⚂ internal — the RNG register directly · ≋ external
+— CSI) and the processing (SHA-256 · Toeplitz ×4 · raw) are constant, and the field follows a schedule of two rounds
+of five states — off, = + −, = + +, ∿ + −, ∿ + + — in random order, 12 s each. ∿ is an alternating field at the rotation
+frequency: the frequency is measured from the rim before the silence, the phase is not tracked (`--sync` — ⟳ in step
+with rotation, but then the rim also sends the top mark during the run). Joint work is a block: **A** both wheels as
+one group, **B** each wheel its own group, **C** generation → absorption, **S** — like B, the static sensors also
+compute. A block has 6 runs (noise × processing) of ~2.6 min; A, B and C take about an hour.
+
+* **During a run the generators are silent.** An agent step with segments (`seg` in the settings): the board itself
+  takes its counters at every boundary k·seg by its own clock and keeps the prime log (1 MB in PSRAM); after the step it
+  hands over the segment table (`seg` packets, three times) and the whole log — not a single generator packet during
+  the run. Segment 0 is settling: the settings are confirmed, the field is off, it is not analysed. Meanwhile the
+  server only switches the coils; the static sensors measure and send.
+* **Per segment**: the statics — the same computation as a window, but over any segment from 4 s, without the first 3 s
+  (the field comes up) and without seconds with a knock or impulse; the generation — from the board's table (rate,
+  sieve, raw data per source) and the log (the bits of the primes by the agent's time), the wheels-to-reference ratio.
+* **The static baseline is taken while rotating** (`baseline_mot`): the wheels spin up, the field is off, 2 min.
+* **The plan is sealed before the start**: `--plan` writes `data/series/factor_plan.json` (factors, seeds, primary
+  metrics, decision rule) and its sha256 hash; the hash is in the name and the record of every block program
+  (`plan_sha`), and a script changed after the plan was written will not run a block. Before that, blocks run as a
+  draft — for a pilot.
+* **Analysis** (`tools/factor_report.py <numbers>`): in every run the differences between field states — field on − off,
+  ∿ − =, + + − + −, the interaction; drift over the seconds of a segment does not enter them. The differences of all runs
+  are a sample (Student), with a Bonferroni correction over the primary checks. **✓ reliable** — corrected p ≤ 0.001,
+  the same sign in all blocks, and for the statics the second sensor in the same direction; **◐ hint** — corrected
+  p ≤ 0.05; the rest is exploration (`--all`). On synthetic data an effect of one segment spread, with drift between
+  runs five times larger, over 18 runs is "reliable" on one sensor and a "hint" on the other (t 7.6 and 4.7), with no
+  false ones.
+* **A wheel without a field**: a coil that is offline or whose battery is below 6.5 V (the driver does not switch on)
+  does not stop the series. From the battery record of each run the analysis takes the primary checks over the wheels
+  with a field, and the wheel without a field as a separate "control without a field" line: its field differences must
+  be zero. In C the wheel with the field generates and the wheel without it absorbs.
+* **The motor guard** runs once a second: PWM above the limit for 10 s out of 15, or "one wheel at full PWM lags while
+  the other overshoots its target" (motors swapped between the bridges — the swap setting of the rig) — stop
+  everything; a stopped block returns an error and the chain of blocks does not continue.
+* **Set 2** (`--set 2`, its own plan `factor_plan_2.json`): faster generation — SHA-256 over the RNG register takes one
+  word per bit (`rw` 1, was 4), Toeplitz is computed by words, the cascade waits 50 ms for pieces (at 20 ms a cascade
+  of 6 spent a third of its noise on replacing pieces); "off" twice per round — the "field on − off" difference is
+  1.3 times more precise; block **D** "each board on its own" instead of A — the fastest computation and the whole
+  predicted null (yield, sieve, bits for any processing). The second factor instead of the noise is the **rotation**:
+  counter-rotating and both wheels the same way ("counter-rotating the other way round" changes nothing); the noise is
+  internal (the external one gave 0.1–0.4 primes/s per board — next to nothing per segment). The halves of a block by
+  rotation alternate (D and C start with the same way, B with counter-rotation), with a 30 s turn-around without
+  computation between them. D, B, C with 6 runs of ~3 min each — about 66 min.
+* **The long run** (`tools/phase_run.py`, analysis `tools/phase_report.py`): one mode for a long time — the wheels
+  always counter-rotate at weightlessness, ∿ on the wheel with the coil (`--freqs rot,20` — one run per frequency: rot is
+  the rotation frequency, otherwise Hz), the boards each compute on their own from the RNG register without a hash (the
+  fastest clean computation), 30 s segments. The field is a minute "off" · field · a minute "off", or ABBA blocks
+  (`--blk 2.5`: off on on off …) — separates both linear and curved drift. With both coils alive the blocks are
+  mirrored: off · K1 · K2 · both · both · K2 · K1 · off — the field of each wheel is on half of the time, and the
+  analysis gives the effect of the K1 field and of the K2 field separately (on its own boards, the other ones, statics). The second wheel absorbs, `--all` — it computes
+  on its own too, `--ss` — every board scatters its own into the air, `--ro` — egoism: Wi-Fi and ESP-NOW of the wheel
+  boards are off for the whole step, on the air only after the run. **Without observation** (`--blind`): the ESP static
+  sensor does not read its sensor (`sx` 1; after the run the program switches it back on with a short step), no
+  baseline, the phone — close by hand; the board keeps its segment tables itself and hands them over afterwards
+  (`--nofix` — no tables either). The board counts prime bits, heat and work share itself; `--journal` — the log as well
+  for a cross-check; `--bits`, `--td`, `--sq` — number length, sieve, squaring in the test. Analysis: y = a + b·t +
+  c·field per segment; accumulation — c per quarter of the field. Control of the rig stays: the server sends commands to
+  the coil and the motors (they have a 5 s watchdog).
+* **The mechanism check** (`tools/mech_check.py`): firmware and self-test on all boards, the static sensor stops
+  measuring by `sx` and comes back, the coil current with a steady field, ∿ 1.2 and 20 Hz.
+* **The speed test** (`tools/speed_test.py`): one wheel without rotation or field, 20 s per mode — 256/128/64 bits,
+  with and without the log, without tables, with the radio off, squaring on the accelerator or by multiplication; the
+  board's prime bits are checked against the log bit for bit.
+* **The clock rate** (`tools/clock_drift.py <numbers>`, run by itself at the end of a series block and of the
+  accumulation run): the offset "server time − board milliseconds" before and after the silence — the rate of each
+  board over the run (ppm), the wheel with the field against the wheel without it; precision ~10 ppm per run
+  (milliseconds and the Wi-Fi latency).
+
 ## Results
 
 «☰ результаты» (results, `/report`):
@@ -299,6 +380,8 @@ An experiment from the main screen is a special case; a program can also be hand
 ## Where it is stored
 
 `data/programs/<number>.json` — the program, the plan (with the added checks and repeats), every run with its totals,
-the anomalies (`anomalies`), the check verdicts (`verdicts`), the placebo wheel false alarms (`placebo`), alarms,
+the anomalies (`anomalies`), the check verdicts (`verdicts`), the placebo wheel false alarms (`placebo`), the
+predicted null of the whole program (`null`: the z with a Bonferroni correction over all such metrics, their mean and
+spread, computation check errors), alarms,
 pauses. API: `GET /api/programs`, `GET /api/program?id=`, `POST /api/program/start {"program": …}`, `/stop`, `/pause`,
 `/resume`, `/continue`, `/again`; `POST /api/rig`.

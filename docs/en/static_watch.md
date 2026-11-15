@@ -56,6 +56,17 @@ A window is **10 s** (`WIN_S`). For each window, for the vertical and the horizo
 | mean | along the vertical and the two horizontal axes (the horizontal is the tilt); clipping; gaps |
 | per second | mean, spread, extreme values — plots and knocks |
 
+**Seconds with a knock or an impulse do not count in the window.** An impulse is weaker than a knock but noticeable:
+the spread of a second is 2 times above the median of the seconds of the same window (`BUMP_X`) or a peak of 6 of
+its spreads (`BUMP_PEAK`; Gaussian noise gives ~3.5 per second). A clap, a footstep, a knock on the table would
+inflate the spectrum and kurtosis of the window, and a run would "deviate" because of a single clap. The spectrum is
+taken over segments without such seconds, the noise shape and spread over the remaining seconds; the samples on
+disk are intact. Impulses in more than half of the seconds are the window's own noise (motor sparking, pickup), then
+everything counts. In a program run total `drop` is how many seconds were left out (for reference). A stretch
+against the baseline uses the median of windows: one window with an event does not shift it. Checked on program 22:
+the spread of metrics between controls — spread 538 → 291 and 317 → 138 µg, kurtosis 4.8 → 0.4, the 32–64 Hz band
+1.7 → 0.8 dB.
+
 ## The baseline
 
 The **baseline** is the same metrics over 1–120 minutes **while the main groups are standing**. Recording —

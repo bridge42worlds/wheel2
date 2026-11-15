@@ -3,7 +3,9 @@
 
 namespace plog {
 
-static const size_t RING = 16384;
+// 4 МБ — ~105 тыс. простых по 256 бит: 37 мин самого быстрого счёта (каждая плата сама, без хеша) без потерь
+static const size_t RING_BIG = 1 << 22, RING_SMALL = 16384;   // степени двойки
+static size_t       RING = 0;
 struct Head { uint32_t ms; uint16_t nbytes; uint8_t src, pad; };   // 8 байт перед числом
 
 static uint8_t*          s_ring = nullptr;     // RING байт — в PSRAM, при первом включении журнала
@@ -23,7 +25,14 @@ static void get_bytes(uint32_t from, uint8_t* d, size_t n) {
 }
 
 void configure(bool on, uint32_t cid) {
-  if (on && !s_ring) s_ring = (uint8_t*)big_alloc(RING);   // до s_on: push пишет только во включённый
+  if (on && !s_ring) {                                       // до s_on: push пишет только во включённый
+    s_ring = (uint8_t*)heap_caps_calloc(1, RING_BIG, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);   // во внутренней столько нет
+    RING = RING_BIG;
+    if (!s_ring) {
+      s_ring = (uint8_t*)big_alloc(RING_SMALL);
+      RING = RING_SMALL;
+    }
+  }
   portENTER_CRITICAL(&s_mux);
   if (cid != s_cid || on != s_on) {
     s_w = s_r = 0;

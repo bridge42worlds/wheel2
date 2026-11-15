@@ -71,6 +71,11 @@ Z_GAUSS = 5.0
 Z_QUANT = 6.0
 KNOCK_X = 4.0              # разброс секунды выше обычного во столько раз — толчок
 KNOCK_PEAK = 8.0           # или выброс в столько обычных разбросов (у гаусса — никогда)
+# Импульс — слабее толчка, но заметный: разброс секунды выше медианы секунд этого же окна во столько раз или пик
+# в столько её разбросов (у гаусса за секунду — ~3,5). Хлопок, шаг, удар по столу: спектр и форму шума окна они
+# раздували бы, и опыт «отклонялся» от одного хлопка. Такие секунды в счёт окна не идут (сами отсчёты целы)
+BUMP_X = 2.0
+BUMP_PEAK = 6.0
 MOVED_UG = 5000.0          # среднее ушло на 5 мg — сдвинули или наклонили (дрейф от тепла меньше)
 PLACE_DEG = 2.0            # тяжесть повернулась больше — датчик положили иначе: новые оси (эталон тот же)
 PERSIST = 2                # окон подряд — уже не случайность
@@ -273,6 +278,95 @@ class Watch:
         f[1].flush()
 
     # ---------------- окно ----------------
+    def _core(self, s, i0, gr, ok):
+        """Счёт отрезка отсчётов — окна или любого отрезка опыта: секунды, толчки, импульсы, разброс и форма шума,
+        спектр — по чистым секундам. gr — отсчёты в осях по тяжести (g), ok — какие на месте, i0 — номер первого."""
+        n, hz = len(gr), (s.fs or s.hz)
+        S = int(round(s.hz))
+        c = {"knocks": []}
+        hp, secs = [], []
+        for k in range(n // S):                         # секунды
+            sl = slice(k * S, (k + 1) * S)
+            if not ok[sl].all():
+                continue
+            x = gr[sl]
+            m = x.mean(0)
+            d = x - m
+            sd = np.sqrt([(d[:, 0] ** 2).mean(), ((d[:, 1] ** 2).mean() + (d[:, 2] ** 2).mean()) / 2])
+            pk = np.abs(d).max(0)
+            sec = {"t": s.t_of(i0 + k * S + S // 2), "mean": np.array([m[0], math.hypot(m[1], m[2])]) * 1e6,
+                   "mean3": m * 1e6, "sd": sd * 1e6, "peak": np.array([pk[0], max(pk[1], pk[2])]) * 1e6, "k": k}
+            secs.append(sec)
+            hp.append(d)
+        # толчки — против эталона или, без него, против обычного за последние две минуты
+        ref = self._sec_ref(s)
+        knock = [False] * len(secs)
+        for j, q in enumerate(secs):
+            if ref is None:
+                break
+            x = np.maximum(q["sd"] / ref, q["peak"] / ref / KNOCK_PEAK * KNOCK_X)
+            if (x > KNOCK_X).any():
+                ax = int(np.argmax(x))
+                c["knocks"].append({"t": q["t"], "ax": ax, "x": float(x[ax])})
+                knock[j] = True
+        if secs and len(c["knocks"]) >= max(3, len(secs) // 2):
+            # выбросы почти каждую секунду — не толчки, а сплошная импульсная помеха: шум окна изменился весь,
+            # его и спектр, и форму сравнивать можно и нужно
+            c["spikes"] = {"n": len(c["knocks"]), "of": len(secs), "x": max(k["x"] for k in c["knocks"])}
+            c["knocks"] = []
+            knock = [False] * len(secs)
+        # секунды с толчком и с импульсом (BUMP_X, BUMP_PEAK — против медианы секунд этого же отрезка) в счёт не
+        # идут; импульсы почти в каждой секунде — это уже шум отрезка (искрение мотора, наводка): тогда считается всё
+        clean = ok.copy()
+        if len(secs) >= 4:
+            med = np.median(np.array([q["sd"] for q in secs]), axis=0)
+            bump = [bool((q["sd"] > BUMP_X * med).any() or (q["peak"] > BUMP_PEAK * med).any()) for q in secs]
+            if sum(bump) > len(secs) // 2:
+                bump = [False] * len(secs)
+            bump = [b or k for b, k in zip(bump, knock)]
+            if 0 < sum(bump) < len(secs):
+                for q, b in zip(secs, bump):
+                    if b:
+                        q["bump"] = True
+                        clean[q["k"] * S:(q["k"] + 1) * S] = False
+                hp = [d for d, b in zip(hp, bump) if not b]
+        c["secs"], c["bumps"] = secs, sum(1 for q in secs if q.get("bump"))
+        if hp:
+            d = np.concatenate(hp)
+            mo = lambda p: np.array([(d[:, 0] ** p).mean(), ((d[:, 1] ** p).mean() + (d[:, 2] ** p).mean()) / 2])
+            m2 = mo(2)
+            c["sd"] = np.sqrt(m2) * 1e6
+            c["skew"] = mo(3) / np.maximum(m2, 1e-30) ** 1.5      # горизонталь — обе оси вместе
+            c["kurt"] = mo(4) / np.maximum(m2, 1e-30) ** 2 - 3
+            c["mean"] = np.mean([q["mean"] for q in secs if not q.get("bump")], axis=0)
+            c["mean3"] = np.mean([q["mean3"] for q in secs if not q.get("bump")], axis=0)
+        nper = min(NPERSEG, n)
+        win = 0.5 - 0.5 * np.cos(2 * np.pi * np.arange(nper) / nper)
+        P, ns = np.zeros((3, nper // 2 + 1)), 0
+        use = clean if any(clean[st:st + nper].all() for st in range(0, n - nper + 1, nper // 2)) else ok
+        for st in range(0, n - nper + 1, nper // 2):    # Уэлч — отрезки без импульсов
+            if not use[st:st + nper].all():
+                continue
+            seg = gr[st:st + nper]
+            X = np.fft.rfft((seg - seg.mean(0)) * win[:, None], axis=0)
+            P += (np.abs(X) ** 2).T
+            ns += 1
+        if ns:
+            P = np.vstack([P[0], (P[1] + P[2]) / 2])    # горизонталь — средняя по двум осям: не зависит от поворота
+            psd = P / ns / (hz * (win ** 2).sum())
+            psd[:, 1:-1] *= 2                            # односторонняя
+            c["psd"], c["ns"], c["df"] = psd.astype(np.float32), ns, hz / nper
+            f = np.arange(psd.shape[1]) * c["df"]
+            bands = []
+            for lo, hi in OCTAVES:
+                sel = (f >= lo) & (f < min(hi, hz / 2))
+                if lo >= hz / 2 or not sel.any():
+                    break
+                bands.append(10 * np.log10(np.maximum(psd[:, sel].sum(1) * c["df"], 1e-30)))
+            c["band_db"] = np.array(bands).T if bands else None
+            c["band_nb"] = [int(((f >= lo) & (f < min(hi, hz / 2))).sum()) for lo, hi in OCTAVES[:len(bands)]]
+        return c
+
     def _window(self, s, i0):
         W, hz = s.W, (s.fs or s.hz)
         idx = np.arange(i0, i0 + W) % s.cap
@@ -283,74 +377,16 @@ class Watch:
         if ok.any():
             self._place(s, g[ok].mean(0), w)
         gr = g @ s.R.T if s.R is not None else g        # вертикаль, горизонталь 1, горизонталь 2
-        S = int(round(s.hz))
-        hp, secs = [], []
-        for k in range(W // S):                         # секунды
-            sl = slice(k * S, (k + 1) * S)
-            if not ok[sl].all():
-                continue
-            x = gr[sl]
-            m = x.mean(0)
-            d = x - m
-            sd = np.sqrt([(d[:, 0] ** 2).mean(), ((d[:, 1] ** 2).mean() + (d[:, 2] ** 2).mean()) / 2])
-            pk = np.abs(d).max(0)
-            sec = {"t": s.t_of(i0 + k * S + S // 2), "mean": np.array([m[0], math.hypot(m[1], m[2])]) * 1e6,
-                   "mean3": m * 1e6, "sd": sd * 1e6, "peak": np.array([pk[0], max(pk[1], pk[2])]) * 1e6}
-            secs.append(sec)
-            hp.append(d)
-        nper = min(NPERSEG, W)
-        if hp:
-            d = np.concatenate(hp)
-            mo = lambda p: np.array([(d[:, 0] ** p).mean(), ((d[:, 1] ** p).mean() + (d[:, 2] ** p).mean()) / 2])
-            m2 = mo(2)
-            w["sd"] = np.sqrt(m2) * 1e6
-            w["skew"] = mo(3) / np.maximum(m2, 1e-30) ** 1.5      # горизонталь — обе оси вместе
-            w["kurt"] = mo(4) / np.maximum(m2, 1e-30) ** 2 - 3
-            w["mean"] = np.mean([q["mean"] for q in secs], axis=0)
-            w["mean3"] = np.mean([q["mean3"] for q in secs], axis=0)
+        c = self._core(s, i0, gr, ok)
+        secs = c.pop("secs")
+        w.update(c)
+        if "sd" in w:
             rv = raw[ok]
             w["sd_raw"] = (rv / s.lsb).std(0) * 1e6                     # по осям датчика — для квантования
             w["q"] = np.array([[float(((rv[:, ax] & ((1 << k) - 1)) == 0).mean()) for k in range(1, QBITS + 1)]
                                for ax in range(3)])
             w["sat"] = int(((rv >= 32767) | (rv <= -32767)).any(1).sum())
             w["nq"] = int(len(rv))
-        win = 0.5 - 0.5 * np.cos(2 * np.pi * np.arange(nper) / nper)
-        P, ns = np.zeros((3, nper // 2 + 1)), 0
-        for st in range(0, W - nper + 1, nper // 2):    # Уэлч
-            if not ok[st:st + nper].all():
-                continue
-            seg = gr[st:st + nper]
-            X = np.fft.rfft((seg - seg.mean(0)) * win[:, None], axis=0)
-            P += (np.abs(X) ** 2).T
-            ns += 1
-        if ns:
-            P = np.vstack([P[0], (P[1] + P[2]) / 2])    # горизонталь — средняя по двум осям: не зависит от поворота
-            psd = P / ns / (hz * (win ** 2).sum())
-            psd[:, 1:-1] *= 2                            # односторонняя
-            w["psd"], w["ns"], w["df"] = psd.astype(np.float32), ns, hz / nper
-            f = np.arange(psd.shape[1]) * w["df"]
-            bands = []
-            for lo, hi in OCTAVES:
-                sel = (f >= lo) & (f < min(hi, hz / 2))
-                if lo >= hz / 2 or not sel.any():
-                    break
-                bands.append(10 * np.log10(np.maximum(psd[:, sel].sum(1) * w["df"], 1e-30)))
-            w["band_db"] = np.array(bands).T if bands else None
-            w["band_nb"] = [int(((f >= lo) & (f < min(hi, hz / 2))).sum()) for lo, hi in OCTAVES[:len(bands)]]
-        # толчки — против эталона или, без него, против обычного за последние две минуты
-        ref = self._sec_ref(s)
-        for q in secs:
-            if ref is None:
-                break
-            x = np.maximum(q["sd"] / ref, q["peak"] / ref / KNOCK_PEAK * KNOCK_X)
-            if (x > KNOCK_X).any():
-                ax = int(np.argmax(x))
-                w["knocks"].append({"t": q["t"], "ax": ax, "x": float(x[ax])})
-        if secs and len(w["knocks"]) >= max(3, len(secs) // 2):
-            # выбросы почти каждую секунду — не толчки, а сплошная импульсная помеха: шум окна изменился весь,
-            # его и спектр, и форму сравнивать можно и нужно
-            w["spikes"] = {"n": len(w["knocks"]), "of": len(secs), "x": max(k["x"] for k in w["knocks"])}
-            w["knocks"] = []
         for q in secs:
             s.seconds.append(q)
             for i, ax in enumerate(AXK):
@@ -552,8 +588,9 @@ class Watch:
                         f"(в эталоне {fnum(b['kurt'][ax][0], 2)}, {fnum(b['skew'][ax][0], 2)})" + tag}
 
     def _integral(self, s, ws):
-        """Весь отрезок против эталона: средние по окнам. Слабая линия, невидимая в одном окне,
-        за отрезок из n окон видна в √n раз лучше."""
+        """Весь отрезок против эталона: медиана по окнам. Слабая линия, невидимая в одном окне,
+        за отрезок из n окон видна почти в √n раз лучше; одно окно с событием (прошли рядом, хлопнули)
+        медиану не сдвигает. Разброс медианы — в 1,25 раза больше среднего (с трёх окон)."""
         b = self._base(s)
         ws = [w for w in ws if w.get("psd") is not None and "skew" in w and not w["knocks"]]
         if b is None or len(ws) < 2 or any(len(b["db_mean"][0]) != w["psd"].shape[1] for w in ws):
@@ -564,14 +601,15 @@ class Watch:
         tag = f" (за отрезок, окон {n})"
         out = []
         df, hz = ws[-1]["df"], ws[-1]["hz"]
+        ne = n / 1.25 ** 2 if n >= 3 else n             # сколько окон «стоит» медиана
         for ax in range(NCH):
-            L = np.mean([10 * np.log10(np.maximum(w["psd"][ax].astype(np.float64), 1e-30)) for w in ws], axis=0)
-            lines = self._lines(b, ax, L, self._sde(b, ax, ns) * math.sqrt(1 / n + 1 / b["n"]), df, known, tag)
+            L = np.median([10 * np.log10(np.maximum(w["psd"][ax].astype(np.float64), 1e-30)) for w in ws], axis=0)
+            lines = self._lines(b, ax, L, self._sde(b, ax, ns) * math.sqrt(1 / ne + 1 / b["n"]), df, known, tag)
             out += lines
-            psd = np.mean([w["psd"][ax].astype(np.float64) for w in ws], axis=0)
-            out += self._band_finds(b, ax, psd, df, hz, known, lines, ns, n, tag)
-            g = self._gauss(b, ax, float(np.mean([w["skew"][ax] for w in ws])),
-                            float(np.mean([w["kurt"][ax] for w in ws])), int(np.median([w["nq"] for w in ws])), n, tag)
+            psd = np.median([w["psd"][ax].astype(np.float64) for w in ws], axis=0)
+            out += self._band_finds(b, ax, psd, df, hz, known, lines, ns, ne, tag)
+            g = self._gauss(b, ax, float(np.median([w["skew"][ax] for w in ws])),
+                            float(np.median([w["kurt"][ax] for w in ws])), int(np.median([w["nq"] for w in ws])), ne, tag)
             if g:
                 out.append(g)
         return out
@@ -877,7 +915,9 @@ class Watch:
 
     def metrics(self, t0, t1):
         """Показатели каждого статического за отрезок — для сравнения шагов программы с контрольными:
-        мощность полос (дБ, среднее по окнам), разброс и среднее (мкg), эксцесс и асимметрия."""
+        мощность полос (дБ, среднее по окнам), разброс и среднее (мкg), эксцесс и асимметрия. Секунды с толчком
+        и импульсом в окна не вошли — один хлопок итог опыта не сдвигает. drop — сколько таких секунд (справка,
+        в сравнение не идёт)."""
         with self.lock:
             out = {}
             for mac, s in self.sensors.items():
@@ -885,7 +925,7 @@ class Watch:
                 if not ws:
                     out[mac] = None
                     continue
-                m = {"n": len(ws)}
+                m = {"n": len(ws), "drop": sum(w.get("bumps", 0) for w in ws)}
                 nb = min(w["band_db"].shape[1] for w in ws if w.get("band_db") is not None) if any(
                     w.get("band_db") is not None for w in ws) else 0
                 for i, k in enumerate(("v", "h1", "h2")):     # среднее — вертикаль и обе горизонтальные оси, мкg
@@ -899,6 +939,38 @@ class Watch:
                         m[f"p{b}_{ax}"] = float(10 * np.log10(p))
                 out[mac] = m
             return out
+
+    def seg_metrics(self, t0, t1):
+        """Показатели каждого статического за любой отрезок от 4 с — прямо по отсчётам кольца тем же счётом, что
+        окно (_core): в опыте с полем внутри у отрезка одного состояния поля нет целого окна по 10 с.
+        n — чистых секунд, drop — секунд с толчком и импульсом (справка)."""
+        with self.lock:
+            return {mac: self._seg(s, t0, t1) for mac, s in self.sensors.items()}
+
+    def _seg(self, s, t0, t1):
+        if s.mark is None or s.buf is None or s.head is None:
+            return None
+        fs, (mi, tm) = (s.fs or s.hz), s.mark
+        i0 = max(int(math.ceil(mi + (t0 - tm) * fs)), s.head - s.cap + 1)
+        i1 = min(int(math.floor(mi + (t1 - tm) * fs)), s.head)
+        if i1 - i0 < 4 * int(round(s.hz)):
+            return None
+        idx = np.arange(i0, i1) % s.cap
+        raw, ok = s.buf[idx].astype(np.int32), s.ok[idx]
+        g = raw / s.lsb
+        c = self._core(s, i0, g @ s.R.T if s.R is not None else g, ok)
+        if "sd" not in c or c.get("band_db") is None:
+            return None
+        m = {"n": len(c["secs"]) - c["bumps"], "drop": c["bumps"]}
+        for i, k in enumerate(("v", "h1", "h2")):
+            m["mean_" + k] = float(c["mean3"][i])
+        for i, ax in enumerate(AXK):
+            m["sd_" + ax] = float(c["sd"][i])
+            m["kurt_" + ax] = float(c["kurt"][i])
+            m["skew_" + ax] = float(c["skew"][i])
+            for b in range(c["band_db"].shape[1]):
+                m[f"p{b}_{ax}"] = float(c["band_db"][i, b])
+        return m
 
     # ---------------- для панели ----------------
     def status(self, s, now):
@@ -1091,9 +1163,13 @@ def axes_live(v, hz, step, names, wave_s=10.0, wave_pts=600):
     for i, c in enumerate(names):
         d = col(i) - col(i).mean()
         sd = float(d.std()) or step
-        if sd / step < 25 and i != 3:                  # мелкий разброс — по ступеням датчика
-            lo, hi = np.floor(d.min() / step) - 0.5, np.ceil(d.max() / step) + 0.5
-            edges = np.arange(lo, hi + 1) * step
+        if sd / step < 25:                             # мелкий разброс — по ступеням датчика (иначе «гребёнка»)
+            # у модуля решётка сдвинута (|a| ≈ ось вдоль тяжести + малая добавка) — сдвиг по медиане остатков,
+            # как в приложении телефона; у осей сдвиг ≈ 0
+            u = d / step
+            off = float(np.median(u - np.round(u))) if i == 3 else 0.0
+            lo, hi = np.floor((u - off).min()) - 0.5, np.ceil((u - off).max()) + 0.5
+            edges = (np.arange(lo, hi + 1) + off) * step
         else:
             edges = np.linspace(-4.5 * sd, 4.5 * sd, 46)
         cnt, edges = np.histogram(np.clip(d, edges[0], edges[-1]), bins=edges)

@@ -1,6 +1,9 @@
 """Разбор серии (tools/series_search.py) или любой программы по семьям: опыт против контролей своей семьи (тот же
 control_for) — генерация (темп по часам агентов) и статика (показатели №… и телефона), Стьюдент с интервалом
 предсказания и поправкой Бонферрони на число сравнений опыта; плюс вывод статики против эталона и толчки.
+Сырьё источников (прозрачный канал: доля единиц младшего бита q и совпадений соседних s, ‰ от половины — среднее по
+платам колёс) сравнивается так же. В конце — предсказанный ноль всей программы (program.null_checks): z против
+теории и проверка счёта.
 
     python tools/series_report.py 23              программа №23 с сервера 8090
     python tools/series_report.py 23 --top 10     сколько сильнейших отклонений серии показать
@@ -32,6 +35,15 @@ def gen_ch(r):
     stx = sum((v or {}).get("stx_s") or 0 for k, v in g.items() if k.startswith("№"))
     if stx:
         out["кадров рассеяния"] = stx
+    fake = {c[4:] for c in r.get("dummy_ch") or ()}
+    raw = {}                                         # сырьё: среднее по платам колёс (пустышка — опора, мимо)
+    for k, v in g.items():
+        if k.startswith("№") and k not in fake:
+            for q, val in (v or {}).items():
+                if q[:2] in ("q_", "s_"):
+                    raw.setdefault(q, []).append(val)
+    for q, vals in raw.items():
+        out[f"сырьё {q} ‰"] = sum(vals) / len(vals)
     return out
 
 
@@ -39,14 +51,14 @@ def stat_ch(r):
     out = {}
     for mac, st in (r.get("static") or {}).items():
         for k, v in (st or {}).items():
-            if k != "n" and isinstance(v, (int, float)):
+            if k not in ("n", "drop") and isinstance(v, (int, float)):
                 out[f"{names.get(mac, mac[-5:])} {k}"] = v
     return out
 
 
 def change(q):
     """Генерация — в процентах; статика (полосы в дБ, эксцесс, асимметрия, среднее) — разностью."""
-    if q["k"].split(" ")[-1].startswith(("p", "kurt", "skew", "mean", "sd")) and not q["k"].startswith(("все", "пустышка", "к опоре", "кадров")):
+    if q["k"].startswith("сырьё") or q["k"].split(" ")[-1].startswith(("p", "kurt", "skew", "mean", "sd")) and not q["k"].startswith(("все", "пустышка", "к опоре", "кадров")):
         return f"Δ {q['v'] - q['mu']:+.3g}"
     return f"{100 * (q['v'] / q['mu'] - 1):+.1f} %" if q["mu"] else f"Δ {q['v'] - q['mu']:+.3g}"
 
@@ -92,3 +104,20 @@ for i, r in enumerate(runs, 1):
 print(f"\n— сильнейшие отклонения серии (поправка на число сравнений опыта; порог z 4 ≈ p 6e-5) —")
 for p_adj, i, name, q in sorted(allq, key=lambda z: z[0])[:A.top]:
     print(f"  {i:2d}. {q['k']}: {change(q)}, t {q['t']:+.1f}, p с поправкой {p_adj:.2g} · {name[:60]}")
+nl = x.get("null") or P.null_checks(runs, (x.get("program") or {}).get("z", 4))
+if nl.get("tests") or nl.get("det"):
+    what = {"z_yield": "выход простых к теории", "z_td": "отсев делителями к теории",
+            "z_pq": "единицы в битах простых к предсказанию", "z_ps": "совпадения соседних бит простых к предсказанию"}
+    print()
+    print(f"— предсказанный ноль: {nl['tests']} z, у верного нуля среднее ≈ 0 и разброс ≈ 1 —")
+    for k, s in (nl.get("summary") or {}).items():
+        ok = abs(s["mean"]) < 3 / math.sqrt(s["n"]) + 0.1 and 0.7 < s["sd"] < 1.4
+        print(f"  {'✓' if ok else '◐'} {k} ({what.get(k, k)}): n {s['n']}, среднее {s['mean']:+.2f}, разброс {s['sd']:.2f}")
+    print("  " + ("✗ находки после поправки: " + "; ".join(f"{h['mac'][4:]} {h['metric']} z {h['z']:+.1f} (p·m {h['p_adj']}) · {h['step'][:40]}"
+                                                    for h in nl["hits"][:6]) if nl.get("hits") else "✓ находок после поправки нет")
+          + (" · сильнейшее: " + ", ".join(f"{w['metric']} z {w['z']:+.1f}" for w in nl["worst"][:3]) if nl.get("worst") else ""))
+    det = nl.get("det") or []
+    if any(r.get("gen") and any((v or {}).get("det_n") is not None for v in r["gen"].values()) for r in runs):
+        print("  " + ("✗ проверка счёта: " + "; ".join(f"{d['mac'][4:]} {d['metric']} {d['value']:+d} · {d['step'][:40]}"
+                                                 for d in det[:8]) if det else
+                      "✓ проверка счёта: простых, отсеянных и журнала ровно столько, сколько знает сервер"))

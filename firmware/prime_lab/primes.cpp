@@ -1,3 +1,5 @@
+// 07.11: Arduino собирает под размер (-Os); проверка Монтгомери здесь — горячий цикл, ей нужна скорость
+#pragma GCC optimize ("O3")
 #include "primes.h"
 #include "esp_cpu.h"
 #include "mbedtls/bignum.h"
@@ -35,7 +37,10 @@ void primes_init() {
     if (!(comp[i >> 3] & (1 << (i & 7)))) s_pr[s_npr++] = i;
 }
 
+static bool s_sq = false;     // квадрат умножением и делением (настройка sq) вместо степени 2 на ускорителе
+
 void primes_configure(const GenConfig& c) {
+  s_sq = c.sq;
   Table& t = s_tab[1 - s_act];        // строим в свободной, читатели пока ходят в активную
   t.ntd = 0;
   while (t.ntd < s_npr && s_pr[t.ntd] < c.td) ++t.ntd;
@@ -84,6 +89,79 @@ static bool exact32(uint32_t n) {
   return mr32(n, d, s, 2) && mr32(n, d, s, 7) && mr32(n, d, s, 61);
 }
 
+// ---------- 64 бита: свой код, умножение Монтгомери на 32-битных умножениях ----------
+// Без библиотеки и ускорителя: одна база — микросекунды. Первые 12 баз (2 … 37) для любого 64-битного n дают
+// точный ответ (Sorenson, Webster 2015: верно до 3,3·10^24) — exact64.
+struct U128 { uint64_t lo, hi; };
+static inline U128 mul64(uint64_t a, uint64_t b) {
+  const uint64_t a0 = (uint32_t)a, a1 = a >> 32, b0 = (uint32_t)b, b1 = b >> 32;
+  const uint64_t p00 = a0 * b0, p01 = a0 * b1, p10 = a1 * b0, p11 = a1 * b1;
+  const uint64_t mid = (p00 >> 32) + (uint32_t)p01 + (uint32_t)p10;
+  return {(mid << 32) | (uint32_t)p00, p11 + (p01 >> 32) + (p10 >> 32) + (mid >> 32)};
+}
+
+struct Mont64 { uint64_t n, ninv, one, r2; };      // ninv = −n⁻¹ mod 2^64; one = 2^64 mod n; r2 = 2^128 mod n
+
+static inline uint64_t mont_mul(uint64_t a, uint64_t b, const Mont64& m) {   // a·b·2^-64 mod n (a, b < n)
+  const U128 t = mul64(a, b), q = mul64(t.lo * m.ninv, m.n);
+  const uint64_t lo = t.lo + q.lo;                  // = 0 mod 2^64, нужен только перенос
+  uint64_t hi = t.hi + q.hi;
+  bool over = hi < t.hi;
+  const uint64_t c = lo < t.lo;
+  hi += c;
+  over |= hi < c;
+  return over || hi >= m.n ? hi - m.n : hi;
+}
+
+static Mont64 mont_prepare(uint64_t n) {
+  Mont64 m;
+  m.n = n;
+  uint64_t x = n;                                   // n·n ≡ 1 mod 8; каждый шаг Ньютона удваивает верные биты
+  for (int i = 0; i < 5; ++i) x *= 2 - n * x;
+  m.ninv = 0 - x;
+  m.one = (0 - n) % n;
+  uint64_t r = m.one;                               // 2^128 mod n — 64 удвоения 2^64 mod n
+  for (int i = 0; i < 64; ++i) r = r >= n - r ? r - (n - r) : r + r;
+  m.r2 = r;
+  return m;
+}
+
+// n − 1 = d·2^s, n нечётное. true — «вероятно простое» по базе a.
+static bool mr64(const Mont64& m, uint64_t d, int s, uint32_t a) {
+  const uint64_t mone = m.n - m.one;                // −1 в форме Монтгомери
+  uint64_t base = mont_mul(a % m.n, m.r2, m), x = m.one;
+  for (uint64_t e = d; e; e >>= 1) {
+    if (e & 1) x = mont_mul(x, base, m);
+    base = mont_mul(base, base, m);
+  }
+  if (x == m.one || x == mone) return true;
+  for (int i = 1; i < s; ++i) {
+    x = mont_mul(x, x, m);
+    if (x == mone) return true;
+    if (x == m.one) return false;
+  }
+  return false;
+}
+
+static bool mr64_first(uint64_t n, int nb) {        // первые nb баз (самопроверка, точная проверка)
+  if (n < 2 || !(n & 1)) return n == 2;
+  const Mont64 m = mont_prepare(n);
+  uint64_t d = n - 1;
+  int s = 0;
+  while (!(d & 1)) { d >>= 1; ++s; }
+  for (int i = 0; i < nb; ++i)
+    if (BASES[i] % n && !mr64(m, d, s, BASES[i])) return false;
+  return true;
+}
+
+static bool exact64(uint64_t n) { return mr64_first(n, 12); }
+
+static inline uint64_t be64(const uint8_t* b) {
+  uint64_t v = 0;
+  for (int i = 0; i < 8; ++i) v = v << 8 | b[i];
+  return v;
+}
+
 // ---------- длинные числа: mbedtls ----------
 static mbedtls_mpi N, NM1, D, X, T, A, RR, TWO;
 static bool s_mpi_ready = false;
@@ -102,8 +180,12 @@ static int mr_mpi(uint32_t base, size_t s) {
   if (mbedtls_mpi_lset(&A, base) || mbedtls_mpi_exp_mod(&X, &A, &D, &N, &RR)) return -1;
   if (mbedtls_mpi_cmp_int(&X, 1) == 0 || mbedtls_mpi_cmp_mpi(&X, &NM1) == 0) return 1;
   for (size_t i = 1; i < s; ++i) {
-    if (mbedtls_mpi_exp_mod(&T, &X, &TWO, &N, &RR)) return -1;
-    mbedtls_mpi_swap(&X, &T);
+    if (s_sq) {                                     // без подготовки ускорителя на каждый квадрат
+      if (mbedtls_mpi_mul_mpi(&T, &X, &X) || mbedtls_mpi_mod_mpi(&X, &T, &N)) return -1;
+    } else {
+      if (mbedtls_mpi_exp_mod(&T, &X, &TWO, &N, &RR)) return -1;
+      mbedtls_mpi_swap(&X, &T);
+    }
     if (mbedtls_mpi_cmp_mpi(&X, &NM1) == 0) return 1;
     if (mbedtls_mpi_cmp_int(&X, 1) == 0) return 0;
   }
@@ -122,6 +204,7 @@ static inline uint32_t be32(const uint8_t* b) {   // старший байт п�
 }
 
 static inline bool native32(const GenConfig& c) { return c.bits == 32 && !s_selftest; }
+static inline bool native64(const GenConfig& c) { return c.bits == 64 && !s_selftest; }
 
 static bool divisible(const uint8_t* b, const GenConfig& c) {
   const Table& t = s_tab[s_act];      // снимок активной таблицы на весь отсев одного кандидата
@@ -181,6 +264,26 @@ int mr_bases(const uint8_t* b, const GenConfig& c, const uint8_t* idx, int n, bo
         if (stop_first) break;
       }
     }
+  } else if (native64(c)) {                        // свой код, без ускорителя
+    const uint64_t nn = be64(b);
+    const Mont64 m = mont_prepare(nn);
+    uint64_t d = nn - 1;
+    int s = 0;
+    while (!(d & 1)) { d >>= 1; ++s; }
+    for (int k = 0; k < n; ++k) {
+      int i = idx[k];
+      uint32_t b0 = cyc();
+      bool ok = mr64(m, d, s, BASES[i]);
+      st.bcyc[i] += cyc() - b0;
+      ++st.bt[i];
+      if (ok) {
+        ++passed;
+      } else {
+        ++st.br[i];
+        if (witness < 0) witness = i;
+        if (stop_first) break;
+      }
+    }
   } else {
     mpi_prepare();
     if (mbedtls_mpi_read_binary(&N, b, c.bits / 8)) {
@@ -223,6 +326,26 @@ void number_hex(const uint8_t* b, int nbytes, char* hex, size_t hexlen) {
   hex[k] = 0;
 }
 
+// Биты простого в порядке потока шума — байт за байтом, в байте от младшего (как server/nullmodel.prime_bits):
+// старший бит первого байта и младший последнего ставит отсев — они и пары с ними мимо.
+static void prime_bits_add(const uint8_t* b, int nb, PrimeStats& st) {
+  if (nb < 2) return;
+  const int L = 8 * nb, t1 = 7, t2 = 8 * (nb - 1);
+  uint32_t ones = 0, pairs = 0, same = 0;
+  for (int t = 0; t < L; ++t) {
+    const int x = (b[t >> 3] >> (t & 7)) & 1;
+    if (t != t1 && t != t2) ones += x;
+    if (t + 1 < L && t != t1 - 1 && t != t1 && t != t2 - 1 && t != t2) {
+      ++pairs;
+      same += x == ((b[(t + 1) >> 3] >> ((t + 1) & 7)) & 1);
+    }
+  }
+  st.qn += L - 2;
+  st.qo += ones;
+  st.qp += pairs;
+  st.qs += same;
+}
+
 bool test_candidate(const uint8_t* bytes, const GenConfig& c, PrimeStats& st, char* hex, size_t hexlen,
                     uint8_t* prime_out) {
   uint8_t b[256];
@@ -241,7 +364,9 @@ bool test_sieved(const uint8_t* b, const GenConfig& c, PrimeStats& st, char* hex
     return false;
   }
   ++st.primes;
+  prime_bits_add(b, c.bits / 8, st);
   if (native32(c) && !exact32(be32(b))) ++st.fp;
+  if (native64(c) && c.nb < 12 && !exact64(be64(b))) ++st.fp;   // точная проверка 12 базами
   if (hex) number_hex(b, c.bits / 8, hex, hexlen);
   if (prime_out) memcpy(prime_out, b, c.bits / 8);
   return true;
@@ -253,7 +378,7 @@ bool test_sieved(const uint8_t* b, const GenConfig& c, PrimeStats& st, char* hex
 // и ловится 11; 3825123056546413051 (62 бита) проходит первые 11 баз, ловит 37.
 // td > 0 — заодно проверяется отсев: простое он пропускать обязан, а 2^256-1
 // (делится на 3) — отсеять.
-static bool check(const char* hexnum, int bits, int nb, int td, bool mpi, bool expect, bool expect_td = false) {
+static bool check(const char* hexnum, int bits, int nb, int td, bool mpi, bool expect, bool expect_td = false, bool sq = false) {
   uint8_t b[256] = {0};
   mbedtls_mpi m;
   mbedtls_mpi_init(&m);
@@ -264,6 +389,7 @@ static bool check(const char* hexnum, int bits, int nb, int td, bool mpi, bool e
   c.bits = bits;
   c.nb = nb;
   c.td = td;
+  c.sq = sq;
   primes_configure(c);
   PrimeStats st;
   s_selftest = mpi;
@@ -304,11 +430,22 @@ bool primes_selftest() {
   ok &= check("351591274F9AF9FB", 64, 12, 0, true, false);   // база 37 ловит
   ok &= check("FFFFFFFFFFFFFFC5", 64, 12, 20000, true, true); // 2^64-59 — простое
   ok &= check("FFFFFFFFFFFFFFC3", 64, 12, 0, true, false);    // 2^64-61 — составное
+  // 64 бита, свой код (Монтгомери): те же числа напрямую и через отсев
+  ok &= mr64_first(0x351591274F9AF9FBULL, 11) && !mr64_first(0x351591274F9AF9FBULL, 12);   // 11 баз обмануты, 37 ловит
+  ok &= mr64_first(0xFFFFFFFFFFFFFFC5ULL, 12) && !mr64_first(0xFFFFFFFFFFFFFFC3ULL, 12);
+  ok &= !mr64_first(0xFFFFFFEA00000055ULL, 12);   // (2^32-5)(2^32-17) — без малых делителей, составное
+  ok &= check("FFFFFFFFFFFFFFC5", 64, 12, 20000, false, true);   // 2^64-59 через отсев — простое
+  ok &= check("FFFFFFFFFFFFFFC3", 64, 12, 0, false, false);      // 2^64-61 — составное
   ok &= check("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF43", 256, 8, 20000, true, true);  // 2^256-189
   ok &= check("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF45", 256, 8, 0, true, false);     // 2^256-187
   ok &= check("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF", 256, 8, 1000, true, false, true); // 2^256-1
   // простое p = 1 mod 16 (s = 4): проверяет возведения в квадрат
   ok &= check("952349B832226707B626AD95642D6BD675E3944E8DCD531023A2258F93DE63D1", 256, 12, 20000, true, true);
+  // то же квадратом умножением и делением (sq 1)
+  ok &= check("952349B832226707B626AD95642D6BD675E3944E8DCD531023A2258F93DE63D1", 256, 12, 20000, true, true, false, true);
+  ok &= check("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF45", 256, 8, 0, true, false, false, true);
+  ok &= check("351591274F9AF9FB", 64, 12, 0, true, false, false, true);
+  ok &= check(OAKLEY2, 1024, 4, 20000, true, true, false, true);
   ok &= check(OAKLEY2, 1024, 4, 20000, true, true);
   ok &= check(MODP14, 2048, 2, 20000, true, true);
   return ok;

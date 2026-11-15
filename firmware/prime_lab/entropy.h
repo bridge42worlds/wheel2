@@ -10,7 +10,7 @@
 #include <Arduino.h>
 #include "config.h"
 
-enum { SI_RNG = 0, SI_CSI = 1, SI_ADC = 2, SI_JIT = 3, SI_BC = 4, SI_ACC = 5, SI_MAG = 6, SI_N = 7 };
+enum { SI_RNG = 0, SI_CSI = 1, SI_ADC = 2, SI_JIT = 3, SI_BC = 4, SI_ACC = 5, SI_MAG = 6, SI_RRG = 7, SI_N = 8 };
 
 struct SourceStats {
   uint64_t units = 0;            // слов / пакетов / отсчётов
@@ -37,12 +37,25 @@ void     entropy_set_csi_filter(uint8_t mode, const uint8_t (*macs)[6], int n);
 // Эфир сета B: содержимое услышанного кадра рассеяния — в запас источника SRC_BC.
 void     entropy_feed_bcast(const uint8_t* d, size_t n);
 uint32_t bcast_lost();                 // байт эфира B не влезло в запас
+// «Информация» (07.11): блок файла с сервера (код, музыка) по кругу вместо эфира B в источнике SRC_BC.
+bool     entropy_info_put(uint32_t off, const uint8_t* d, size_t n);
+void     entropy_info_clear();
+void     entropy_info_on(bool on);
+uint32_t entropy_info_len();
+bool     entropy_info_active();
 // Датчики на ободе (задача rim_sensors): младшие байты показаний — в запас источника SI_ACC / SI_MAG.
 // Кладёт, только если шум с этого датчика сейчас выбран (entropy_wants); present — датчик запаян.
 bool     entropy_wants(int si);
 void     entropy_sensor_present(int si, bool present);
 void     entropy_feed_sensor(int si, const uint8_t* d, size_t n);
 uint32_t sensor_lost(int si);          // байт не влезло в запас
+// Раздача шума колеса (09.11): поток датчиков своего колеса приходит по ESP-NOW (group.cpp, команда WS) —
+// датчики считаются «есть», даже если у самой платы их нет: ГСЧ вместо них не подставляется, блок ждёт поток.
+void     entropy_share_rx(bool on);
+// Записи датчиков целиком (09.11): зачёт в 1/256 бита на байт — сколько бит засчитывать на байт запаса датчика
+// (запись целиком: 6 бит на запись любой длины; младшие байты: 1 бит / 2 бита на байт, как прежде).
+void     entropy_sensor_format(int si, uint16_t bpb256);
+bool     entropy_hashed();              // шум сейчас идёт через SHA-256 (raw 0): записи датчиков можно класть целиком
 uint32_t csi_received();               // пакетов CSI с запуска
 uint32_t csi_dropped();                // выброшено: очередь полна, счёт не успевает
 uint32_t ping_replies();               // ответов роутера на пинг
@@ -52,7 +65,10 @@ void     csi_detail(uint32_t out[4]);  // вызовов CSI всего, кор�
 void entropy_reset();                  // забыть остаток блока (новые настройки)
 // Заполнить out n байтами (n кратно 4). false — ожидание CSI прервано флагом
 // abort (пришли новые настройки). tick вызывается во время долгого ожидания.
-// mask — источники (SRC_*), в битах 8–9 — как брать шум (GenConfig::raw): 0 — блоки
-// SHA-256, 1 — без хеша, младшие биты сырья, 2 — без хеша с выравниванием фон Неймана.
-bool entropy_fill(uint8_t* out, size_t n, uint16_t mask, EntropyStats& st,
+// mask — noise_mask(): источники (SRC_*, биты 0–7), как брать шум (GenConfig::raw, биты 8–10): 0 — блоки
+// SHA-256, 1 — без хеша, младшие биты сырья, 2 — без хеша с выравниванием фон Неймана, 3 — XOR каждых xf бит
+// сырья, 4 — экстрактор Тёплица xf·256 → 256 бит; во сколько сжимать (GenConfig::xf) — биты 12–16.
+bool entropy_fill(uint8_t* out, size_t n, uint32_t mask, EntropyStats& st,
                   volatile bool* abort, void (*tick)());
+// Самопроверка экстрактора Тёплица против эталона на Python (server/nullmodel.py). true — сошлось.
+bool entropy_selftest();

@@ -146,6 +146,7 @@ svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--o
 <tr><td>↯</td><td>router ping CSI — the same from the router's ping replies</td><td>slow, use with care</td></tr>
 <tr><td>⏚</td><td>ADC D0 — the floating input D0</td><td>slow</td></tr>
 <tr><td>⧖</td><td>RC jitter — the internal oscillator against the crystal</td><td>slow</td></tr>
+<tr><td>⚂</td><td>the RNG register directly — the register word without folding</td><td>~10 million words/s</td></tr>
 <tr><td>↺</td><td>reverse noise — frames of the other wheel's absorbers, a loop through the air</td><td>only when the other wheel absorbs</td></tr>
 <tr><td>↕ 🧲</td><td>rim accelerometer, magnetometer (agents with a sensor)</td><td>very slow</td></tr>
 </tbody></table></div>
@@ -156,7 +157,7 @@ svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--o
 <tr><td>all but one (exclusion)</td><td>the mixture without each in turn — what is missing without it</td><td>4</td><td>6</td></tr>
 <tr><td>all three</td><td>the mixture, without each, each alone</td><td>9</td><td>13</td></tr>
 </tbody></table></div>
-<p>Without hashing (<code>raw</code>) the physics of the source is visible (the ADC gives 54–59 % ones), with von Neumann the bias is removed. How noises are taken, credited and mixed — <a href="randomness.html">randomness.md</a>.</p>
+<p>Without hashing (<code>raw</code>) the physics of the source is visible (the ADC gives 54–59 % ones), with von Neumann the bias is removed. Two more methods: the XOR of every <code>xf</code> bits (<code>raw</code> 3) and a Toeplitz extractor with a public seed (<code>raw</code> 4). <b>The computation check</b> (<code>det</code>) — the numbers are not from noise but consecutive: which of them are prime, the server knows in advance. How noises are taken, credited and mixed and what to expect of them without any anomaly — <a href="randomness.html">randomness.md</a>.</p>
 <h2 id="coil-field">Coil field<a class="anc" href="#coil-field">#</a></h2>
 <p>Each coil is off, + or −: a 3 × 3 grid (row — the wheel 1 coil, column — wheel 2), 9 options; quick picks "off · same sign · opposite signs · one coil · all 9".</p>
 <div class="tw"><table><thead><tr><th>option</th><th>word on the screen</th></tr></thead><tbody>

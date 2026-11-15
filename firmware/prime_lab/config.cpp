@@ -40,13 +40,13 @@ static bool parse_macs(const char* val, uint8_t (*macs)[6], int& n) {
 }
 
 bool same_work(const GenConfig& a, const GenConfig& b) {
-  return a.src == b.src && a.raw == b.raw && a.bits == b.bits && a.nb == b.nb && a.all == b.all && a.td == b.td &&
+  return a.src == b.src && a.raw == b.raw && a.xf == b.xf && a.rw == b.rw && a.sq == b.sq && a.tc == b.tc && a.det == b.det && a.bits == b.bits && a.nb == b.nb && a.all == b.all && a.td == b.td &&
          a.mode == b.mode && a.ng == b.ng && memcmp(a.grp, b.grp, sizeof a.grp) == 0 &&
          a.nrate == b.nrate && a.has_gmac == b.has_gmac && memcmp(a.gmac, b.gmac, sizeof a.gmac) == 0 &&
          a.kmax == b.kmax && a.pre == b.pre && a.cpu == b.cpu && a.dc == b.dc &&
          a.gv == b.gv && a.rk == b.rk && a.pw == b.pw &&
          a.role == b.role && a.sm == b.sm && a.sf == b.sf && a.cf == b.cf && a.nbg == b.nbg &&
-         a.sh == b.sh && a.bgr == b.bgr && a.ss == b.ss && a.ba == b.ba &&
+         a.sh == b.sh && a.bgr == b.bgr && a.ss == b.ss && a.sg == b.sg && a.ba == b.ba &&
          memcmp(a.bg, b.bg, sizeof a.bg) == 0 && a.has_bmac == b.has_bmac &&
          memcmp(a.bmac, b.bmac, sizeof a.bmac) == 0;
 }
@@ -54,7 +54,7 @@ bool same_work(const GenConfig& a, const GenConfig& b) {
 bool soft_differs(const GenConfig& a, const GenConfig& b) {
   return a.tmax != b.tmax || a.txp != b.txp || a.ping != b.ping || a.hb != b.hb || a.led != b.led || a.tp != b.tp ||
          a.tl != b.tl || a.tq != b.tq || a.rmm != b.rmm || a.afs != b.afs || a.avg != b.avg || a.pl != b.pl ||
-         a.dur != b.dur || a.ro != b.ro || a.rt != b.rt;
+         a.dur != b.dur || a.ro != b.ro || a.rt != b.rt || a.seg != b.seg;
 }
 
 bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* err, size_t errlen) {
@@ -67,7 +67,8 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
   long kmax = cur.kmax, pre = cur.pre, cpu = cur.cpu, txp = cur.txp, ping = cur.ping, led = cur.led, tp = cur.tp;
   long role = cur.role, sm = cur.sm, sf = cur.sf, cf = cur.cf, sh = cur.sh, bgr = cur.bgr, ss = cur.ss;
   long tl = cur.tl, tq = cur.tq, rmm = cur.rmm, afs = cur.afs, avg = cur.avg, pl = cur.pl, dc = cur.dc;
-  long gv = cur.gv, rk = cur.rk, pw = cur.pw, raw = cur.raw, hb = cur.hb, dur = cur.dur, ro = cur.ro, rt = cur.rt;
+  long gv = cur.gv, rk = cur.rk, pw = cur.pw, raw = cur.raw, hb = cur.hb, dur = cur.dur, ro = cur.ro, rt = cur.rt,
+       sg = cur.sg, xf = cur.xf, rw = cur.rw, sq = cur.sq, sx = cur.sx, det = cur.det, seg = cur.seg, tc = cur.tc;
   uint64_t ba = cur.ba;
   bool bad_ba = false;
   int nbg = cur.nbg;
@@ -116,6 +117,7 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
     else if (!strcmp(tok, "dur"))  dur = v;
     else if (!strcmp(tok, "ro"))   ro = v;
     else if (!strcmp(tok, "rt"))   rt = v;
+    else if (!strcmp(tok, "sg"))   sg = v;
     else if (!strcmp(tok, "led"))  led = v;
     else if (!strcmp(tok, "tp"))   tp = v;
     else if (!strcmp(tok, "role")) role = v;
@@ -136,6 +138,13 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
     else if (!strcmp(tok, "rk"))   rk = v;
     else if (!strcmp(tok, "pw"))   pw = v;
     else if (!strcmp(tok, "raw"))  raw = v;
+    else if (!strcmp(tok, "xf"))   xf = v;
+    else if (!strcmp(tok, "rw"))   rw = v;
+    else if (!strcmp(tok, "sq"))   sq = v;
+    else if (!strcmp(tok, "tc"))   tc = v;
+    else if (!strcmp(tok, "sx"))   sx = v;
+    else if (!strcmp(tok, "det"))  det = v;
+    else if (!strcmp(tok, "seg"))  seg = v;
     else if (!strcmp(tok, "gm")) { has_gmac = true; bad_gm |= !parse_macs(val, gmac, ngm); }
     else if (!strcmp(tok, "grp")) { memset(grp, 0, sizeof grp); bad_grp |= !parse_ids(val, grp, ng); }
     else if (!strcmp(tok, "bm"))  { has_bmac = true; bad_bm |= !parse_macs(val, bmac, nbm); }
@@ -168,7 +177,8 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
   else if (ping != 0 && (ping < 10 || ping > 200)) snprintf(err, errlen, "bad ping=%ld", ping);   // 0 — без пинга
   else if (hb < 1 || hb > 20)              snprintf(err, errlen, "bad hb=%ld", hb);
   else if (dur < 0 || dur > 7200)          snprintf(err, errlen, "bad dur=%ld", dur);
-  else if (ro && !dur)                     snprintf(err, errlen, "ro needs dur");   // без срока агент не вернулся бы в эфир
+  else if (ro && !dur)                     snprintf(err, errlen, "ro needs dur");
+  else if (seg && (seg < 5 || seg > 120 || !dur)) snprintf(err, errlen, "bad seg=%ld (5..120, with dur)", seg);   // без срока агент не вернулся бы в эфир
   else if (tp < 500 || tp > 5000)          snprintf(err, errlen, "bad tp=%ld", tp);
   else if (role < ROLE_A || role > ROLE_M) snprintf(err, errlen, "bad role=%ld", role);
   else if (afs != 2 && afs != 4 && afs != 8 && afs != 16) snprintf(err, errlen, "bad afs=%ld", afs);
@@ -179,6 +189,7 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
   else if (bgr < 0 || bgr > 200)           snprintf(err, errlen, "bad bgr=%ld", bgr);
   else if (ss < 0 || ss > 16)              snprintf(err, errlen, "bad ss=%ld", ss);
   else if (rt < 0 || rt > 1)               snprintf(err, errlen, "bad rt=%ld", rt);
+  else if (sg < 0 || sg > 1)               snprintf(err, errlen, "bad sg=%ld", sg);
   else if (tl < TL_NORMAL || tl > TL_QUIET) snprintf(err, errlen, "bad tl=%ld", tl);
   else if (tq < 0 || tq > 65535)           snprintf(err, errlen, "bad tq=%ld", tq);
   else if (rmm < 50 || rmm > 2000)         snprintf(err, errlen, "bad rmm=%ld", rmm);
@@ -187,7 +198,15 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
   else if (gv < 0 || gv > 2)               snprintf(err, errlen, "bad gv=%ld", gv);
   else if (rk < 1 || rk > 16)              snprintf(err, errlen, "bad rk=%ld", rk);
   else if (pw < 0 || pw > 5000)            snprintf(err, errlen, "bad pw=%ld", pw);
-  else if (raw < 0 || raw > 2)             snprintf(err, errlen, "bad raw=%ld", raw);
+  else if (raw < 0 || raw > 4)             snprintf(err, errlen, "bad raw=%ld", raw);
+  else if (xf < 2 || xf > 16)              snprintf(err, errlen, "bad xf=%ld", xf);
+  else if (rw < 1 || rw > 4)               snprintf(err, errlen, "bad rw=%ld", rw);
+  else if (sq < 0 || sq > 1)               snprintf(err, errlen, "bad sq=%ld", sq);
+  else if (tc < 0 || tc > 1)               snprintf(err, errlen, "bad tc=%ld", tc);
+  else if (sx < 0 || sx > 1)               snprintf(err, errlen, "bad sx=%ld", sx);
+  else if (det < 0 || det > 65535)         snprintf(err, errlen, "bad det=%ld", det);
+  else if (det && role == ROLE_A && (mode != MODE_SOLO || dc || bits < 128))   // B, S, M кандидатов не делают
+                                           snprintf(err, errlen, "det: solo, dc=0, bits>=128");
   else if (bad_bg)                         snprintf(err, errlen, "bad bg");
   else if (bad_ba)                         snprintf(err, errlen, "bad ba");
   else if (bad_bm || (has_bmac && nbm != nbg)) snprintf(err, errlen, "bad bm");
@@ -212,6 +231,7 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
     out.dur = (uint16_t)dur;
     out.ro = ro ? 1 : 0;
     out.rt = rt ? 1 : 0;
+    out.sg = sg ? 1 : 0;
     out.led = led ? 1 : 0;
     out.tp = (uint16_t)tp;
     out.role = (uint8_t)role;
@@ -233,6 +253,13 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
     out.rk = (uint8_t)rk;
     out.pw = (uint16_t)pw;
     out.raw = (uint8_t)raw;
+    out.xf = (uint8_t)xf;
+    out.rw = (uint8_t)rw;
+    out.sq = (uint8_t)sq;
+    out.tc = (uint8_t)tc;
+    out.sx = (uint8_t)sx;
+    out.det = (uint16_t)det;
+    out.seg = (uint8_t)seg;
     out.nbg = (uint8_t)nbg;
     memcpy(out.bg, bg, sizeof bg);
     memcpy(out.bmac, bmac, sizeof bmac);

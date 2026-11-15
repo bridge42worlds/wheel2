@@ -40,6 +40,7 @@
 #include "rim_sensors.h"
 #include "battery.h"
 #include "prime_log.h"
+#include "psram.h"
 #include "ota.h"
 #if __has_include("version.h")
 #include "version.h"
@@ -187,6 +188,68 @@ static PrimeStats        s_pp_pub;                   // …и опубликов
 static EntropyStats      s_pe_pub;
 static uint64_t          s_pwait_pub = 0;
 static uint32_t          s_prod_last_pub = 0;
+volatile int16_t         g_ns_override = -1;         // источник шума по команде NS (config.h, noise_mask)
+// ---------- ядро 0: второй проверяльщик (07.11, tc) ----------
+// Кандидаты из той же очереди проверяет и ядро связи: ядро счёта было узким местом (производитель ждал его
+// ~1,2 млн раз за опыт). Счётчики свои, публикуются под g_mux, как у производителя; промежутки между простыми
+// (tp_*) второй проверяльщик не ведёт — чередование двух ядер их обессмыслило бы. Только «каждый сам», два ядра,
+// без журнала простых, рассеяния и проверки счёта: там буферы и очереди ждут одного ядра.
+static PrimeStats        s_w2, s_w2_pub;
+static uint32_t          s_w2_epoch = 0;
+static volatile bool     s_w2_busy = false;
+
+static bool w2_on(const GenConfig& c) {
+  // только своя 64/32-битная проверка (mr64): путь через mbedtls (128+ бит) на двух ядрах падает (07.11: 256 бит — перезапуск)
+  return c.run && c.dc && c.tc && c.bits <= 64 && c.role == ROLE_A && c.mode == MODE_SOLO && !c.nbg && !c.pl && !c.ss && !c.det;
+}
+
+static void w2_task(void*) {
+  static char hex[68];
+  uint32_t last_pub = 0, last_yield = millis();
+  for (;;) {
+    GenConfig c;
+    portENTER_CRITICAL(&g_mux);
+    c = g_prod_cfg;
+    portEXIT_CRITICAL(&g_mux);
+    if (s_w2_epoch != g_epoch) {                      // новая настройка: свои счётчики с нуля
+      s_w2 = PrimeStats();
+      s_w2_epoch = g_epoch;
+    }
+    if (!w2_on(c) || g_prod_pause || thermal::state() == thermal::PAUSED) {
+      s_w2_busy = false;
+      vTaskDelay(pdMS_TO_TICKS(20));
+      continue;
+    }
+    Cand it;
+    if (xQueueReceive(g_candq, &it, pdMS_TO_TICKS(20)) != pdTRUE) continue;
+    if (it.epoch != g_epoch) continue;
+    s_w2_busy = true;
+    const int64_t w0 = esp_timer_get_time();
+    test_sieved(it.b, c, s_w2, c.bits <= 256 ? hex : nullptr, sizeof hex, nullptr);
+    const uint32_t now = millis();
+    if (now - last_pub >= 100) {
+      last_pub = now;
+      portENTER_CRITICAL(&g_mux);
+      s_w2_pub = s_w2;
+      portEXIT_CRITICAL(&g_mux);
+    }
+    if (thermal::work() < 1.0f) {                     // предел температуры: та же доля работы, что у ядра счёта
+      const uint32_t busy = (uint32_t)(esp_timer_get_time() - w0);
+      vTaskDelay(pdMS_TO_TICKS(1 + busy * (1.0f - thermal::work()) / (thermal::work() * 1000.0f)));
+    }
+    if (now - last_yield >= 100) {                    // связи и производителю — их время
+      vTaskDelay(1);
+      last_yield = now;
+    }
+  }
+}
+
+static void add_prime_stats(PrimeStats& d, const PrimeStats& s) {
+  d.cand += s.cand; d.td_rej += s.td_rej; d.mr_in += s.mr_in; d.primes += s.primes; d.fp += s.fp; d.dis += s.dis; d.err += s.err;
+  for (int i = 0; i < MAX_BASES; ++i) { d.bt[i] += s.bt[i]; d.br[i] += s.br[i]; d.bcyc[i] += s.bcyc[i]; }
+  d.td_cyc += s.td_cyc; d.mr_cyc += s.mr_cyc;
+  d.qn += s.qn; d.qo += s.qo; d.qp += s.qp; d.qs += s.qs;
+}
 
 static void prod_pub(bool force) {
   const uint32_t now = millis();
@@ -230,6 +293,7 @@ static void publish(bool force) {
     }
     g_pub.e.sha_blocks += s_pe_pub.sha_blocks;
     g_pub.pwait += s_pwait_pub;
+    add_prime_stats(g_pub.p, s_w2_pub);              // второй проверяльщик (tc)
   }
   portEXIT_CRITICAL(&g_mux);
 }
@@ -252,6 +316,7 @@ static void take_pending() {
     return;
   }
   const bool was_dc = noise_on_core0(s_st.cfg) && s_st.t_apply_us;
+  g_ns_override = -1;                                  // новая настройка — источник снова из неё
   s_st = GenStats();
   s_st.cfg = c;
   s_st.t_apply_us = esp_timer_get_time();
@@ -268,6 +333,7 @@ static void take_pending() {
   s_pp_pub = PrimeStats();                             // его прошлые счётчики в новую настройку не попадают:
   s_pe_pub = EntropyStats();                           // иначе один пакет телеметрии выходил с кандидатами
   s_pwait_pub = 0;                                     // прошлого прогона и нулём простых
+  s_w2_pub = PrimeStats();                             // второй проверяльщик: свои обнулит сам по эпохе
   portEXIT_CRITICAL(&g_mux);
   if (!noise_on_core0(c)) entropy_reset();             // шум берёт это ядро; иначе его сбросит производитель, увидев новую эпоху
   g_prod_pause = false;
@@ -439,9 +505,19 @@ static void run_job(const group::Job& j) {
   thermal::pace(r.us, &g_pending);
 }
 
+// Проверка счёта (det): кандидат номер k — 2^(bits-1) + 1 + 2·(det·2^32 + k). Те же числа при каждом запуске:
+// какие из них простые, сервер знает сам (nullmodel.py) — пропуск или лишнее простое было бы ошибкой счёта.
+static void det_candidate(uint8_t* b, const GenConfig& c, uint64_t k) {
+  const int nb = c.bits / 8;
+  memset(b, 0, nb);
+  b[0] = 0x80;
+  const uint64_t v = ((uint64_t)c.det << 33) + (k << 1) + 1;
+  for (int i = 0; i < 8; ++i) b[nb - 1 - i] |= (uint8_t)(v >> (8 * i));
+}
+
 static void gen_task(void*) {
   primes_init();
-  g_selftest = primes_selftest() ? 1 : 0;
+  g_selftest = primes_selftest() && entropy_selftest() ? 1 : 0;   // и экстрактор Тёплица против эталона
   Serial.printf("SELFTEST %s\n", g_selftest ? "ok" : "FAIL");
   static uint8_t buf[256], prime[256];
   static char hex[68];
@@ -481,7 +557,8 @@ static void gen_task(void*) {
       w0 = esp_timer_get_time();
       found = test_sieved(it.b, c, s_st.p, c.bits <= 256 ? hex : nullptr, sizeof hex, (c.nbg || c.pl || c.ss) ? prime : nullptr);
     } else {
-      if (!entropy_fill(buf, c.bits / 8, noise_mask(c), s_st.e, &g_pending, publish_tick)) {
+      if (c.det) det_candidate(buf, c, s_st.p.cand);   // проверка счёта: номер кандидата — его счётчик
+      else if (!entropy_fill(buf, c.bits / 8, noise_mask(c), s_st.e, &g_pending, publish_tick)) {
         ++s_st.stall;
         continue;
       }
@@ -548,8 +625,22 @@ static void add_head(Out& o, const char* type, uint32_t seq, uint32_t now) {
       (unsigned long)seq, (unsigned long)(now / 1000), (unsigned long)now);
 }
 
+// Счётчики источников шума: [единиц, бит, мкс, единиц мл. бита, всего, совпало, пар] по каждому источнику.
+// 08.11: за долгий шаг они набирают цифры, и даже краткий tel переставал влезать в 1460 байт — плата замолкала
+// для сервера (этап A опыта №66 с 17:05). Тогда tel уходит без них (слой -1), а они — пакетом «ent».
+static void add_e(Out& o, const GenStats& g) {
+  add(o, ",\"e\":[");
+  const int ne = g.e.s[SI_RRG].units ? SI_N : SI_RRG;   // регистр ГСЧ — только если брали
+  for (int i = 0; i < ne; ++i) {
+    const SourceStats& s = g.e.s[i];
+    add(o, "%s[%llu,%llu,%llu,%llu,%llu,%llu,%llu]", i ? "," : "",
+        s.units, s.bits, s.us, s.ones, s.total, s.same, s.pairs);
+  }
+  add(o, "]");
+}
+
 static void build_tel(Out& o, const GenStats& g, const group::Stats& gs, uint32_t seq, uint32_t now,
-                      float temp, const agent::CoreLoad& load, int lvl) {   // lvl: 2 всё, 1 без гистограммы, 0 кратко
+                      float temp, const agent::CoreLoad& load, int lvl) {   // lvl: 2 всё, 1 без гистограммы, 0 кратко, -1 кратко без счётчиков источников
   const uint32_t mhz = ESP.getCpuFreqMHz();
   const GenConfig& c = g.cfg;
   const PrimeStats& p = g.p;
@@ -578,6 +669,7 @@ static void build_tel(Out& o, const GenStats& g, const group::Stats& gs, uint32_
       c.kmax, c.pre, c.cpu, c.txp, txq / 4.0f, c.ping, c.led, c.tp);
   add(o, ",\"tl\":%u,\"tq\":%u,\"tls\":%u,\"rmm\":%u,\"hb\":%u", c.tl, c.tq, tl_now(), c.rmm, c.hb);
   // шаг на агенте: длительность, радио на шаге, сколько секунд радио было выключено, какой шаг закончен сам
+  add(o, ",\"seg\":%u", c.seg);                         // шаг с отрезками
   add(o, ",\"dur\":%u,\"ro\":%u,\"roff\":%lu,\"done\":%lu", c.dur, c.ro, (unsigned long)s_radio_off_s,
       (unsigned long)s_done_cid);
   rim::add_tel(o);                                   // датчики на ободе: что найдено, режимы из регистров
@@ -594,7 +686,15 @@ static void build_tel(Out& o, const GenStats& g, const group::Stats& gs, uint32_
   add(o, ",\"pl\":%u,\"pln\":%lu,\"pll\":%lu", c.pl, (unsigned long)plog::total(), (unsigned long)plog::lost());   // журнал простых
   add(o, ",\"dc\":%u,\"dcq\":[%llu,%llu]", c.dc, g.cwait, g.pwait);   // два ядра: кто кого ждал
   add(o, ",\"ss\":%u", c.ss);                                       // сам рассеивает свои простые
-  add(o, ",\"gv\":%u,\"rk\":%u,\"pw\":%u,\"raw\":%u", c.gv, c.rk, c.pw, c.raw);         // вариант группы: эстафета, каскад
+  add(o, ",\"gv\":%u,\"rk\":%u,\"pw\":%u,\"raw\":%u,\"xf\":%u,\"rw\":%u,\"sq\":%u,\"det\":%u,\"tc\":%u", c.gv, c.rk, c.pw, c.raw,
+      c.xf, c.rw, c.sq, c.det, c.tc);   // вариант группы: эстафета, каскад; tc — два проверяльщика
+  add(o, ",\"ns\":%d", (int)g_ns_override);   // источник по команде NS (−1 — из настройки)
+  if (group::share_tag() || group::share_sel()) {   // шум колеса (WS): колесо, кадров отдано / принято / пропущено,
+    uint32_t w[7];                             // байт принято (акс., магн.), не влезло, кадров чужого колеса, что в шуме
+    group::share_stats(w);
+    add(o, ",\"ws\":[%u,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%u]", group::share_tag(), (unsigned long)w[0], (unsigned long)w[1],
+        (unsigned long)w[2], (unsigned long)w[3], (unsigned long)w[4], (unsigned long)w[5], (unsigned long)w[6], group::share_sel());
+  }
   // прошивка по Wi-Fi: состояние (0 нет, 1 загрузка, 2 записано, -1 ошибка), «ждёт подтверждения», раздел
   add(o, ",\"ota\":[%d,%d,\"%s\"]", ota::state(), ota::pending_verify() ? 1 : 0, ota::slot());
   if (c.role == ROLE_B || c.ss)
@@ -630,15 +730,10 @@ static void build_tel(Out& o, const GenStats& g, const group::Stats& gs, uint32_
     for (int i = 0; i <= last; ++i) add(o, "%s%lu", i ? "," : "", (unsigned long)g.tp_hist[i]);
     add(o, "]");
   }
-  add(o, ",\"e\":[");
-  for (int i = 0; i < SI_N; ++i) {
-    const SourceStats& s = g.e.s[i];
-    add(o, "%s[%llu,%llu,%llu,%llu,%llu,%llu,%llu]", i ? "," : "",
-        s.units, s.bits, s.us, s.ones, s.total, s.same, s.pairs);
-  }
+  if (lvl >= 0) add_e(o, g);                         // слой -1: счётчики источников — отдельным пакетом «ent» (08.11)
   uint32_t cd[4];
   csi_detail(cd);
-  add(o, "],\"sha\":%llu,\"csi\":[%lu,%lu,%lu,%lu,%lu,%lu,%lu]", g.e.sha_blocks,
+  add(o, ",\"sha\":%llu,\"csi\":[%lu,%lu,%lu,%lu,%lu,%lu,%lu]", g.e.sha_blocks,
       (unsigned long)csi_received(), (unsigned long)csi_dropped(), (unsigned long)ping_replies(),
       (unsigned long)cd[0], (unsigned long)cd[1], (unsigned long)cd[2], (unsigned long)cd[3]);
   if (lvl >= 2 && g.last_hex[0]) add(o, ",\"lp\":\"%s\"", g.last_hex);
@@ -808,9 +903,9 @@ static void build_tel_static(Out& o, uint32_t seq, uint32_t now, float temp, con
   esp_wifi_get_max_tx_power(&txq);
   add_head(o, "tel", seq, now);
   add(o, ",\"rssi\":%d,\"temp\":%s,\"heap\":%lu,\"cpu0\":%.1f,\"cpu1\":%.1f,\"udpf\":%lu,\"wdisc\":%lu,\"wrsn\":%d,"
-         "\"wrst\":%lu",
+         "\"wrst\":%lu,\"sx\":%d",
       WiFi.RSSI(), temp_json(temp), (unsigned long)ESP.getFreeHeap(), load.busy0, load.busy1, (unsigned long)g_udp_fail,
-      (unsigned long)g_wifi_disc, g_wifi_reason, (unsigned long)g_wifi_rst);
+      (unsigned long)g_wifi_disc, g_wifi_reason, (unsigned long)g_wifi_rst, sacc::paused() ? 1 : 0);
   add(o, ",\"rbt\":[%d,%lu,%lu],\"net\":%u", g_boot_rst, (unsigned long)g_boot_why, (unsigned long)g_rbt_n, g_net);
   add(o, ",\"udpe\":%d,\"cmd\":[%lu,%lu],\"heapmin\":%lu,\"hblk\":%lu,\"ps\":%lu,\"bcn\":[%lu,%lu,%lu]", g_udp_err,
       (unsigned long)g_cmd_rx, (unsigned long)g_cmd_rej, (unsigned long)ESP.getMinFreeHeap(),
@@ -822,7 +917,23 @@ static void build_tel_static(Out& o, uint32_t seq, uint32_t now, float temp, con
       g_boot_role, (unsigned long)c.cid, c.run, c.cpu, c.txp, txq / 4.0f, c.led, c.tp, c.tl, c.tq, tl_now(), c.afs, c.avg);
   add(o, ",\"ota\":[%d,%d,\"%s\"]", ota::state(), ota::pending_verify() ? 1 : 0, ota::slot());
   if (g_boot_role == ROLE_M) motor::add_tel(o);
-  else sacc::add_tel(o);
+  else {
+    sacc::add_tel(o);
+    uint8_t run, sgc;                        // датчик-участник: [считает, номер настройки, простых, кандидатов, с с настройки, работа %]
+    uint32_t cid;
+    uint64_t pr, cand;
+    int64_t ta;
+    portENTER_CRITICAL(&g_mux);
+    run = g_pub.cfg.run;
+    cid = g_pub.cfg.cid;
+    pr = g_pub.p.primes;
+    cand = g_pub.p.cand;
+    ta = g_pub.t_apply_us;
+    portEXIT_CRITICAL(&g_mux);
+    sgc = c.sg;
+    add(o, ",\"sg\":[%u,%u,%lu,%llu,%llu,%.1f,%.1f]", sgc, run, (unsigned long)cid, pr, cand,
+        ta ? (esp_timer_get_time() - ta) / 1e6 : 0.0, thermal::work() * 100.0f);
+  }
   bat::add_tel(o);                                   // агент катушки: аккумуляторы катушки (INA219)
   add(o, "}");
 }
@@ -848,7 +959,27 @@ static void apply_config(const GenConfig& c) {
   }
   if (fixed_role(g_boot_role)) {               // статический или моторы: только мощность, телеметрия, режим датчика
     apply_txp(c.txp);
-    if (g_boot_role == ROLE_S) sacc::set(c.afs, c.avg);
+    if (g_boot_role == ROLE_S) {
+      sacc::set(c.afs, c.avg);
+      sacc::pause(c.sx);                       // опыт без наблюдения
+      GenConfig gc = c;                        // датчик-участник: «каждый сам» из ГСЧ, без групп, журнала и рассеяния
+      gc.role = ROLE_A;
+      gc.mode = MODE_SOLO;
+      gc.dc = 0;
+      gc.src = SRC_RNG;
+      gc.raw = 0;
+      gc.det = 0;
+      gc.nbg = 0;
+      gc.ss = 0;
+      gc.pl = 0;
+      gc.run = c.run && c.sg ? 1 : 0;
+      thermal::set_limit(c.tmax);
+      portENTER_CRITICAL(&g_mux);
+      g_new = gc;
+      g_pending = true;
+      g_pending_t = millis();
+      portEXIT_CRITICAL(&g_mux);
+    }
     if (c.tl == TL_QUIET && (s_cur.tl != TL_QUIET || c.tq != s_cur.tq)) s_quiet_t0 = millis();
     s_cur = c;
     s_cur.role = g_boot_role;
@@ -937,6 +1068,87 @@ static void radio_set(bool off) {
   Serial.printf("RADIO on after %lu s\n", (unsigned long)s_radio_off_s);
 }
 
+// ---------- отрезки шага (seg) ----------
+// Сервер меняет поле каждые seg секунд, а плата молчит — счётчики на каждой границе k·seg с начала шага она снимает
+// сама (по своим часам). После шага таблица уходит пакетами "seg" (трижды — это UDP), с новым шагом забывается:
+// во время опыта — ни одного пакета.
+struct SegSnap { uint32_t ms; uint64_t cand, tdr, pr; uint64_t e[SI_N][4]; uint64_t qb[4]; int16_t t10; uint16_t w10;
+                 int8_t ts; };   // e: единиц, всего, совпало, пар; qb: биты простых — свободных, единиц, пар, совпало;
+                                 // t10 — кристалл, 0,1 °C; w10 — доля работы, 0,1 %; ts — ступень сторожа тепла
+static volatile float s_temp_now = NAN;             // последний замер кристалла (раз в секунду) — в таблицу отрезков
+static const int SEG_MAX = 64;
+static SegSnap*  s_seg = nullptr;                   // в PSRAM, при первом шаге с отрезками
+static int       s_seg_n = 0, s_seg_tx = 0;
+static uint32_t  s_seg_cid = 0, s_seg_tx_t = 0, s_seg_seq = 0;
+
+static void seg_take(uint32_t now, bool zero) {
+  if (!s_seg) s_seg = (SegSnap*)big_alloc(SEG_MAX * sizeof(SegSnap));
+  if (s_seg_n >= SEG_MAX) return;
+  SegSnap& q = s_seg[s_seg_n++];
+  memset(&q, 0, sizeof q);
+  q.ms = zero ? s_step_t0 : now;
+  if (zero) return;                                 // начало шага: счёт с нуля (ядро счёта могло ещё не сбросить)
+  static group::Stats gs;
+  group::snapshot(gs);
+  portENTER_CRITICAL(&g_mux);
+  q.cand = g_pub.p.cand;
+  q.tdr = g_pub.p.td_rej;
+  q.pr = g_pub.p.primes;
+  q.qb[0] = g_pub.p.qn;
+  q.qb[1] = g_pub.p.qo;
+  q.qb[2] = g_pub.p.qp;
+  q.qb[3] = g_pub.p.qs;
+  q.t10 = isnan(s_temp_now) ? INT16_MIN : (int16_t)lroundf(s_temp_now * 10.0f);
+  q.w10 = (uint16_t)lroundf(thermal::work() * 1000.0f);
+  q.ts = (int8_t)thermal::state();
+  for (int i = 0; i < SI_N; ++i) {
+    const SourceStats& s = g_pub.e.s[i];
+    q.e[i][0] = s.ones;
+    q.e[i][1] = s.total;
+    q.e[i][2] = s.same;
+    q.e[i][3] = s.pairs;
+  }
+  portEXIT_CRITICAL(&g_mux);
+  q.cand += gs.sv_cand;                             // отсев ядром связи в эстафете и каскаде — как в tel
+  q.tdr += gs.sv_tdr;
+}
+
+static void seg_tick(uint32_t now) {
+  if (!s_step_cid || !s_cur.seg || !s_cur.dur) return;
+  if (s_seg_cid != s_step_cid) {                    // новый шаг — таблица прошлого забывается
+    s_seg_cid = s_step_cid;
+    s_seg_n = s_seg_tx = 0;
+    seg_take(now, true);
+  }
+  if (s_seg_n < SEG_MAX && now - s_step_t0 >= (uint32_t)s_seg_n * s_cur.seg * 1000) seg_take(now, false);
+}
+
+static void seg_send(WiFiUDP& udp, Out& out, uint32_t now) {
+  if (!s_seg_n || s_seg_cid != s_done_cid || s_seg_tx >= 3 || now - s_seg_tx_t < 1000) return;
+  for (int i0 = 0; i0 < s_seg_n; i0 += 4) {
+    out.n = 0;
+    out.over = false;
+    add_head(out, "seg", s_seg_seq++, now);
+    add(out, ",\"cid\":%lu,\"seg\":%u,\"i0\":%d,\"n\":%d,\"r\":[", (unsigned long)s_seg_cid, s_cur.seg, i0, s_seg_n);
+    for (int i = i0; i < i0 + 4 && i < s_seg_n; ++i) {
+      const SegSnap& q = s_seg[i];
+      add(out, "%s[%lu,%llu,%llu,%llu,[", i > i0 ? "," : "", (unsigned long)q.ms, q.cand, q.tdr, q.pr);
+      bool first = true;
+      for (int k = 0; k < SI_N; ++k) {
+        if (!s_seg[s_seg_n - 1].e[k][1]) continue;       // источник на шаге не брали
+        add(out, "%s[%d,%llu,%llu,%llu,%llu]", first ? "" : ",", k, q.e[k][0], q.e[k][1], q.e[k][2], q.e[k][3]);
+        first = false;
+      }
+      add(out, "],[%llu,%llu,%llu,%llu],[%d,%u,%d]]", q.qb[0], q.qb[1], q.qb[2], q.qb[3],   // биты простых — платой;
+          q.t10, q.w10, q.ts);                                                           // тепло и торможение
+    }
+    add(out, "]}");
+    if (!out.over) send_out(udp, out);
+  }
+  ++s_seg_tx;
+  s_seg_tx_t = now;
+}
+
 // Раз в секунду: пора ли выключить радио (шаг начался, настройка подтверждена телеметрией, эфир не нужен)
 // и не кончился ли шаг (dur): тогда стоп с теми же настройками, телеметрия обычная, радио обратно, итоги в tel.
 static void step_tick(uint32_t now) {
@@ -945,6 +1157,8 @@ static void step_tick(uint32_t now) {
     c.run = 0;
     c.tl = TL_NORMAL;
     c.tq = 0;
+    if (s_cur.seg && s_seg_cid == s_step_cid && s_seg_n && now - s_seg[s_seg_n - 1].ms > 500)
+      seg_take(now, false);                       // конец шага — последняя граница
     s_done_cid = s_step_cid;
     Serial.printf("STEP done cid=%lu after %lu s\n", (unsigned long)s_step_cid, (unsigned long)((now - s_step_t0) / 1000));
     apply_config(c);                            // как команда «стоп» с тем же номером: счётчики замирают
@@ -963,6 +1177,57 @@ static void handle_cmd(char* line, IPAddress from, WiFiUDP& udp) {
   if (g_srv_port && !srv_known(from, millis())) {    // команды только от своего сервера (любой его адрес с маяком)
     ++g_cmd_rej;
     Serial.printf("CMD rejected from %s (server %s): %.40s\n", from.toString().c_str(), g_srv_ip.toString().c_str(), line);
+    return;
+  }
+  if (strncmp(line, "REBOOT", 6) == 0 && fixed_role(g_boot_role) && g_boot_role == ROLE_M) {   // плата моторов/катушки
+    Serial.println("CMD REBOOT");                   // зависла (06.11: мост «ведёт», колесо стоит) — перезапуск по команде
+    if (g_boot_role == ROLE_M) motor::stop();
+    delay(200);
+    ESP.restart();
+  }
+  if (strncmp(line, "NS", 2) == 0 && (line[2] == ' ' || line[2] == 0)) {   // источник шума: NS <маска> | NS off (08.11)
+    const char* a = line + 2;                        // без ответа: в тишине плата не шлёт ни кадра; проверка — по таблице
+    while (*a == ' ') ++a;                           // отрезков (счётчики сырья по источникам)
+    if (strncmp(a, "off", 3) == 0) { g_ns_override = -1; return; }
+    const long m = strtol(a, nullptr, 10);
+    if (m > 0 && m <= 255 && !(m & SRC_CSI)) g_ns_override = (int16_t)m;   // CSI — нужен пинг роутера, в тишине нельзя
+    return;
+  }
+  if (strncmp(line, "WS", 2) == 0 && (line[2] == ' ' || line[2] == 0)) {   // шум колеса: WS <колесо 0..9> [что] | WS off (09.11)
+    const char* a = line + 2;                        // свой датчик обода — всем платам колеса, поток колеса — в свой шум
+    while (*a == ' ') ++a;                           // (SRC_ACC / SRC_MAG); колесо 0 — не раздавать; что: 1 время отсчёта,
+    char* e = nullptr;                               // 2 температура (3 — оба); без ответа — проверка по полю ws в tel
+    const long t = strncmp(a, "off", 3) == 0 ? 0 : strtol(a, &e, 10);
+    const long sel = e && *e ? strtol(e, nullptr, 10) : 0;
+    if (t >= 0 && t <= 9 && sel >= 0 && sel <= 3) group::share((uint8_t)t, (uint8_t)sel);
+    return;
+  }
+  if (strncmp(line, "INFOLEN", 7) == 0) {            // сколько байт информации лежит: ответ в ack
+    char msg[32];
+    snprintf(msg, sizeof msg, "info len=%lu", (unsigned long)entropy_info_len());
+    send_ack(udp, s_cur.cid, true, msg);
+    return;
+  }
+  if (strncmp(line, "INFO", 4) == 0) {               // «информация» в шум (07.11): INFO clr | on | off | <смещение> <hex>
+    const char* a = line + 4;
+    while (*a == ' ') ++a;
+    if (strncmp(a, "clr", 3) == 0) { entropy_info_clear(); send_ack(udp, s_cur.cid, true, "info clr"); return; }
+    if (strncmp(a, "on", 2) == 0) { entropy_info_on(true); send_ack(udp, s_cur.cid, true, "info on"); return; }
+    if (strncmp(a, "off", 3) == 0) { entropy_info_on(false); send_ack(udp, s_cur.cid, true, "info off"); return; }
+    char* end = nullptr;
+    const unsigned long off = strtoul(a, &end, 10);
+    if (end && *end == ' ') {
+      static uint8_t buf[720];
+      size_t n = 0;
+      for (const char* h = end + 1; h[0] && h[1] && n < sizeof buf; h += 2) {
+        char hx[3] = {h[0], h[1], 0};
+        buf[n++] = (uint8_t)strtoul(hx, nullptr, 16);
+      }
+      const bool ok = entropy_info_put((uint32_t)off, buf, n);
+      if (!ok) send_ack(udp, s_cur.cid, false, "info: не влезло");
+      return;                                        // подтверждение на каждый кусок не шлём — сервер проверит длину
+    }
+    send_ack(udp, s_cur.cid, false, "info: что?");
     return;
   }
   if (strncmp(line, "IDENT", 5) == 0) {              // найти плату: IDENT s=секунд — светодиод мигает, видно, какая это (0 — перестать)
@@ -1085,6 +1350,7 @@ static void comms_task(void*) {
     if (!fixed) entropy_pump();
 
     uint32_t now = millis();
+    if (!fixed) seg_tick(now);                 // отрезки шага: снимок счётчиков на границе
     // статический: отсчёты — как только набрался пакет (или не реже 0,3 с), не больше двух пакетов за проход
     if (fixed && WiFi.status() == WL_CONNECTED && g_srv_port && tl_now() != TL_QUIET) {
       for (int k = 0; k < 2; ++k) {
@@ -1119,6 +1385,7 @@ static void comms_task(void*) {
       next_s += 1000;
       if ((int32_t)(now - next_s) > 2000) next_s = now + 1000;
       temp = agent::chip_temp();
+      s_temp_now = temp;
       thermal::update(temp);                                 // предел температуры кристалла
       if (!fixed) group::set_alive_info(temp, s_cur.run);    // в свой пульс соседям
       const bool up1 = WiFi.status() == WL_CONNECTED;
@@ -1185,11 +1452,13 @@ static void comms_task(void*) {
       } else if (up && g_srv_port && tl != TL_QUIET) {   // молчание: в эфир ничего
         static group::Stats gs;
         group::snapshot(gs);
+        seg_send(udp, out, now);                     // шаг с отрезками кончился — таблица (трижды)
         out.n = 0;
         out.over = false;
-        for (int lvl = 2; lvl >= 0; --lvl) {                // не влезло в 1460 байт — без гистограммы и числа,
-          out.n = 0;                                        // потом и без счётчиков по базам: номер настройки
-          out.over = false;                                 // и счёт должны уйти всегда
+        int lvl = 2;
+        for (; lvl >= -1; --lvl) {                          // не влезло в 1460 байт — без гистограммы и числа,
+          out.n = 0;                                        // потом без счётчиков по базам, потом без счётчиков
+          out.over = false;                                 // источников: номер настройки и счёт должны уйти всегда
           build_tel(out, g, gs, seq, now, temp, load, lvl);
           if (!out.over) break;
         }
@@ -1199,6 +1468,15 @@ static void comms_task(void*) {
             agent::led_quiet(true);
             led_off_at = now + 20;
           }
+        }
+        if (lvl < 0) {                                      // счётчики источников — следом, своим пакетом
+          out.n = 0;
+          out.over = false;
+          add_head(out, "ent", seq, now);
+          add(out, ",\"cid\":%lu", (unsigned long)g.cfg.cid);
+          add_e(out, g);
+          add(out, "}");
+          if (!out.over) send_out(udp, out);
         }
         if (rim::present() & rim::HAS_IMU) {        // обороты и невесомость: сводка, потом сырые оси
           out.n = 0;
@@ -1332,8 +1610,12 @@ void setup() {
   GenConfig def;           // заводские настройки до первой команды сервера
   if (fixed_role(g_boot_role)) {                 // статический акселерометр (меряет на ядре 1) или моторы
     def.role = g_boot_role;
-    if (g_boot_role == ROLE_S) sacc::begin(def.afs, def.avg);
-    else {
+    if (g_boot_role == ROLE_S) {
+      sacc::begin(def.afs, def.avg);
+      entropy_init();                // датчик-участник (sg): счёт из ГСЧ — на ядре 1 ниже измерения
+      g_candq = xQueueCreate(16, sizeof(Cand));
+      xTaskCreatePinnedToCore(gen_task, "gen", 8192, nullptr, 1, nullptr, 1);
+    } else {
       motor::begin();
       bat::begin(true);              // INA219 на D4/D5 — катушка, на D8/D9 — шина колеса (шины I2C запускает сам)
     }
@@ -1348,6 +1630,7 @@ void setup() {
   apply_config(def);
   g_candq = xQueueCreate(16, sizeof(Cand));
   xTaskCreatePinnedToCore(prod_task, "prod", 6144, nullptr, 1, nullptr, 0);   // два ядра: производитель, ниже связи
+  xTaskCreatePinnedToCore(w2_task, "w2", 8192, nullptr, 1, nullptr, 0);       // второй проверяльщик (tc) — тоже на ядре связи
   xTaskCreatePinnedToCore(gen_task, "gen", 8192, nullptr, 1, nullptr, 1);     // ядро счёта
   xTaskCreatePinnedToCore(comms_task, "comms", 8192, nullptr, 2, nullptr, 0); // ядро связи
 }
