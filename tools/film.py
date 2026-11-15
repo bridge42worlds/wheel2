@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Большой ролик из сценария: кадры + голос Остова (Silero) + русский текст на экране + английские титры.
-Запускать окружением озвучки:  C:\\CL\\va\\.venv\\Scripts\\python.exe tools/film.py <сценарий.txt> [voice|build|all] [--only N-M]
+Запускать окружением озвучки:  C:\\CL\\va\\.venv\\Scripts\\python.exe tools/film.py <сценарий.txt> [voice|build|all] [--only N-M] [--en [--tempo 1.3]]
 
 Сценарий — простой текст, такты через пустую строку:
     ## Фаза 1 · лето 2026 | Первое колесо        ← глава: метка | заголовок на плашке (смена главы — затемнение)
@@ -25,6 +25,7 @@ FF = r"C:\tools\ffmpeg\bin\ffmpeg.exe"
 VA = r"C:\CL\va"
 W, H, SR, FPS = 1920, 1080, 48000, 30
 LEAD, TAIL = 0.15, 0.30                     # тишина до и после реплики
+EN_SPEAKER = "en_46"                        # голос английской версии (Silero v3_en)
 TEMPO = 1.5                                 # темп голоса (ffmpeg atempo, высота тона не меняется)
 AMB = 0.10                                  # родной звук видео под голосом
 LINK = "github.com/bridge42worlds/wheel2"
@@ -90,9 +91,16 @@ def parse(path):
     return beats
 
 
-def say_text(ru):
+def say_text(ru, lang="ru"):
     """Для голоса: числа словами (num2words), без «[]»; «+» оставляем — это ударение для Silero."""
     from num2words import num2words
+    if lang == "en":                             # английский голос: читаем строки субтитров
+        def num_en(m):
+            s = m.group(0).replace(",", "")
+            return num2words(float(s) if "." in s else int(s), lang="en")
+        t = ru.replace("—", ", ").replace("–", " to ").replace("%", " percent").replace("°C", " degrees")
+        t = re.sub(r"\d+(?:[.,]\d+)*", num_en, t)
+        return re.sub(r"\s+", " ", re.sub(r"[^A-Za-z0-9 .,!?;:'\-]", " ", t)).strip()
     def num(m):
         s = m.group(0).replace(" ", "").replace(",", ".")
         try:
@@ -106,7 +114,7 @@ def say_text(ru):
 
 
 # ── голос ──────────────────────────────────────────────────────────────────
-def voice(beats, wd, speaker="aidar"):
+def voice(beats, wd, speaker="aidar", lang="ru"):
     """Голос по тактам; кэш по содержанию (voice/<хеш текста>.wav) — вставка тактов не пересинтезирует остальное."""
     import hashlib
     lens_p = os.path.join(wd, "lens.json")
@@ -124,25 +132,27 @@ def voice(beats, wd, speaker="aidar"):
         json.dump(lens, open(lens_p, "w", encoding="utf-8"), indent=0)
     m = None
     for b in beats:
-        txt = say_text(b["ru"])
+        txt = say_text(b[lang], lang)
         b["vkey"] = hashlib.md5(txt.encode("utf-8")).hexdigest()[:12]
         p = os.path.join(wd, "voice", b["vkey"] + ".wav")
         if b["vkey"] in lens and os.path.exists(p):
             continue
         if m is None:
             import torch
-            m = torch.package.PackageImporter(os.path.join(VA, "models", "silero", "v4_ru.pt")).load_pickle("tts_models", "model")
+            m = torch.package.PackageImporter(os.path.join(VA, "models", "silero", "v3_en.pt" if lang == "en" else "v4_ru.pt")
+                                              ).load_pickle("tts_models", "model")
         parts = [x for x in re.split(r"(?<=[.!?…])\s+", txt) if x.strip()]   # Silero: по предложению — ровнее
         wav = []
         for x in parts:
-            a = m.apply_tts(text=x, speaker=speaker, sample_rate=SR, put_accent=True, put_yo=True).numpy()
+            kw = {} if lang == "en" else {"put_accent": True, "put_yo": True}
+            a = m.apply_tts(text=x, speaker=speaker, sample_rate=SR, **kw).numpy()
             wav += [a.astype(np.float32), np.zeros(int(0.22 * SR), np.float32)]
         w = np.concatenate(wav[:-1])
         w *= 0.89 / (np.max(np.abs(w)) or 1)
         os.makedirs(os.path.dirname(p), exist_ok=True)
         sf.write(p, w, SR, subtype="PCM_16")
         lens[b["vkey"]] = round(len(w) / SR, 2)
-        print(f"  голос {b['id']} {lens[b['vkey']]:5.1f} с  {b['ru'][:60]}")
+        print(f"  голос {b['id']} {lens[b['vkey']]:5.1f} с  {b[lang][:60]}")
         json.dump(lens, open(lens_p, "w", encoding="utf-8"), indent=0)
     tag = "" if TEMPO == 1 else f"_x{round(TEMPO * 100)}"            # ускоренная копия рядом с исходной
     for b in beats:
@@ -516,6 +526,11 @@ if __name__ == "__main__":
         beats = beats[int(a) - 1:int(z or a)]
     name = os.path.splitext(os.path.basename(script))[0]
     print(f"тактов {len(beats)}, глав {len({b['chap'] for b in beats})}")
-    lens = voice(beats, wd)
+    if "--en" in sys.argv:                       # английская озвучка: голос по строкам субтитров, файл <имя>_en.mp4
+        TEMPO = float(sys.argv[sys.argv.index("--tempo") + 1]) if "--tempo" in sys.argv else TEMPO
+        name += "_en"
+        lens = voice(beats, wd, speaker=EN_SPEAKER, lang="en")
+    else:
+        lens = voice(beats, wd)
     if mode in ("build", "all"):
         build(beats, lens, wd, name + ("_part" if "--only" in sys.argv else ""))
