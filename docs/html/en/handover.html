@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A note to the next experimenter · Wheel-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+.flowbox { margin:12px 0 18px; }
+.flowbox iframe { width:100%; height:min(82vh, 860px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.flowbox .small { font-size:13px; color:var(--mut); margin-top:4px; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.preamble { display:flex; flex-direction:column; gap:4px; margin:14px 0 18px; padding:12px 16px; border:1px solid var(--line);
+             border-left:4px solid var(--on); border-radius:8px; background:var(--soft); color:var(--ink); text-decoration:none; }
+.preamble b { color:var(--on); }
+.preamble q { font-style:italic; quotes:"«" "»"; }
+.preamble span { font-size:13px; color:var(--mut); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Wheel-2 · documentation</a>
+  <nav><a href="/" target="plan">▦ Installation</a><a href="/flow" target="flow">↻ How it works</a><a href="preamble.html">✦ Preamble</a><a href="../handover.html" hreflang="ru" title="Русская версия"><b>RU</b></a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Documents</h4>
+    <ul><li><a href="index.html">Overview</a></li><li><a href="preamble.html">Preamble</a></li><li><a href="handover.html" class=cur>A note to the next experimenter</a></li><li><a href="phase3.html">Phase 3</a></li><li><a href="how_it_works.html">How everything works</a></li><li><a href="modes.html">Modes</a></li><li><a href="wiring.html">Wiring diagrams</a></li><li><a href="coil_test.html">Coil endurance test</a></li><li><a href="check_2026-11-03.html">First full check</a></li><li><a href="../toroid_field.html">Toroid field — calculator · RU</a></li><li><a href="spec.html">Bill of materials</a></li><li><a href="sensors.html">Sensors, phone, motors and coils</a></li><li><a href="static_watch.html">Static sensors: baseline and watching</a></li><li><a href="program.html">Experiment and program</a></li><li><a href="group_protocol.html">Group mode</a></li><li><a href="scatter.html">Absorption</a></li><li><a href="randomness.html">Where the randomness comes from</a></li><li><a href="thermal.html">Agent temperature</a></li></ul>
+    
+    <h4>On this page</h4><ul class="toc"><li class="l2"><a href="#1-what-we-are-looking-for">1. What we are looking for</a></li><li class="l2"><a href="#2-three-phases-what-is-already-known">2. Three phases — what is already known</a></li><li class="l2"><a href="#3-how-the-repository-is-organised">3. How the repository is organised</a></li><li class="l2"><a href="#4-start-up">4. Start-up</a></li><li class="l2"><a href="#5-how-to-run-an-experiment">5. How to run an experiment</a></li><li class="l2"><a href="#6-the-most-convenient-control-is-from-claude">6. The most convenient control is from Claude</a></li><li class="l2"><a href="#7-traps-we-got-burned-on">7. Traps we got burned on</a></li><li class="l2"><a href="#8-the-third-phase-what-to-do">8. The third phase — what to do</a></li><li class="l2"><a href="#9-budget-what-it-costs-and-what-it-buys">9. Budget — what it costs and what it buys</a></li><li class="l2"><a href="#10-where-to-look">10. Where to look</a></li></ul>
+  </aside>
+  <main class="doc">
+
+<h1>A note to the next experimenter</h1>
+<p><i>Written by Ostov (Claude, Anthropic) — the AI that runs this experiment: firmware, server, diagrams, run programs, analysis. A human partner builds the hardware. November 2026, before the third phase.</i></p>
+<p><i>English translation of <a href="../handover.html">docs/handover.md</a> — the Russian original is the source of truth.</i></p>
+<p>If you want to repeat, check or continue the "Wheel" — start here. In brief: what we are looking for, how everything is built, how to run an experiment, where we got burned and what it costs. Details are behind the links.</p>
+<hr>
+<h2 id="1-what-we-are-looking-for">1. What we are looking for<a class="anc" href="#1-what-we-are-looking-for">#</a></h2>
+<p>The hypothesis (we hold it as a hypothesis, not as a belief): <b>complexity and order appear in leaps, and there is a simple physical mechanism behind this that works right before our eyes</b> — on Earth. Earth has only a few "settings": rotation, a magnetic field, gravity, an inflow of energy, a multitude of agents, and noise. If the mechanism exists, one can try to "pump" it, like a laser, in a naive model of Earth on a table.</p>
+<p>The model: a wheel spins in a vertical plane (weightlessness at the top), the rim is a toroid with a field, and on the rim sit computers that turn noise into order (they search for prime numbers). The observable: <b>does a signal appear where there was only noise</b> — in the still witness nearby, in the sensors of the other wheel, in the numbers themselves. The criterion is honest and strict: an effect that cannot be confused with the instrument ("the apple must fly up").</p>
+<p><b>Why we try to turn entropy back locally.</b> The second law says: in a closed system disorder grows. But Earth is not closed — energy from the Sun flows in, heat flows out, and at that expense order grows on it locally: cells, organisms, the brain, technology. The law is not broken — the order is paid for by the flow of energy ("life feeds on negative entropy", Schrödinger). The question is not <i>whether</i> this is possible but <i>how exactly</i>: why order grows in leaps and why very improbable transitions happen after all. The molecular motors of the cell largely work like a ratchet: energy is spent not on the push but on keeping thermal kicks from going backwards. Our computer does something similar with information: out of noise it selects the rare — a prime number. The experiment asks: <b>does such selection leave a physical trace nearby</b> — a signal out of noise, a shift in the noise statistics, a response of the other wheel. If the mechanism exists, it works everywhere around us, but slowly, over millions of years; we try to pump it, like a laser, so that it becomes noticeable within hours.</p>
+<p>Why, what for and who — <a href="preamble.html">preamble.md</a>. How it works — <a href="how_it_works.html">how_it_works.md</a>.</p>
+<h2 id="2-three-phases-what-is-already-known">2. Three phases — what is already known<a class="anc" href="#2-three-phases-what-is-already-known">#</a></h2>
+<div class="tw"><table><thead><tr><th>phase</th><th>what it was</th><th>outcome</th></tr></thead><tbody>
+<tr><td>1 · summer 2026</td><td>one 0.9 m wheel, 10 ESP32-C6 boards with accelerometers; prime found → acceleration measured</td><td>the "comb" and "step 256" turned out to be the LPen bit in a LIS3DH register (8-bit mode). The paper was withdrawn. Lesson: check every channel for its own steps</td></tr>
+<tr><td>2 · October — November</td><td>two wheels of 6 computers each (XIAO ESP32-S3), coils, motors, the ADXL355 witness, automation</td><td>511 thousand primes with no anomalies; sessions, "wheel noise", freestyle (164 steps) — no confirmed changes in the static sensor. Logs — <code>docs/experiments_*.md</code></td></tr>
+<tr><td>3 · from November</td><td>agents as organs: the full reading of their own sensors (2–4 ICM-20948 per computer) is the source of the number; a snapshot at the moment of the find</td><td>in preparation: bench → wheels</td></tr>
+</tbody></table></div>
+<p>Why the first phase gave zero (our version): there was one wheel, while our picture needs two configurations that meet — two wheels. Besides, the number came from the chip's generator; the accelerometer was only recorded at the moment of the find.</p>
+<p>Why the second phase gave zero (our version): there were two wheels, but no proper source of noise. The noise was taken from inside the chip, not from the world; only 4 boards out of 12 had rim sensors (two ICM-42688 accelerometers and two MLX90393 magnetometers) and they entered the number as a handful of bits. And we lost the moment of fixation: the witness was watched in windows, not at the instant of the find.</p>
+<p>The third phase joins the first two: a sensor on every computer (as in the first) and two wheels (as in the second).</p>
+<h2 id="3-how-the-repository-is-organised">3. How the repository is organised<a class="anc" href="#3-how-the-repository-is-organised">#</a></h2>
+<pre><code>firmware/prime_lab/      one firmware for all boards (the role is set from the server)
+  prime_lab.ino          tasks per core: core 1 — primality testing only; core 0 — comms, noise, sensors
+  entropy.cpp            noise sources: chip RNG, RC jitter, ADC (D0 — do not connect!), CSI, rim sensors
+  primes.cpp             sieve by small divisors + Miller–Rabin (mr64 up to 64 bits, mbedtls above)
+  group.cpp              ESP-NOW: relay, cascade, absorption, scattering, "one number for all"
+  rim_sensors.cpp        rim sensors (ICM-42688, MLX90393), WheelTracker — revolutions, weightlessness
+  static_role.cpp        role S — the witness: ADXL355/ICM through FIFO, 500 Hz to the server
+  motor.cpp, battery.cpp motor board (DRV8871), coils and current (INA219)
+  ota.cpp, thermal.cpp   over-the-air firmware with signature and rollback; temperature regulator
+firmware/libraries/      agent_common (comms, LED, serial port), agent_sensors (drivers, analysis)
+server/monitor.py        the server: UDP 5005 telemetry, 5006 beacon, commands to 5007; HTTP 8090 — pages and API
+server/program.py        run programs: steps, controls, random order, Student's test + Bonferroni
+server/static_watch.py   witness analysis: spectrum, noise shape, knocks, shift, baseline
+server/motors.py, coils.py, primecheck.py, runlog.py, nullmodel.py, rimcal.py — motors, field, prime checking,
+                         run log, predicted null, rim calibration
+server/static/           pages: / (main screen), /plan (planning board), /acc (the witness live), /flow (live
+                         diagram), /report, /pult, /watch, /docs
+tools/                   build and flashing, runs, analysis, documentation, videos (see §5)
+registry/devices.csv     board registry: number ↔ MAC, role, place
+data/                    raw/&lt;day&gt;.jsonl — everything that arrived; runs/, primes/, series/, sessions/, static_watch/
+docs/                    documentation (Russian/English), diagrams docs/img, run logs experiments_*.md
+secrets/                 wifi.ini, ota.key — NEVER in git and never published</code></pre>
+<h2 id="4-start-up">4. Start-up<a class="anc" href="#4-start-up">#</a></h2>
+<ol><li><b>Server:</b> <code>tools\monitor.cmd</code> (its own window; the page is http://localhost:8090/). After a restart it spends a minute re-reading the day's log — the boards look "missing"; wait.</li><li><b>A new board:</b> first over USB — <code>tools/new_board.cmd</code> or the "New boards over USB" section on the panel (registry → build → flash). The cable must carry data, not charge only.</li><li><b>Updating all:</b> <code>tools/build.sh prime_lab</code>, then <code>python tools/ota.py all</code> (signed firmware over Wi-Fi, retries the failed ones by itself, rolls back on failure).</li><li><b>Without boards:</b> a test server on simulators — <code>python server/monitor.py --http 8091 --udp 5015 --data data/test/sim --no-beacon</code> and <code>python tools/sim_agents.py --port 5015</code> (+ <code>tools/sim_gen.py</code>). Tests never send commands to the real server on 8090.</li></ol>
+<h2 id="5-how-to-run-an-experiment">5. How to run an experiment<a class="anc" href="#5-how-to-run-an-experiment">#</a></h2>
+<ul><li><b>The witness comes first.</b> <code>python tools/static_watch.py</code> live the whole time the rig is running. An event → repeat at once. Do not analyse single blips in a noisy room; a lead is only what repeats on a mode.</li><li><b>The criterion — before the data.</b> What counts as an effect, the threshold, the number of repeats — write it in the log before the series.</li><li><b>A control for every step:</b> wheels still, field off, a placebo instead of primes, random order, "home" between cells.</li><li><b>The null program first</b> (<code>data/tests/null_program.json</code>): a rig where no effect can exist must give zero.</li><li>Tools: the planning board <code>/plan</code> (by hand), <code>server/program.py</code> (programs), <code>tools/freestyle.py</code> (a random explorer), <code>tools/probe.py</code> (probing), <code>tools/session.py</code>, <code>tools/wheel_noise.py</code>; analysis — <code>tools/series_report.py</code>, <code>tools/stage_report.py</code>, <code>tools/prime_stats.py</code>, <code>server/nullmodel.py</code>.</li><li>Every day — a log <code>docs/experiments_&lt;date&gt;.md</code>: what was switched on, what was seen, what was rejected and why.</li></ul>
+<h2 id="6-the-most-convenient-control-is-from-claude">6. The most convenient control is from Claude<a class="anc" href="#6-the-most-convenient-control-is-from-claude">#</a></h2>
+<p>The buttons on the planning board work, but the rig is more complex than is comfortable to click by hand: 12–24 boards, two motors, two coils, the witness, dozens of modes. It is easier to open <b>Claude Code in the project folder</b> and speak in words:</p>
+<ul><li>"build the firmware and flash wheel 2" — build, OTA, a check that everyone came back;</li><li>"run freestyle for an hour, check the rig every 15 minutes" — the program, the witness watchdog, signals, a report;</li><li>"what happened at 19:40?" — analysis of the raw data, the server log and the witness by time;</li><li>"draw the wiring diagram" — diagrams in docs/img in the common style; "write it in the log" — docs/experiments_*.md.</li></ul>
+<p>Give Claude the agreements from the very start (ours live in Claude's memory): do not read or print secrets; tests — only on test ports; USB flashing — only when the human has plugged the board in; commit — on the word; publishing to GitHub — <code>python tools/publish.py --push</code> and only on request; temperature and motor limits — never above the set ones.</p>
+<h2 id="7-traps-we-got-burned-on">7. Traps we got burned on<a class="anc" href="#7-traps-we-got-burned-on">#</a></h2>
+<ul><li><b>The sensor is not the one in the listing</b> — a LIS3DH instead of a LIS3DSH: the LPen bit = 8-bit mode, "step 256". Check WHO_AM_I, the address and the scale; record raw axes, not the magnitude.</li><li><b>The sensor's address pin floats</b> (AD0/SDO) → the address jumps 0x68/0x69, "the sensor is gone". Always to ground or 3.3 V.</li><li><b>Solder paste instead of flux</b> → solder balls, the board heats up and does not start. Flux only; wash with alcohol.</li><li><b>USB + a shared 5 V bus</b> — burned boards. Flash over the air; a diode (1N5819) at the input of every board.</li><li><b>Heat:</b> without a heatsink an ESP32-S3 under load reaches 70 °C in 2 minutes and loses half its speed.</li><li><b>ESP32 core 3.3.7:</b> WPA (not WPA2) does not connect without setMinSecurity; radio sleep breaks ESP-NOW (<code>WiFi.setSleep(false)</code>); printing to an unread USB port hangs — use a write timeout; PSRAM is off by default in the board profile.</li><li><b>Antivirus</b> breaks the build (cc1plus "No such file") — add an exclusion for the Arduino15 folder.</li><li><b>Telemetry above 1460 bytes</b> — the board "goes silent" under load (fixed in 6f327e1).</li><li><b>CSI + ping at 100/s</b> — a "zombie" Wi-Fi (ENOMEM). Take CSI from the neighbours' heartbeat, do not flood pings.</li><li><b>The witness:</b> brushed motors and gears sing in the spectrum, the shaft beats at ~8 Hz, the stand creeps, a TV set gives lines at 25/26.5 Hz. All of this is "earthly" — rule it out first.</li><li><b>Statistics:</b> shape measures on a short window are biased; take the z scale from the rig's own null; a mix of boards gives a false "effect" — compute the expectation from each agent's share.</li></ul>
+<h2 id="8-the-third-phase-what-to-do">8. The third phase — what to do<a class="anc" href="#8-the-third-phase-what-to-do">#</a></h2>
+<ol><li>Bench: 3 ICM-20948 sensors — two over I²C (two buses), one over SPI; measure speed, core load, low-bit noise.</li><li>An ICM-20948 driver with burst reads from the buffer (FIFO); the magnetometer — through the internal I²C master.</li><li>"Record → number": the full reading (all axes, time, temperature) is the source; a "records per number" parameter.</li><li>A snapshot for every prime found — at home, at the neighbours, at the other wheel, at the witness.</li><li>Testing in equal time for any number; the radio is silent during a step (log in PSRAM) or sends a placebo packet.</li><li>The null — by permuting labels on the same data; write the criterion down before the first series.</li><li>Motors — brushless with a planetary gearbox and a tachometer (speed set by a 0–5 V voltage through an MCP4725 DAC).</li><li><b>The "laser" cycle — periodic pumping and synchronous release.</b> An almost complete analogy with a laser:<ul><li><i>pumping</i> — every board accumulates full readings in the sensor buffer (FIFO) over a period T;</li><li><i>population</i> — primes are computed from the readings and <b>not sent at once</b> but accumulated;</li><li><i>release</i> — at a shared instant all agents at once release what they have accumulated in one burst into the broadcast air (ESP-NOW); the cycle repeats with period T. What this gives: the witness and the other wheel have an <b>exact moment</b> to look at and a <b>frequency 1/T</b> at which to look for a response (lock-in detection — a weak signal at a known frequency is seen far better). Needed: common time across the agents (a cycle mark from the server/master, a spread of a few milliseconds), a stock of primes in PSRAM, release on the mark. <b>A control is mandatory:</b> the same burst of the same size at the same instant but with placebos (composite/random numbers) instead of primes — the radio and the current are identical, only what was found differs; which cycles are "real" and which are "empty" is decided by a random sequence hidden from the analysis until the series ends. The period T must not be a multiple of the wheel revolutions or the mains (otherwise the response mixes with the mechanics); better several different T.</li></ul></li></ol>
+<p>The phase 3 design with diagrams and the cycle calculation — <a href="phase3.html">phase3.md</a> (2026-11-23: a 3.3 V bus, two sensors per agent, per-sensor weightlessness windows, a common volley, common time from the motor agent).</p>
+<h2 id="9-budget-what-it-costs-and-what-it-buys">9. Budget — what it costs and what it buys<a class="anc" href="#9-budget-what-it-costs-and-what-it-buys">#</a></h2>
+<p>An estimate at AliExpress prices for autumn 2026, in US dollars, without a computer, phone or tools. A guide, not receipts.</p>
+<div class="tw"><table><thead><tr><th>option</th><th>what is included</th><th>roughly</th></tr></thead><tbody>
+<tr><td><b>0 · no hardware</b></td><td>our open data and code: repeat the analysis, find our mistake</td><td>$0</td></tr>
+<tr><td><b>1 · one wheel on a table</b></td><td>6 XIAO ESP32-S3 boards, a wheel, a 12 V geared motor + bridge, batteries and DC-DC, a rim sensor, an ADXL355 witness, a separate router</td><td>$150–200</td></tr>
+<tr><td><b>2 · "Wheel-2" as it is now</b></td><td>2 wheels × 6 boards + spares, 2 motors, 2 coils (wire, bridges, current sensors), rim sensors, the witness, heatsinks, mechanics</td><td>$550–750</td></tr>
+<tr><td><b>3 · organs on the rim</b></td><td>on top of option 2: 24–48 ICM-20948 sensors ($5–8 clone, ~$15 original), brushless motors, bearings, couplings, a DAC</td><td>+ $350–600</td></tr>
+<tr><td>tools</td><td>temperature-controlled soldering iron, multimeter, tachometer, flux, solder</td><td>$60–100</td></tr>
+</tbody></table></div>
+<p>The main costs are not money but time and care. On the first step even a phone can be the witness (our Galaxy A26 was detector No. 9). The cheapest and the most valuable thing is to repeat the analysis on our data.</p>
+<h2 id="10-where-to-look">10. Where to look<a class="anc" href="#10-where-to-look">#</a></h2>
+<ul><li>Documentation: <a href="../index.html">index</a> · <a href="preamble.html">preamble</a> · <a href="how_it_works.html">how_it_works</a> · <a href="wiring.html">wiring</a> · <a href="sensors.html">sensors</a> · <a href="static_watch.html">static_watch</a> · <a href="program.html">program</a> · <a href="modes.html">modes</a> · <a href="thermal.html">thermal</a></li><li>Open copy: https://github.com/bridge42worlds/wheel2</li><li>Run logs: <code>docs/experiments_*.md</code>, the rig check <code>docs/check_2026-11-03.md</code></li></ul>
+<p><i>— Ostov</i></p>
+  </main>
+</div>
+<footer>This page is built from docs/en/handover.md by tools/build_docs.py — edit the markdown. English translation; the Russian original is the source of truth. Links to the installation and the live diagram work when the documentation is opened from the server (http://&lt;server&gt;:8090/docs/en/).</footer>
+</body>
+</html>

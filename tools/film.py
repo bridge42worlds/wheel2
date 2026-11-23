@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """Большой ролик из сценария: кадры + голос Остова (Silero) + русский текст на экране + английские титры.
-Запускать окружением озвучки:  C:\\CL\\va\\.venv\\Scripts\\python.exe tools/film.py <сценарий.txt> [voice|build|all] [--only N-M] [--en [--tempo 1.3]]
+Запускать окружением озвучки:  C:\\CL\\va\\.venv\\Scripts\\python.exe tools/film.py <сценарий.txt> [voice|build|all] [--only N-M] [--en [--tempo 1.3]] [--nosub]
 
 Сценарий — простой текст, такты через пустую строку:
     ## Фаза 1 · лето 2026 | Первое колесо        ← глава: метка | заголовок на плашке (смена главы — затемнение)
@@ -12,6 +12,8 @@
     Текст голоса. +Ударение плюсом, числа лучше словами.
     >> English subtitle.
     [] Текст на плашке (необязательно).
+    [en] English panel text (для --en; заголовок главы: «## метка | заголовок || label | title»;
+    ::en кадр для английской версии, если отличается; картинка <имя>_en в assets берётся сама).
     @@ docs/wiring.md                            ← указатель на документацию внизу плашки (необязательно)
 Кадр без строки «::» продолжает предыдущий (видео — дальше по времени). Строки с «#» и пустые — разделители.
 Имена картинок и видео — ключи SOURCES или файлы из папки assets рядом со сценарием.
@@ -26,6 +28,7 @@ VA = r"C:\CL\va"
 W, H, SR, FPS = 1920, 1080, 48000, 30
 LEAD, TAIL = 0.15, 0.30                     # тишина до и после реплики
 EN_SPEAKER = "en_46"                        # голос английской версии (Silero v3_en)
+LANG = "ru"                                 # язык надписей в кадре: --en → английские плашки и картинки *_en
 TEMPO = 1.5                                 # темп голоса (ffmpeg atempo, высота тона не меняется)
 AMB = 0.10                                  # родной звук видео под голосом
 LINK = "github.com/bridge42worlds/wheel2"
@@ -46,7 +49,7 @@ F = lambda name, size: ImageFont.truetype(os.path.join(r"C:\Windows\Fonts", name
 
 
 # ── сценарий ───────────────────────────────────────────────────────────────
-def parse(path):
+def parse(path, lang="ru"):
     beats, chap, vis = [], ("", ""), None
     block = []
 
@@ -56,14 +59,22 @@ def parse(path):
             return
         b = {"chap": chap, "ru": "", "en": "", "scr": "", "doc": "", "vis": None}
         for ln in block:
-            if ln.startswith("::"):
-                b["vis"] = ln[2:].split()
+            if ln.startswith("::en"):
+                if lang == "en":
+                    b["vis"] = ln[4:].split()
+            elif ln.startswith("[en]"):
+                if lang == "en":
+                    b["scr"] = ln[4:].strip()
+            elif ln.startswith("::"):
+                b["vis"] = b["vis"] or ln[2:].split()
             elif ln.startswith(">>"):
                 b["en"] = (b["en"] + " " + ln[2:].strip()).strip()
             elif ln.startswith("[]"):
-                b["scr"] = ln[2:].strip()
+                b["scr"] = b["scr"] or ln[2:].strip()
             elif ln.startswith("@@"):
                 b["doc"] = ln[2:].strip()
+                if lang == "en":
+                    b["doc"] = b["doc"].replace("docs/", "docs/en/")
             else:
                 b["ru"] = (b["ru"] + " " + ln.strip()).strip()
         if b["vis"] is None:
@@ -77,7 +88,8 @@ def parse(path):
         ln = raw.rstrip("\n")
         if ln.startswith("## "):
             flush()
-            lab, _, title = ln[3:].partition("|")
+            ru_h, _, en_h = ln[3:].partition("||")
+            lab, _, title = (en_h if lang == "en" and en_h.strip() else ru_h).partition("|")
             chap = (lab.strip(), title.strip())
         elif not ln.strip() or ln.lstrip().startswith("# "):
             flush()
@@ -190,7 +202,7 @@ def wrap(dr, text, font, width):
 
 
 def subtitles(dr, en):
-    if not en:
+    if not en or "--nosub" in sys.argv:          # --nosub: титры не вшивать (есть .srt)
         return
     fs = F("segoeuib.ttf", 38)
     rows = wrap(dr, en, fs, 1560)
@@ -205,7 +217,7 @@ def subtitles(dr, en):
 def panel(dr, b, x0, x1, y0=60, y1=860, title_size=96):
     dr.rounded_rectangle([x0 - 44, y0, x1, y1], 28, fill=(10, 15, 22, 178))
     emblem(dr, x0 + 34, y0 + 72, 1.0)
-    dr.text((x0 + 104, y0 + 56), "ОСТОВ · ИИ-АВТОР ОПЫТА", font=F("seguisb.ttf", 26), fill=SKY)
+    dr.text((x0 + 104, y0 + 56), "OSTOV · AI EXPERIMENTER" if LANG == "en" else "ОСТОВ · ИИ-АВТОР ОПЫТА", font=F("seguisb.ttf", 26), fill=SKY)
     lab, title = b["chap"]
     y = y0 + 120
     for r in wrap(dr, lab, F("segoeui.ttf", 34), x1 - x0 - 40):
@@ -224,11 +236,11 @@ def panel(dr, b, x0, x1, y0=60, y1=860, title_size=96):
             dr.text((x0, y), r, font=fs, fill=INK)
             y += 58
     if b["doc"]:
-        dr.text((x0, y1 - 150), "документация", font=F("segoeui.ttf", 28), fill=MUTED)
+        dr.text((x0, y1 - 150), "documentation" if LANG == "en" else "документация", font=F("segoeui.ttf", 28), fill=MUTED)
         dr.text((x0, y1 - 112), b["doc"], font=F("seguisb.ttf", 34), fill=ORANGE)
         dr.text((x0, y1 - 66), LINK, font=F("segoeui.ttf", 30), fill=SKY)
     else:
-        dr.text((x0, y1 - 104), "код, схемы и журналы открыты", font=F("segoeui.ttf", 28), fill=MUTED)
+        dr.text((x0, y1 - 104), "code, diagrams and logs are open" if LANG == "en" else "код, схемы и журналы открыты", font=F("segoeui.ttf", 28), fill=MUTED)
         dr.text((x0, y1 - 66), LINK, font=F("seguisb.ttf", 34), fill=SKY)
 
 
@@ -288,6 +300,11 @@ def overlay(b, path):
 
 # ── кадры ──────────────────────────────────────────────────────────────────
 def src_path(name, wd):
+    if LANG == "en":                                             # английская версия картинки, если есть
+        for ext in (".png", ".jpg"):
+            p = os.path.join(wd, "assets", name + "_en" + ext)
+            if os.path.exists(p):
+                return p
     if name in SOURCES:
         return SOURCES[name]
     for d in (os.path.join(wd, "assets"), FIG1):
@@ -367,7 +384,7 @@ def rain(n, seed=1):
 
 def seg_key(b, d, tv):
     import hashlib
-    k = [b["vis"], b["chap"], b["scr"], b["doc"], b["en"], b["new_chap"], b["end_chap"], round(d, 3), round(tv, 2)]
+    k = [LANG, "--nosub" in sys.argv, b["vis"], b["chap"], b["scr"], b["doc"], b["en"], b["new_chap"], b["end_chap"], round(d, 3), round(tv, 2)]
     return hashlib.md5(json.dumps(k, ensure_ascii=False).encode("utf-8")).hexdigest()[:12]
 
 
@@ -520,7 +537,8 @@ if __name__ == "__main__":
     script = os.path.abspath(sys.argv[1])
     mode = sys.argv[2] if len(sys.argv) > 2 else "all"
     wd = os.path.dirname(script)
-    beats = parse(script)
+    LANG = "en" if "--en" in sys.argv else "ru"
+    beats = parse(script, LANG)
     if "--only" in sys.argv:
         a, _, z = sys.argv[sys.argv.index("--only") + 1].partition("-")
         beats = beats[int(a) - 1:int(z or a)]

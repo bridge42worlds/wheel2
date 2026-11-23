@@ -79,7 +79,7 @@ word is ready, and sieve candidates in between.
 
 ### 4.2 Heatsinks and the "floor"
 
-The agents sit inside a silicone tube (19 × 23 mm) under the coil winding (a toroid along a Ø900 mm rim). Without a
+The agents sit inside a silicone tube (19 × 23 mm) under the coil winding (a toroid along the rim: a Ø300 mm aluminium disc, about 320–330 mm at the tube axis, exact size not measured yet). Without a
 heat path a board in the tube would overheat even at idle (on the table the thermal resistance to air is 65–70 K/W
 at 0.45–0.5 W), so every agent has the same arrangement:
 

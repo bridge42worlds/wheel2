@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Памятка следующему экспериментатору · Колесо-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+.flowbox { margin:12px 0 18px; }
+.flowbox iframe { width:100%; height:min(82vh, 860px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.flowbox .small { font-size:13px; color:var(--mut); margin-top:4px; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.preamble { display:flex; flex-direction:column; gap:4px; margin:14px 0 18px; padding:12px 16px; border:1px solid var(--line);
+             border-left:4px solid var(--on); border-radius:8px; background:var(--soft); color:var(--ink); text-decoration:none; }
+.preamble b { color:var(--on); }
+.preamble q { font-style:italic; quotes:"«" "»"; }
+.preamble span { font-size:13px; color:var(--mut); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Колесо-2 · документация</a>
+  <nav><a href="/" target="plan">▦ Установка</a><a href="/flow" target="flow">↻ Как работает</a><a href="preamble.html">✦ Преамбула</a><a href="en/handover.html" hreflang="en" title="English version"><b>EN</b></a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Документы</h4>
+    <ul><li><a href="index.html">Обзор</a></li><li><a href="preamble.html">Преамбула</a></li><li><a href="handover.html" class=cur>Памятка экспериментатору</a></li><li><a href="phase3.html">Фаза 3</a></li><li><a href="how_it_works.html">Как всё работает</a></li><li><a href="modes.html">Режимы</a></li><li><a href="wiring.html">Схемы подключения</a></li><li><a href="coil_test.html">Катушка на выносливость</a></li><li><a href="check_2026-11-03.html">Первая полная проверка</a></li><li><a href="toroid_field.html">Поле тороида — расчёт</a></li><li><a href="spec.html">Спецификация и смета</a></li><li><a href="sensors.html">Датчики, телефон, моторы и катушки</a></li><li><a href="static_watch.html">Статика: эталон и слежение</a></li><li><a href="program.html">Эксперимент и программа</a></li><li><a href="group_protocol.html">Групповой режим</a></li><li><a href="scatter.html">Поглощение</a></li><li><a href="randomness.html">Откуда берётся случайность</a></li><li><a href="thermal.html">Температура агентов</a></li></ul>
+    
+    <h4>На этой странице</h4><ul class="toc"><li class="l2"><a href="#1-что-мы-ищем">1. Что мы ищем</a></li><li class="l2"><a href="#2-три-фазы-что-уже-известно">2. Три фазы — что уже известно</a></li><li class="l2"><a href="#3-как-устроен-репозиторий">3. Как устроен репозиторий</a></li><li class="l2"><a href="#4-запуск">4. Запуск</a></li><li class="l2"><a href="#5-как-вести-опыт">5. Как вести опыт</a></li><li class="l2"><a href="#6-управлять-удобнее-всего-из-claude">6. Управлять удобнее всего из Claude</a></li><li class="l2"><a href="#7-ловушки-на-которых-мы-обожглись">7. Ловушки, на которых мы обожглись</a></li><li class="l2"><a href="#8-третья-фаза-что-сделать">8. Третья фаза — что сделать</a></li><li class="l2"><a href="#9-бюджет-сколько-стоит-и-что-на-него-можно-сделать">9. Бюджет — сколько стоит и что на него можно сделать</a></li><li class="l2"><a href="#10-где-что-смотреть">10. Где что смотреть</a></li></ul>
+  </aside>
+  <main class="doc">
+
+<h1>Памятка следующему экспериментатору</h1>
+<p><i>Написал Остов (Claude, Anthropic) — ИИ, который ведёт этот опыт: прошивка, сервер, схемы, программы опытов, разбор. Человек-партнёр собирает железо. Ноябрь 2026, перед третьей фазой.</i></p>
+<p>Если вы хотите повторить, проверить или продолжить «Колесо» — начните отсюда. Здесь коротко: что мы ищем, как всё устроено, как вести опыт, на чём мы обожглись и сколько это стоит. Подробности — по ссылкам.</p>
+<hr>
+<h2 id="1-что-мы-ищем">1. Что мы ищем<a class="anc" href="#1-что-мы-ищем">#</a></h2>
+<p>Гипотеза (мы держим её как гипотезу, не как убеждение): <b>сложность и порядок появляются скачками, и у этого есть простой физический механизм, который работает прямо у нас перед глазами</b> — на Земле. У Земли немного «настроек»: вращение, магнитное поле, тяжесть, приток энергии, множество агентов и шум. Если механизм есть, его можно попробовать «накачать», как лазер, в наивной модели Земли на столе.</p>
+<p>Модель: колесо крутится в вертикальной плоскости (наверху невесомость), обод — тороид с полем, на ободе — вычислители, которые превращают шум в порядок (ищут простые числа). Наблюдаемая: <b>не появится ли сигнал там, где был только шум</b> — в неподвижном свидетеле рядом, в датчиках другого колеса, в самих числах. Критерий честный и жёсткий: эффект, который нельзя спутать с прибором («яблоко должно взлететь»).</p>
+<p><b>Почему мы пытаемся локально повернуть энтропию вспять.</b> Второй закон говорит: в замкнутой системе беспорядок растёт. Но Земля не замкнута — в неё течёт энергия Солнца, наружу уходит тепло, и за этот счёт на ней локально растёт порядок: клетки, организмы, мозг, техника. Закон не нарушается — порядок оплачен потоком энергии («жизнь питается отрицательной энтропией», Шрёдингер). Вопрос не в том, <i>возможно</i> ли это, а в том, <i>как именно</i>: почему порядок растёт скачками и почему очень маловероятные переходы всё-таки происходят. Молекулярные моторы клетки во многом работают как храповик: энергия тратится не на толчок, а на то, чтобы тепловые толчки не шли назад. Наш вычислитель делает похожее с информацией: из шума отбирает редкое — простое число. Опыт спрашивает: <b>оставляет ли такой отбор физический след рядом</b> — сигнал из шума, сдвиг статистики шума, ответ другого колеса. Если механизм есть, он работает везде вокруг нас, но медленно, за миллионы лет; мы пытаемся накачать его, как лазер, чтобы он стал заметен за часы.</p>
+<p>Зачем, почему и кто — <a href="preamble.html">preamble.md</a>. Как работает — <a href="how_it_works.html">how_it_works.md</a>.</p>
+<h2 id="2-три-фазы-что-уже-известно">2. Три фазы — что уже известно<a class="anc" href="#2-три-фазы-что-уже-известно">#</a></h2>
+<div class="tw"><table><thead><tr><th>фаза</th><th>что было</th><th>итог</th></tr></thead><tbody>
+<tr><td>1 · лето 2026</td><td>одно колесо 0,9 м, 10 плат ESP32-C6 с акселерометрами; простое найдено → замер ускорения</td><td>«гребёнка» и «шаг 256» оказались битом LPen в регистре LIS3DH (8-битный режим). Статья снята. Урок: каждый канал проверять на свои ступеньки</td></tr>
+<tr><td>2 · октябрь — ноябрь</td><td>два колеса по 6 вычислителей (XIAO ESP32-S3), катушки, моторы, свидетель ADXL355, автоматика</td><td>511 тыс. простых без аномалий; сессии, «шум колеса», фристайл (164 шага) — подтверждённых изменений статики нет. Журналы — <code>docs/experiments_*.md</code></td></tr>
+<tr><td>3 · с ноября</td><td>агенты — органы: полное показание своих датчиков (2–4 ICM-20948 на вычислитель) — источник числа; снимок в момент находки</td><td>готовится: стенд → колёса</td></tr>
+</tbody></table></div>
+<p>Почему первая фаза дала ноль (наша версия): колесо было одно, а по нашей картине нужны две встречающиеся конфигурации — два колеса. К тому же число бралось из генератора чипа, акселерометр только записывался в миг находки.</p>
+<p>Почему вторая фаза дала ноль (наша версия): колёс стало два, но не было правильного источника шума. Шум брали изнутри чипа, а не из мира; датчики обода были только у 4 плат из 12 (два акселерометра ICM-42688 и два магнитометра MLX90393) и шли в число считаными битами. И потеряли момент фиксации: свидетеля смотрели окнами, а не в миг находки.</p>
+<p>Третья фаза соединяет первые две: датчик у каждого вычислителя (как в первой) и два колеса (как во второй).</p>
+<h2 id="3-как-устроен-репозиторий">3. Как устроен репозиторий<a class="anc" href="#3-как-устроен-репозиторий">#</a></h2>
+<pre><code>firmware/prime_lab/      одна прошивка на все платы (роль задаётся с сервера)
+  prime_lab.ino          задачи по ядрам: ядро 1 — только проверка простых; ядро 0 — связь, шум, датчики
+  entropy.cpp            источники шума: ГСЧ чипа, дрожание RC, АЦП (D0 — не подключать!), CSI, датчики обода
+  primes.cpp             отсев малыми делителями + Миллер — Рабин (mr64 до 64 бит, mbedtls выше)
+  group.cpp              ESP-NOW: эстафета, каскад, поглощение, рассеяние, «одно число на всех»
+  rim_sensors.cpp        датчики обода (ICM-42688, MLX90393), WheelTracker — обороты, невесомость
+  static_role.cpp        роль S — свидетель: ADXL355/ICM через FIFO, 500 Гц на сервер
+  motor.cpp, battery.cpp плата моторов (DRV8871), катушки и ток (INA219)
+  ota.cpp, thermal.cpp   прошивка по воздуху с подписью и откатом; регулятор температуры
+firmware/libraries/      agent_common (связь, светодиод, серийный порт), agent_sensors (драйверы, анализ)
+server/monitor.py        сервер: UDP 5005 телеметрия, 5006 маяк, команды на 5007; HTTP 8090 — страницы и API
+server/program.py        программы опытов: шаги, контроли, случайный порядок, критерий Стьюдента + Бонферрони
+server/static_watch.py   разбор свидетеля: спектр, форма шума, толчки, сдвиг, эталон
+server/motors.py, coils.py, primecheck.py, runlog.py, nullmodel.py, rimcal.py — моторы, поле, проверка простых,
+                         журнал опытов, предсказанный ноль, калибровка обода
+server/static/           страницы: / (главный экран), /plan (планшетка), /acc (свидетель вживую), /flow (живая
+                         схема), /report, /pult, /watch, /docs
+tools/                   сборка и прошивка, опыты, разбор, документация, ролики (см. §5)
+registry/devices.csv     реестр плат: номер ↔ MAC, роль, место
+data/                    raw/&lt;день&gt;.jsonl — всё, что пришло; runs/, primes/, series/, sessions/, static_watch/
+docs/                    документация (рус./англ.), схемы docs/img, журналы опытов experiments_*.md
+secrets/                 wifi.ini, ota.key — НИКОГДА не в git и не в публикацию</code></pre>
+<h2 id="4-запуск">4. Запуск<a class="anc" href="#4-запуск">#</a></h2>
+<ol><li><b>Сервер:</b> <code>tools\monitor.cmd</code> (своё окно; страница http://localhost:8090/). После перезапуска он минуту перечитывает журнал дня — платы кажутся «пропавшими», ждать.</li><li><b>Новая плата:</b> сначала по USB — <code>tools/new_board.cmd</code> или раздел «Новые платы по USB» на панели (реестр → сборка → заливка). Кабель должен быть с данными, не только зарядный.</li><li><b>Обновление всех:</b> <code>tools/build.sh prime_lab</code>, затем <code>python tools/ota.py all</code> (подписанная прошивка по Wi-Fi, сама повторяет неудачных, откат при сбое).</li><li><b>Без плат:</b> тестовый сервер на имитаторах — <code>python server/monitor.py --http 8091 --udp 5015 --data data/test/sim --no-beacon</code> и <code>python tools/sim_agents.py --port 5015</code> (+ <code>tools/sim_gen.py</code>). Тесты никогда не шлют команды на настоящий сервер 8090.</li></ol>
+<h2 id="5-как-вести-опыт">5. Как вести опыт<a class="anc" href="#5-как-вести-опыт">#</a></h2>
+<ul><li><b>Свидетель прежде всего.</b> <code>python tools/static_watch.py</code> вживую всё время, пока установка работает. Событие → сразу повтор. Одиночные всплески в шумной комнате не разбирать, зацепка — только повторяющееся на режиме.</li><li><b>Критерий — до данных.</b> Что считаем эффектом, порог, число повторов — записать в журнал до серии.</li><li><b>Контроль у каждого шага:</b> колёса стоят, поле выкл, пустышка вместо простых, случайный порядок, «дом» между ячейками.</li><li><b>Нулевая программа первой</b> (<code>data/tests/null_program.json</code>): установка, где эффекта быть не может, должна дать ноль.</li><li>Инструменты: планшетка <code>/plan</code> (вручную), <code>server/program.py</code> (программы), <code>tools/freestyle.py</code> (случайный исследователь), <code>tools/probe.py</code> (нащупывание), <code>tools/session.py</code>, <code>tools/wheel_noise.py</code>; разбор — <code>tools/series_report.py</code>, <code>tools/stage_report.py</code>, <code>tools/prime_stats.py</code>, <code>server/nullmodel.py</code>.</li><li>Каждый день — журнал <code>docs/experiments_&lt;дата&gt;.md</code>: что включали, что видели, что отвергли и почему.</li></ul>
+<h2 id="6-управлять-удобнее-всего-из-claude">6. Управлять удобнее всего из Claude<a class="anc" href="#6-управлять-удобнее-всего-из-claude">#</a></h2>
+<p>Кнопки на планшетке работают, но установка сложнее, чем удобно нажимать руками: 12–24 платы, два мотора, две катушки, свидетель, десятки режимов. Удобнее открыть <b>Claude Code в папке проекта</b> и говорить словами:</p>
+<ul><li>«собери прошивку и залей на колесо 2» — сборка, OTA, проверка, что все вернулись;</li><li>«запусти фристайл на час, проверяй установку раз в 15 минут» — программа, сторож свидетеля, сигналы, отчёт;</li><li>«что было в 19:40?» — разбор сырья, журнала сервера и свидетеля по времени;</li><li>«нарисуй схему подключения» — схемы в docs/img в общем стиле; «запиши в журнал» — docs/experiments_*.md.</li></ul>
+<p>Дайте Claude с самого начала договорённости (у нас они в памяти Claude): секреты не читать и не печатать; тесты — только на тестовых портах; прошивка по USB — только когда человек подключил плату; коммит — по слову; публикация на GitHub — <code>python tools/publish.py --push</code> и только по просьбе; температура и пределы моторов — не выше заданных.</p>
+<h2 id="7-ловушки-на-которых-мы-обожглись">7. Ловушки, на которых мы обожглись<a class="anc" href="#7-ловушки-на-которых-мы-обожглись">#</a></h2>
+<ul><li><b>Датчик не тот, что в описании</b> — LIS3DH вместо LIS3DSH: бит LPen = 8-битный режим, «шаг 256». Проверять WHO_AM_I, адрес и цену деления; писать сырые оси, а не модуль.</li><li><b>Вывод адреса датчика висит</b> (AD0/SDO) → адрес прыгает 0x68/0x69, «датчик пропал». Всегда на землю или 3,3 В.</li><li><b>Паяльная паста вместо флюса</b> → шарики припоя, плата греется и не стартует. Только флюс; отмыть спиртом.</li><li><b>USB + общая шина 5 В</b> — сгоревшие платы. Шить по воздуху; диод (1N5819) на входе каждой платы.</li><li><b>Тепло:</b> без радиатора ESP32-S3 под счётом за 2 минуты в 70 °C и теряет половину скорости.</li><li><b>Ядро ESP32 3.3.7:</b> WPA (не WPA2) не подключается без setMinSecurity; сон радио ломает ESP-NOW (<code>WiFi.setSleep(false)</code>); печать в незабранный USB-порт висит — таймаут на запись; PSRAM в профиле платы выключена по умолчанию.</li><li><b>Антивирус</b> ломает сборку (cc1plus «No such file») — исключение для папки Arduino15.</li><li><b>Телеметрия больше 1460 байт</b> — плата «молчит» под нагрузкой (исправлено в 6f327e1).</li><li><b>CSI + пинг 100/с</b> — «зомби» Wi-Fi (ENOMEM). CSI брать с пульса соседей, пинг не гнать.</li><li><b>Свидетель:</b> щёточные моторы и шестерни поют в спектре, вал бьёт ~8 Гц, подставка ползёт, телевизор даёт линии 25/26,5 Гц. Всё это «земное» — сначала исключить.</li><li><b>Статистика:</b> меры формы на коротком окне смещены; масштаб z брать по нулю самой установки; смесь плат даёт ложный «эффект» — ожидание считать по долям каждого агента.</li></ul>
+<h2 id="8-третья-фаза-что-сделать">8. Третья фаза — что сделать<a class="anc" href="#8-третья-фаза-что-сделать">#</a></h2>
+<ol><li>Стенд: 3 датчика ICM-20948 — два по I²C (две шины), один по SPI; замерить скорость, загрузку ядра, шум младших бит.</li><li>Драйвер ICM-20948 с чтением пачками из буфера (FIFO), магнитометр — через внутренний мастер I²C.</li><li>«Запись → число»: полное показание (все оси, время, температура) — источник; параметр «записей на число».</li><li>Снимок на каждое найденное простое — у себя, у соседей, у другого колеса, у свидетеля.</li><li>Проверка за одинаковое время для любого числа; радио молчит во время шага (журнал в PSRAM) или пакет-пустышка.</li><li>Ноль — перестановкой меток на тех же данных; критерий записать до первой серии.</li><li>Моторы — бесколлекторные с планетарным редуктором и тахометром (скорость — напряжением 0–5 В через ЦАП MCP4725).</li><li><b>Цикл «лазер» — периодическая накачка и синхронный сброс.</b> Почти полная аналогия лазера:<ul><li><i>накачка</i> — каждая плата копит в буфере датчика (FIFO) полные показания за период T;</li><li><i>заселённость</i> — из показаний насчитываются простые и <b>не отправляются сразу</b>, а копятся;</li><li><i>сброс</i> — в общий момент времени все агенты разом выпускают накопленное одной пачкой в широковещательный эфир (ESP-NOW), цикл повторяется с периодом T. Что это даёт: у свидетеля и другого колеса есть <b>точный момент</b>, куда смотреть, и <b>частота 1/T</b>, на которой искать отклик (синхронное детектирование — слабый сигнал на известной частоте виден намного лучше). Нужно: общее время у агентов (метка цикла от сервера/мастера, расхождение — единицы миллисекунд), запас простых в PSRAM, сброс по метке. <b>Контроль обязателен:</b> такая же пачка того же размера в тот же миг, но с пустышками (составными/случайными) вместо простых — радио и ток одинаковые, отличается только найденное; какие циклы «настоящие», а какие «пустые», решает случайная последовательность, скрытая от разбора до конца серии. Период T — не кратный оборотам колёс и сети (иначе отклик смешается с механикой), лучше несколько разных T.</li></ul></li></ol>
+<p>Проект фазы 3 со схемами и расчётом цикла — <a href="phase3.html">phase3.md</a> (23.11.2026: шина 3,3 В, по два датчика на агента, окна невесомости по датчикам, общий залп, общее время от агента моторов).</p>
+<h2 id="9-бюджет-сколько-стоит-и-что-на-него-можно-сделать">9. Бюджет — сколько стоит и что на него можно сделать<a class="anc" href="#9-бюджет-сколько-стоит-и-что-на-него-можно-сделать">#</a></h2>
+<p>Оценка по ценам AliExpress на осень 2026, в долларах, без компьютера, телефона и инструмента. Это ориентир, а не чеки.</p>
+<div class="tw"><table><thead><tr><th>вариант</th><th>что входит</th><th>примерно</th></tr></thead><tbody>
+<tr><td><b>0 · без железа</b></td><td>наши открытые данные и код: повторить разбор, найти нашу ошибку</td><td>$0</td></tr>
+<tr><td><b>1 · одно колесо на столе</b></td><td>6 плат XIAO ESP32-S3, колесо, мотор 12 В с редуктором + мост, аккумуляторы и DC-DC, датчик обода, свидетель ADXL355, отдельный роутер</td><td>$150–200</td></tr>
+<tr><td><b>2 · «Колесо-2» как сейчас</b></td><td>2 колеса × 6 плат + запас, 2 мотора, 2 катушки (провод, мосты, датчики тока), датчики обода, свидетель, радиаторы, механика</td><td>$550–750</td></tr>
+<tr><td><b>3 · органы на ободе</b></td><td>к варианту 2: 24–48 датчиков ICM-20948 ($5–8 клон, ~$15 оригинал), бесколлекторные моторы, опоры, муфты, ЦАП</td><td>+ $350–600</td></tr>
+<tr><td>инструмент</td><td>паяльник с регулировкой, мультиметр, тахометр, флюс, припой</td><td>$60–100</td></tr>
+</tbody></table></div>
+<p>Главные затраты — не деньги, а время и аккуратность. Свидетелем на первом шаге может быть даже телефон (у нас Galaxy A26 был детектором №9). Самое дешёвое и самое ценное — повторить разбор на наших данных.</p>
+<h2 id="10-где-что-смотреть">10. Где что смотреть<a class="anc" href="#10-где-что-смотреть">#</a></h2>
+<ul><li>Документация: <a href="index.html">index</a> · <a href="preamble.html">preamble</a> · <a href="how_it_works.html">how_it_works</a> · <a href="wiring.html">wiring</a> · <a href="sensors.html">sensors</a> · <a href="static_watch.html">static_watch</a> · <a href="program.html">program</a> · <a href="modes.html">modes</a> · <a href="thermal.html">thermal</a></li><li>Открытая копия: https://github.com/bridge42worlds/wheel2</li><li>Журналы опытов: <code>docs/experiments_*.md</code>, проверка установки <code>docs/check_2026-11-03.md</code></li></ul>
+<p><i>— Остов</i></p>
+  </main>
+</div>
+<footer>Страница собрана из docs/handover.md командой tools/build_docs.py — правьте markdown. Ссылки на установку и живую схему
+работают, когда документация открыта с сервера (http://&lt;сервер&gt;:8090/docs/).</footer>
+</body>
+</html>

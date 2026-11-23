@@ -40,7 +40,7 @@ static bool parse_macs(const char* val, uint8_t (*macs)[6], int& n) {
 }
 
 bool same_work(const GenConfig& a, const GenConfig& b) {
-  return a.src == b.src && a.raw == b.raw && a.xf == b.xf && a.rw == b.rw && a.sq == b.sq && a.tc == b.tc && a.det == b.det && a.bits == b.bits && a.nb == b.nb && a.all == b.all && a.td == b.td &&
+  return a.src == b.src && a.raw == b.raw && a.xf == b.xf && a.rw == b.rw && a.sq == b.sq && a.tc == b.tc && a.p3 == b.p3 && a.det == b.det && a.bits == b.bits && a.nb == b.nb && a.all == b.all && a.td == b.td &&
          a.mode == b.mode && a.ng == b.ng && memcmp(a.grp, b.grp, sizeof a.grp) == 0 &&
          a.nrate == b.nrate && a.has_gmac == b.has_gmac && memcmp(a.gmac, b.gmac, sizeof a.gmac) == 0 &&
          a.kmax == b.kmax && a.pre == b.pre && a.cpu == b.cpu && a.dc == b.dc &&
@@ -54,7 +54,7 @@ bool same_work(const GenConfig& a, const GenConfig& b) {
 bool soft_differs(const GenConfig& a, const GenConfig& b) {
   return a.tmax != b.tmax || a.txp != b.txp || a.ping != b.ping || a.hb != b.hb || a.led != b.led || a.tp != b.tp ||
          a.tl != b.tl || a.tq != b.tq || a.rmm != b.rmm || a.afs != b.afs || a.avg != b.avg || a.pl != b.pl ||
-         a.dur != b.dur || a.ro != b.ro || a.rt != b.rt || a.seg != b.seg;
+         a.dur != b.dur || a.ro != b.ro || a.rt != b.rt || a.seg != b.seg || a.win != b.win || a.wo != b.wo || a.fm != b.fm;
 }
 
 bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* err, size_t errlen) {
@@ -69,6 +69,7 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
   long tl = cur.tl, tq = cur.tq, rmm = cur.rmm, afs = cur.afs, avg = cur.avg, pl = cur.pl, dc = cur.dc;
   long gv = cur.gv, rk = cur.rk, pw = cur.pw, raw = cur.raw, hb = cur.hb, dur = cur.dur, ro = cur.ro, rt = cur.rt,
        sg = cur.sg, xf = cur.xf, rw = cur.rw, sq = cur.sq, sx = cur.sx, det = cur.det, seg = cur.seg, tc = cur.tc;
+  long p3 = cur.p3, win = cur.win, wo = cur.wo, fm = cur.fm;
   uint64_t ba = cur.ba;
   bool bad_ba = false;
   int nbg = cur.nbg;
@@ -145,6 +146,10 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
     else if (!strcmp(tok, "sx"))   sx = v;
     else if (!strcmp(tok, "det"))  det = v;
     else if (!strcmp(tok, "seg"))  seg = v;
+    else if (!strcmp(tok, "p3"))   p3 = v;
+    else if (!strcmp(tok, "win"))  win = v;
+    else if (!strcmp(tok, "wo"))   wo = v;
+    else if (!strcmp(tok, "fm"))   fm = v;
     else if (!strcmp(tok, "gm")) { has_gmac = true; bad_gm |= !parse_macs(val, gmac, ngm); }
     else if (!strcmp(tok, "grp")) { memset(grp, 0, sizeof grp); bad_grp |= !parse_ids(val, grp, ng); }
     else if (!strcmp(tok, "bm"))  { has_bmac = true; bad_bm |= !parse_macs(val, bmac, nbm); }
@@ -207,6 +212,12 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
   else if (det < 0 || det > 65535)         snprintf(err, errlen, "bad det=%ld", det);
   else if (det && role == ROLE_A && (mode != MODE_SOLO || dc || bits < 128))   // B, S, M кандидатов не делают
                                            snprintf(err, errlen, "det: solo, dc=0, bits>=128");
+  else if (p3 < 0 || p3 > 1)               snprintf(err, errlen, "bad p3=%ld", p3);
+  else if (p3 && (role != ROLE_A || mode != MODE_SOLO || bits != 256 || det))   // окна: каждый сам, 256 бит
+                                           snprintf(err, errlen, "p3: role A, solo, bits=256, det=0");
+  else if (win < 5 || win > 120)           snprintf(err, errlen, "bad win=%ld (5..120)", win);
+  else if (wo < -60 || wo > 60)            snprintf(err, errlen, "bad wo=%ld (-60..60)", wo);
+  else if (fm < 0 || fm > 1)               snprintf(err, errlen, "bad fm=%ld", fm);
   else if (bad_bg)                         snprintf(err, errlen, "bad bg");
   else if (bad_ba)                         snprintf(err, errlen, "bad ba");
   else if (bad_bm || (has_bmac && nbm != nbg)) snprintf(err, errlen, "bad bm");
@@ -260,6 +271,10 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
     out.sx = (uint8_t)sx;
     out.det = (uint16_t)det;
     out.seg = (uint8_t)seg;
+    out.p3 = (uint8_t)p3;
+    out.win = (uint8_t)win;
+    out.wo = (int8_t)wo;
+    out.fm = (uint8_t)fm;
     out.nbg = (uint8_t)nbg;
     memcpy(out.bg, bg, sizeof bg);
     memcpy(out.bmac, bmac, sizeof bmac);

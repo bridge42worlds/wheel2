@@ -38,6 +38,8 @@
 #include "group.h"
 #include "jsonout.h"
 #include "rim_sensors.h"
+#include "p3_windows.h"
+#include "mbedtls/sha256.h"
 #include "battery.h"
 #include "prime_log.h"
 #include "psram.h"
@@ -534,6 +536,38 @@ static void gen_task(void*) {
       publish(false);
       continue;
     }
+    if (c.p3) {                                      // фаза 3: числа — из окон невесомости датчиков
+      p3::Window* w = nullptr;
+      if (p3::take(w, pdMS_TO_TICKS(20))) {
+        const int64_t w0 = esp_timer_get_time();
+        const uint64_t c0 = s_st.p.cand, p0 = s_st.p.primes;
+        for (int i = 0; i < w->n && !g_pending; ++i) {
+          uint8_t rec[p3::RECLEN];
+          p3::record(*w, i, rec);
+          mbedtls_sha256(rec, sizeof rec, buf, 0);   // запись датчика целиком → 256 бит
+          if (!test_candidate(buf, c, s_st.p, hex, sizeof hex, prime)) continue;
+          p3::found(*w, i, prime);
+          if (c.pl) plog::push(prime, 32, (uint8_t)(2 + w->sensor));   // журнал: 2, 3 — датчик окна
+          const int64_t now = esp_timer_get_time();
+          const uint64_t dt = now - t_last;
+          t_last = now;
+          ++s_st.tp_n;
+          s_st.tp_sum_us += dt;
+          const uint32_t d32 = dt > UINT32_MAX ? UINT32_MAX : (uint32_t)dt;
+          if (s_st.tp_n == 1 || d32 < s_st.tp_min_us) s_st.tp_min_us = d32;
+          if (d32 > s_st.tp_max_us) s_st.tp_max_us = d32;
+          const int k = dt ? 63 - __builtin_clzll(dt) : 0;
+          ++s_st.tp_hist[k < HIST_N ? k : HIST_N - 1];
+          strlcpy(s_st.last_hex, hex, sizeof s_st.last_hex);
+        }
+        const uint32_t us = (uint32_t)(esp_timer_get_time() - w0);
+        p3::done(*w, (uint32_t)(s_st.p.cand - c0), (uint32_t)(s_st.p.primes - p0), us);
+        p3::release(w);
+        thermal::pace(us, &g_pending);               // предел температуры
+      }
+      publish(false);
+      continue;
+    }
     if (c.mode == MODE_GROUP || c.role == ROLE_B) {  // сообща или рассеяние: по заданиям протокола
       group::Job j;
       if (group::take_job(j, pdMS_TO_TICKS(20))) run_job(j);
@@ -995,7 +1029,8 @@ static void apply_config(const GenConfig& c) {
   entropy_set_ping(c.ping);
   entropy_set_csi_filter(c.cf, c.bmac, c.has_bmac ? c.nbg : 0);
   rim::set_radius(c.rmm);
-  entropy_select(c.run ? c.src : 0);           // стоим — CSI и пинг роутера 100/с не нужны (грели и шумели в эфире)
+  p3::configure(c);                            // окна невесомости: вкл/выкл, ширина, сдвиг, как читать датчик
+  entropy_select(c.run && !c.p3 ? c.src : 0);           // стоим — CSI и пинг роутера 100/с не нужны (грели и шумели в эфире)
   group::set_alive_rate(c.hb);
   plog::configure(c.pl, c.cid);
   group::configure(c);
@@ -1498,6 +1533,14 @@ static void comms_task(void*) {
           add(out, "}");
           if (!out.over) send_out(udp, out);
         }
+        if (p3::present()) {                        // фаза 3: датчики и окна невесомости
+          out.n = 0;
+          out.over = false;
+          add_head(out, "p3", seq, now);
+          p3::add_tel(out);
+          add(out, "}");
+          if (!out.over) send_out(udp, out);
+        }
         if (rim::present() & rim::HAS_MAG) {
           out.n = 0;
           out.over = false;
@@ -1627,6 +1670,7 @@ void setup() {
   group::begin();          // ESP-NOW и задача протокола группы (ядро 0)
   rim::begin();            // датчики на ободе, если подключены (I2C: D4, D5)
   bat::begin(false);       // аккумуляторы шины (INA219) на той же I2C, если подключён
+  p3::begin(rim::present() & rim::HAS_IMU);   // фаза 3: датчики ICM-20948 на D4/D5 и D8/D9, окна невесомости
   apply_config(def);
   g_candq = xQueueCreate(16, sizeof(Cand));
   xTaskCreatePinnedToCore(prod_task, "prod", 6144, nullptr, 1, nullptr, 0);   // два ядра: производитель, ниже связи

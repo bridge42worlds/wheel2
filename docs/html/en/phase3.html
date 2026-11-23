@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 3: a sensor at every agent, weightlessness windows, a common volley · Wheel-2</title>
+<style>
+:root { --bg:#f6f5f2; --card:#ffffff; --ink:#1d2228; --mut:#6b7380; --line:#ddd9d0; --soft:#efece6; --on:#0072B2;
+        --warn:#E69F00; --ok:#009E73; --code:#f1eee8; --sb:#D55E00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+}
+:root[data-theme="dark"] { --bg:#15181c; --card:#1e2228; --ink:#e8eaed; --mut:#9aa1ab; --line:#353b44; --soft:#262b33;
+          --on:#56B4E9; --code:#262b33; --sb:#ff8a4c; color-scheme:dark; }
+* { box-sizing:border-box; }
+body { margin:0; font:15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; background:var(--bg); color:var(--ink); }
+a { color:var(--on); }
+header { padding:10px 18px; display:flex; gap:16px; align-items:baseline; flex-wrap:wrap; border-bottom:1px solid var(--line);
+         background:var(--card); position:sticky; top:env(safe-area-inset-top, 0px); z-index:2; }
+header .brand { font-weight:700; font-size:16px; text-decoration:none; color:var(--ink); }
+header nav { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; }
+.layout { display:grid; grid-template-columns:250px minmax(0, 1fr); gap:24px; max-width:1240px; margin:0 auto; padding:18px; }
+aside { position:sticky; top:62px; align-self:start; max-height:calc(100vh - 80px); overflow:auto; font-size:13px; }
+aside h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:var(--mut); }
+aside ul { list-style:none; margin:0 0 16px; padding:0; }
+aside li { margin:2px 0; }
+aside a { text-decoration:none; display:block; padding:3px 8px; border-radius:6px; }
+aside a.cur { background:var(--soft); color:var(--ink); font-weight:650; }
+aside .toc a { padding:2px 8px; color:var(--mut); }
+aside .toc .l3 a { padding-left:20px; }
+main.doc { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:22px 30px 30px; min-width:0; }
+main.doc h1 { font-size:26px; line-height:1.25; margin:0 0 14px; }
+main.doc h2 { font-size:20px; margin:30px 0 10px; padding-top:10px; border-top:1px solid var(--soft); }
+main.doc h3 { font-size:16.5px; margin:22px 0 8px; }
+main.doc h4 { font-size:15px; margin:18px 0 6px; }
+main.doc h2 a.anc, main.doc h3 a.anc { opacity:0; margin-left:6px; text-decoration:none; color:var(--mut); }
+main.doc h2:hover a.anc, main.doc h3:hover a.anc { opacity:1; }
+code { font:13px/1.4 ui-monospace, Consolas, monospace; background:var(--code); padding:1px 5px; border-radius:4px; }
+pre { background:var(--code); padding:12px 14px; border-radius:8px; overflow:auto; }
+pre code { padding:0; background:none; font-size:12.5px; }
+.tw { overflow-x:auto; margin:10px 0 14px; }
+table { border-collapse:collapse; font-size:13.5px; min-width:60%; }
+th, td { border:1px solid var(--line); padding:5px 9px; vertical-align:top; text-align:left; }
+th { background:var(--soft); font-weight:650; }
+td.r, th.r { text-align:right; } td.c, th.c { text-align:center; }
+hr { border:0; border-top:1px solid var(--line); margin:24px 0; }
+figure { margin:16px 0 22px; }
+figure img { display:block; max-width:100%; height:auto; background:#fff; border:1px solid var(--line); border-radius:8px; }
+figcaption { color:var(--mut); font-size:13px; margin-top:6px; }
+.flowbox { margin:12px 0 18px; }
+.flowbox iframe { width:100%; height:min(82vh, 860px); border:1px solid var(--line); border-radius:8px; background:var(--bg); display:block; }
+.flowbox .small { font-size:13px; color:var(--mut); margin-top:4px; }
+li { margin:3px 0; }
+.live { display:inline-flex; gap:6px; align-items:center; padding:6px 12px; border:1px solid var(--on); border-radius:8px;
+        text-decoration:none; font-size:14px; margin:0 0 12px; }
+.preamble { display:flex; flex-direction:column; gap:4px; margin:14px 0 18px; padding:12px 16px; border:1px solid var(--line);
+             border-left:4px solid var(--on); border-radius:8px; background:var(--soft); color:var(--ink); text-decoration:none; }
+.preamble b { color:var(--on); }
+.preamble q { font-style:italic; quotes:"«" "»"; }
+.preamble span { font-size:13px; color:var(--mut); }
+.cards { display:grid; grid-template-columns:repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap:12px; margin:14px 0; }
+.card { border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+.card h3 { margin:0 0 6px; font-size:16px; }
+.card p { margin:0; color:var(--mut); font-size:13.5px; }
+.mut { color:var(--mut); }
+footer { max-width:1240px; margin:0 auto; padding:0 18px 24px; font-size:12px; color:var(--mut); }
+svg text { font-family:system-ui, -apple-system, "Segoe UI", sans-serif; fill:var(--ink); }
+svg .m { fill:var(--mut); } svg .ta { fill:var(--on); } svg .sa { stroke:var(--on); } svg .tb { fill:var(--sb); } svg .sb { stroke:var(--sb); }
+@media (max-width:880px) {
+  .layout { grid-template-columns:1fr; padding:10px; gap:10px; }
+  aside { position:static; max-height:none; }
+  aside ul { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  aside a { border:1px solid var(--line); }
+  aside .toc, aside h4 + ul.toc, aside h4:nth-of-type(2) { display:none; }
+  main.doc { padding:16px; }
+}
+@media print { header, aside { display:none; } .layout { display:block; } main.doc { border:0; } }
+</style>
+</head>
+<body>
+<header>
+  <a class="brand" href="index.html">Wheel-2 · documentation</a>
+  <nav><a href="/" target="plan">▦ Installation</a><a href="/flow" target="flow">↻ How it works</a><a href="preamble.html">✦ Preamble</a><a href="../phase3.html" hreflang="ru" title="Русская версия"><b>RU</b></a></nav>
+</header>
+<div class="layout">
+  <aside>
+    <h4>Documents</h4>
+    <ul><li><a href="index.html">Overview</a></li><li><a href="preamble.html">Preamble</a></li><li><a href="handover.html">A note to the next experimenter</a></li><li><a href="phase3.html" class=cur>Phase 3</a></li><li><a href="how_it_works.html">How everything works</a></li><li><a href="modes.html">Modes</a></li><li><a href="wiring.html">Wiring diagrams</a></li><li><a href="coil_test.html">Coil endurance test</a></li><li><a href="check_2026-11-03.html">First full check</a></li><li><a href="../toroid_field.html">Toroid field — calculator · RU</a></li><li><a href="spec.html">Bill of materials</a></li><li><a href="sensors.html">Sensors, phone, motors and coils</a></li><li><a href="static_watch.html">Static sensors: baseline and watching</a></li><li><a href="program.html">Experiment and program</a></li><li><a href="group_protocol.html">Group mode</a></li><li><a href="scatter.html">Absorption</a></li><li><a href="randomness.html">Where the randomness comes from</a></li><li><a href="thermal.html">Agent temperature</a></li></ul>
+    
+    <h4>On this page</h4><ul class="toc"><li class="l2"><a href="#1-what-changes-from-phase-2">1. What changes from phase 2</a></li><li class="l2"><a href="#2-the-wheel-and-its-power">2. The wheel and its power</a></li><li class="l3"><a href="#the-coil-on-the-corrugated-tube">The coil on the corrugated tube</a></li><li class="l3"><a href="#the-shaft">The shaft</a></li><li class="l2"><a href="#3-the-sensor-and-its-numbers">3. The sensor and its numbers</a></li><li class="l2"><a href="#4-the-weightlessness-window">4. The weightlessness window</a></li><li class="l2"><a href="#5-what-the-agent-does">5. What the agent does</a></li><li class="l2"><a href="#6-from-a-reading-to-a-number">6. From a reading to a number</a></li><li class="l2"><a href="#7-the-laser-cycle-pumping-volley-balance">7. The "laser" cycle: pumping, volley, balance</a></li><li class="l2"><a href="#8-common-time">8. Common time</a></li><li class="l2"><a href="#9-what-we-measure-and-how-we-check">9. What we measure and how we check</a></li><li class="l2"><a href="#10-settings">10. Settings</a></li><li class="l2"><a href="#11-what-to-check-on-the-bench-before-assembly">11. What to check on the bench before assembly</a></li></ul>
+  </aside>
+  <main class="doc">
+
+<h1>Phase 3: a sensor at every agent, weightlessness windows, a common volley</h1>
+<p><i>Status on 2026-11-23: a design. Not all parts are ordered, the firmware is in progress. All times and counts below are calculations, not measurements; what to check on the bench is listed in the last section.</i></p>
+<p>Phase three joins the first two: a sensor at every computing board, as on the first wheel, and two wheels, as in the second rig. Three things are new:</p>
+<ul><li>the number tested for primality is made from a sensor reading taken while the sensor passes through weightlessness;</li><li>finds are not sent out at once: they accumulate, and all agents release them together, on common time;</li><li>the server reads the result only after the tables of finds on all agents agree.</li></ul>
+<h2 id="1-what-changes-from-phase-2">1. What changes from phase 2<a class="anc" href="#1-what-changes-from-phase-2">#</a></h2>
+<div class="tw"><table><thead><tr><th></th><th>phase 2</th><th>phase 3</th></tr></thead><tbody>
+<tr><td>rim sensors</td><td>on 4 boards of 12</td><td>two on every board, 12 per wheel</td></tr>
+<tr><td>sensor</td><td>ICM-42688 and MLX90393</td><td>ICM-20948: acceleration, rotation and field in one package</td></tr>
+<tr><td>where the number comes from</td><td>chip noise, radio, ADC</td><td>the whole sensor reading, then a hash</td></tr>
+<tr><td>when a reading is taken</td><td>all the time</td><td>only in the sensor's weightlessness window</td></tr>
+<tr><td>when a find goes on air</td><td>at once</td><td>in the common volley after pumping</td></tr>
+<tr><td>radio during measurement</td><td>on</td><td>silent</td></tr>
+<tr><td>wheel power bus</td><td>5.1 V, a diode at every board</td><td>3.3 V, boards and sensors straight from the bus</td></tr>
+<tr><td>wheel shaft</td><td>on the motor shaft</td><td>its own shaft on two bearings, motor through a coupling</td></tr>
+</tbody></table></div>
+<h2 id="2-the-wheel-and-its-power">2. The wheel and its power<a class="anc" href="#2-the-wheel-and-its-power">#</a></h2>
+<p>The wheel is a Ø300 mm aluminium disc with a rim made of corrugated tube (outer diameter 34.5 mm, inner about 29 mm). At the tube axis the diameter is about 320–330 mm; the exact size has not been measured yet. The rim is about 1 m long. Inside the tube there are six blocks; a block is an agent and its two sensors. One block takes about 16 cm of rim.</p>
+<figure><a href="../img/phase3_bus.svg"><img src="../img/phase3_bus.svg" alt="The wheel: a 3.3 V bus, two branches of three blocks from one source" loading="lazy"></a><figcaption>The wheel: a 3.3 V bus, two branches of three blocks from one source</figcaption></figure>
+<p>The bus is 3.3 V from the same LM2596 DC-DC. Agents and sensors are fed straight from it, bypassing the board regulator, which no longer heats the tube. Every agent and every sensor takes power through its own tap, a two-wire T connector.</p>
+<figure><a href="../img/phase3_block.svg"><img src="../img/phase3_block.svg" alt="One block: an agent and two sensors, each fed from the bus by its own tap" loading="lazy"></a><figcaption>One block: an agent and two sensors, each fed from the bus by its own tap</figcaption></figure>
+<div class="tw"><table><thead><tr><th>what</th><th>with what</th><th>count for two wheels</th></tr></thead><tbody>
+<tr><td>power taps to agents and sensors</td><td>22 AWG silicone wire, soldered into the board holes</td><td>36 pairs of 10–12 cm</td></tr>
+<tr><td>T connectors on the bus</td><td>T2, two-wire, clamp plus and GND at once</td><td>36</td></tr>
+<tr><td>sensor data pair</td><td>SDA and SCL, a separate I2C channel per sensor</td><td>24 pairs</td></tr>
+<tr><td>sensors</td><td>ICM-20948 on a board with Qwiic sockets</td><td>24</td></tr>
+<tr><td>agents</td><td>XIAO ESP32-S3</td><td>12</td></tr>
+</tbody></table></div>
+<p>The two sensors of one agent sit on different I2C channels: the first on D4 (SDA) and D5 (SCL), the second on D8 (SDA) and D9 (SCL). No address jumper is needed on the sensor.</p>
+<p>What must not be forgotten:</p>
+<ul><li><b>Voltage.</b> There is no protection between the bus and the boards. Above 3.6 V both boards and sensors die. Set 3.35–3.4 V under load and seal the DC-DC trimmer with lacquer.</li><li><b>USB.</b> Plug a USB cable only with the bus power removed. Firmware goes over the air.</li><li><b>Voltage drop.</b> Six boards and 12 sensors draw about 0.75 A on average and up to 2 A on transmit peaks. On a 0.5 m branch of 22 AWG wire the drop is about 0.03 V. A 220–470 µF electrolytic at every board.</li><li><b>No ring.</b> Do not join the branch ends: that would be a closed turn inside the coil.</li><li><b>Vibration.</b> A wire soldered into a board breaks right behind the joint. Fix it to the tube 1–2 cm from the joint.</li><li><b>T connector.</b> It is made for roughly 18–24 AWG wire. Strip a thinner wire longer, fold it double and tin it; check the first clamp with a multimeter.</li></ul>
+<h3 id="the-coil-on-the-corrugated-tube">The coil on the corrugated tube<a class="anc" href="#the-coil-on-the-corrugated-tube">#</a></h3>
+<p>A turn on the corrugated tube is longer than on the former 23 mm tube: about 11 cm against 7.5 cm. At the same voltage the field depends only on the wire cross-section and the turn length, not on the number of turns.</p>
+<div class="tw"><table><thead><tr><th></th><th>23 mm tube, 0.67 mm wire</th><th>corrugated, 0.67 mm</th><th>corrugated, 0.77 mm</th></tr></thead><tbody>
+<tr><td>turns per wheel</td><td>about 1340</td><td>about 1340</td><td>about 1080 from 500 g</td></tr>
+<tr><td>wire per wheel</td><td>100 m</td><td>149 m</td><td>120 m</td></tr>
+<tr><td>mass per wheel</td><td>320 g</td><td>470 g</td><td>500 g</td></tr>
+<tr><td>resistance</td><td>4.9 Ω</td><td>7.3 Ω</td><td>4.4 Ω</td></tr>
+<tr><td>current at 5.1 V</td><td>1.0 A</td><td>0.70 A</td><td>1.15 A</td></tr>
+<tr><td>field relative to the former</td><td>100 %</td><td>about 67 %</td><td>about 90 %</td></tr>
+</tbody></table></div>
+<h3 id="the-shaft">The shaft<a class="anc" href="#the-shaft">#</a></h3>
+<p>The wheel sits on its own 8 mm shaft in two pillow-block bearings. The motor stands apart and turns the shaft through a jaw coupling; it carries none of the wheel's weight. One bearing is not enough: it is self-aligning and holds the shaft at a point but does not stop it from tilting. The order is motor — coupling — bearing — wheel — bearing, or both bearings side by side (8–10 cm apart) and the wheel on a short overhang.</p>
+<h2 id="3-the-sensor-and-its-numbers">3. The sensor and its numbers<a class="anc" href="#3-the-sensor-and-its-numbers">#</a></h2>
+<p>The ICM-20948 gives nine signed 16-bit numbers: three axes of acceleration, three of rotation, three of field.</p>
+<div class="tw"><table><thead><tr><th>what</th><th>rate</th><th>range</th><th>unit</th><th>what it sees on the wheel</th></tr></thead><tbody>
+<tr><td>acceleration</td><td>1125 per second</td><td>±4 g</td><td>1 g = 8192</td><td>in the window all axes near zero, noise about 40</td></tr>
+<tr><td>rotation</td><td>1125 per second</td><td>±1000 °/s</td><td>1 °/s = 32.8</td><td>74 rpm = 445 °/s, about 14 570 on the wheel axis</td></tr>
+<tr><td>field</td><td>100 per second</td><td>±4.9 mT</td><td>0.15 µT</td><td>coil field about 1.7 mT — about 11 000</td></tr>
+</tbody></table></div>
+<p>An example of two neighbouring records in a window (the scale is right, the numbers themselves are made up):</p>
+<div class="tw"><table><thead><tr><th>record</th><th>acceleration x, y, z</th><th>rotation x, y, z</th><th>field x, y, z</th></tr></thead><tbody>
+<tr><td>first</td><td>−212, 418, 37</td><td>14, −22, 14571</td><td>11204, −310, 96</td></tr>
+<tr><td>0.9 ms later</td><td>−187, 455, −8</td><td>9, −31, 14566</td><td>the same, updates in 10 ms</td></tr>
+</tbody></table></div>
+<h2 id="4-the-weightlessness-window">4. The weightlessness window<a class="anc" href="#4-the-weightlessness-window">#</a></h2>
+<p>The speed is chosen so that at the top the centrifugal acceleration equals gravity: at a 163 mm radius that is 74 rpm, one turn takes 0.81 s. The acceleration a sensor feels grows from zero at the top as it moves away from the top point. The window is an arc around the top; its width in degrees is a setting.</p>
+<p>Windows are counted per sensor, not per agent: the two sensors of one agent have their own windows.</p>
+<div class="tw"><table><thead><tr><th>window width</th><th>duration</th><th>records</th><th>acceleration at the edge</th><th>what happens on the wheel</th></tr></thead><tbody>
+<tr><td>20°</td><td>45 ms</td><td>51</td><td>0.17 g</td><td>separate windows, a third of the time nobody is in the zone</td></tr>
+<tr><td>30°</td><td>67 ms</td><td>76</td><td>0.26 g</td><td>windows end to end: always one sensor of 12 in the zone</td></tr>
+<tr><td>40°</td><td>90 ms</td><td>101</td><td>0.35 g</td><td>neighbouring windows overlap</td></tr>
+</tbody></table></div>
+<h2 id="5-what-the-agent-does">5. What the agent does<a class="anc" href="#5-what-the-agent-does">#</a></h2>
+<figure><a href="../img/phase3_agent.svg"><img src="../img/phase3_agent.svg" alt="What the agent does: from the sensor window to the server read" loading="lazy"></a><figcaption>What the agent does: from the sensor window to the server read</figcaption></figure>
+<ol><li><b>Waiting.</b> The agent polls the sensor itself and watches the acceleration. It sees the zone entry directly.</li><li><b>Zone entry.</b> The acceleration fell below the threshold that corresponds to the window width. The agent resets the sensor's internal buffer and stops talking to it. The sensor writes records into itself; the bus is silent.</li><li><b>Window.</b> The agent waits the computed time: window width divided by rotation speed.</li><li><b>Read.</b> The agent takes the sensor buffer in one read, then reads the field.</li><li><b>Test.</b> Every record goes through a hash and gives one candidate; the candidate is tested for primality.</li><li><b>Table.</b> A find is recorded: the number, the sensor, the time, the angle.</li></ol>
+<p>Steps 7 and 8 — the volley and the server read — are described in section 7.</p>
+<p>The sensor buffer is useful because records in it follow the sensor's own clock exactly, and the agent is silent during the window. Sources disagree on the buffer size: 512 bytes or 4 kB. An acceleration-and-rotation record takes 12 bytes, so 512 bytes hold 42 records (a 16.6° window) and 4 kB hold any of our windows. The agent will measure the size itself on first start; it decides which window fits without a single access to the sensor.</p>
+<p>Board cores: core 1 reads the sensors and tests numbers, core 0 is busy with radio. Of the 810 ms of a turn, the two windows of one agent take about 100 ms and testing about 40 ms more.</p>
+<h2 id="6-from-a-reading-to-a-number">6. From a reading to a number<a class="anc" href="#6-from-a-reading-to-a-number">#</a></h2>
+<p>A reading is taken whole: all 16 bits of every axis, no picking of low bits. The record goes through SHA-256 and gives a 256-bit candidate. Then as in phase 2: trial division and the Miller–Rabin test. The hash evens the numbers out, so the share of primes is known in advance: one per 88.6 odd candidates.</p>
+<div class="tw"><table><thead><tr><th>with a 20° window</th><th>per window from one sensor</th><th>per second per wheel</th><th>per minute per wheel</th></tr></thead><tbody>
+<tr><td>candidates</td><td>51</td><td>about 750</td><td>about 45 000</td></tr>
+<tr><td>primes</td><td>0.58</td><td>8.5</td><td>about 510</td></tr>
+</tbody></table></div>
+<p>With a 30° window it is one and a half times more. A candidate after the hash costs about 0.26 ms, a found prime about 8.5 ms (phase 2 measurements, <a href="randomness.html">randomness.md</a>).</p>
+<h2 id="7-the-laser-cycle-pumping-volley-balance">7. The "laser" cycle: pumping, volley, balance<a class="anc" href="#7-the-laser-cycle-pumping-volley-balance">#</a></h2>
+<div class="tw"><table><thead><tr><th>laser</th><th>here</th></tr></thead><tbody>
+<tr><td>pumping</td><td>sensors pass weightlessness in turn, agents accumulate primes</td></tr>
+<tr><td>stored population</td><td>the table of finds at every agent</td></tr>
+<tr><td>stimulated emission</td><td>takt 1: the common volley of finds</td></tr>
+<tr><td>round trips between mirrors</td><td>takts 2 and 3: re-emission of the common table</td></tr>
+<tr><td>steady state</td><td>balance: the tables on all agents agree</td></tr>
+<tr><td>output mirror</td><td>the server reads only after balance</td></tr>
+</tbody></table></div>
+<figure><a href="../img/phase3_cycle.svg"><img src="../img/phase3_cycle.svg" alt="One cycle: pumping in silence, the common volley, then the server" loading="lazy"></a><figcaption>One cycle: pumping in silence, the common volley, then the server</figcaption></figure>
+<p><b>Pumping.</b> Lasts a set number of turns (a setting). The radio is completely silent: no heartbeat, no telemetry. In one turn a wheel finds 7 primes on average, so one turn is too few; five is a sensible start.</p>
+<p><b>Volley.</b> On common time, three takts of 36 ms:</p>
+<div class="tw"><table><thead><tr><th>takt</th><th>what every agent sends</th></tr></thead><tbody>
+<tr><td>1</td><td>its own finds</td></tr>
+<tr><td>2</td><td>the common table as it assembled it from what it heard</td></tr>
+<tr><td>3</td><td>the checksum of its table</td></tr>
+</tbody></table></div>
+<p>Inside a takt the agents of both wheels speak in turn, 3 ms each: two transmitters on one channel at the same moment jam each other. From outside a takt is one 36 ms pulse. During the volley the sensor windows are skipped, so that nobody measures under a working radio.</p>
+<p><b>Balance.</b> After takt 3 the checksums of all agents agree. If not, takts 2 and 3 repeat.</p>
+<p><b>Server.</b> Reads the final tables only after balance.</p>
+<p>The volley is not tied to the wheel angle. Wheel vibration runs at the rotation frequency; tied to the angle, it would enter every volley at the same phase and add up to a false response. With a free volley everything linked to rotation averages out. The cycle period also varies slightly from one cycle to the next.</p>
+<p>The coil field is on all the time to begin with: a current without edges is not felt by the witness, and there is nothing to subtract. The effect of the field itself is checked by a separate series with the coil off.</p>
+<h2 id="8-common-time">8. Common time<a class="anc" href="#8-common-time">#</a></h2>
+<p>Every board has its own clock running from power-up. Common time is given by the leader — the motor agent on the frame: it does not measure in weightlessness, and its radio disturbs nobody.</p>
+<ol><li>At the end of every volley the leader sends a mark: its time and the moment of the next volley.</li><li>Every agent remembers the difference between the leader's time and its own and computes the volley moment on its own clock.</li><li>Nobody transmits anything during pumping.</li></ol>
+<div class="tw"><table><thead><tr><th>error source</th><th>size</th></tr></thead><tbody>
+<tr><td>packet delay on air and in the board</td><td>0.2–1 ms, varying</td></tr>
+<tr><td>crystal drift over a 4 s cycle</td><td>about 0.1 ms</td></tr>
+<tr><td>total after averaging several marks</td><td>about 0.2–0.3 ms</td></tr>
+</tbody></table></div>
+<p>If a mark is lost, the agent fires on the old correction. After three misses in a row it skips the volley and waits for a new mark; the server sees this.</p>
+<h2 id="9-what-we-measure-and-how-we-check">9. What we measure and how we check<a class="anc" href="#9-what-we-measure-and-how-we-check">#</a></h2>
+<ul><li><b>The witness between the wheels</b> (ADXL355): gravity at volley moments against moments without them.</li><li><b>The emission itself:</b> packet loss, spread of arrival times, signal level.</li><li><b>Control:</b> the same volleys of the same size with composite numbers instead of primes. Radio and current are the same; only what was found differs. Which volleys are real is decided by a random sequence; the analysis does not see it until the end of the series.</li><li><b>An apple on scales</b> between the wheels — at the very end, as a demonstration. The witness is several orders of magnitude more sensitive than scales.</li></ul>
+<p>By known physics the expected answer is zero: counting primes on the boards should not change the readings of a stationary sensor. The experiment checks whether there is anything beyond the known.</p>
+<h2 id="10-settings">10. Settings<a class="anc" href="#10-settings">#</a></h2>
+<p>Changed from the server on the fly:</p>
+<ul><li>window width, degrees;</li><li>shift of the window centre from the top point, degrees;</li><li>how to read the sensor: directly or from its buffer;</li><li>how many turns pumping lasts;</li><li>how many takts a volley has and the spread of the cycle period;</li><li>whether the volley is real or a control.</li></ul>
+<p>What the firmware already has (the <code>CFG</code> command):</p>
+<div class="tw"><table><thead><tr><th>parameter</th><th>what it sets</th><th>values</th></tr></thead><tbody>
+<tr><td><code>p3</code></td><td>numbers from the sensors' weightlessness windows instead of chip noise</td><td>0, 1</td></tr>
+<tr><td><code>win</code></td><td>window width, degrees</td><td>5–120, default 30</td></tr>
+<tr><td><code>wo</code></td><td>shift of the window centre from the top point, degrees</td><td>−60…60</td></tr>
+<tr><td><code>fm</code></td><td>how to read the sensor in the window: 1 — from its buffer, 0 — directly</td><td>0, 1</td></tr>
+</tbody></table></div>
+<p>Pumping, the volley and common time are not in the firmware yet. What is written compiles but has not been tested on a sensor: the sensors have not arrived.</p>
+<h2 id="11-what-to-check-on-the-bench-before-assembly">11. What to check on the bench before assembly<a class="anc" href="#11-what-to-check-on-the-bench-before-assembly">#</a></h2>
+<ol><li>The ICM-20948 buffer size and the record rate in it.</li><li>The time of one sensor read over I2C at 400 kHz and of a whole-buffer read.</li><li>The accuracy of common time: the spread of volley moments across six boards.</li><li>The 3.3 V bus drop on transmit peaks and board behaviour at 3.1 V.</li><li>Clamping of 22 AWG wire and of a sensor wire in the T connector: resistance below 0.1 Ω.</li><li>The coil field on the corrugated tube: does it match the calculation.</li><li>The share of primes in control mode: it must be one per 88.6 candidates.</li></ol>
+  </main>
+</div>
+<footer>This page is built from docs/en/phase3.md by tools/build_docs.py — edit the markdown. English translation; the Russian original is the source of truth. Links to the installation and the live diagram work when the documentation is opened from the server (http://&lt;server&gt;:8090/docs/en/).</footer>
+</body>
+</html>

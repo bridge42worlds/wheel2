@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 980 400" width="980" height="400" role="img">
+<title>Фаза 3. Один цикл по времени: накачка, залп, сервер</title>
+<desc>Временная диаграмма цикла при окне 20 градусов и накачке в один оборот. От 0 до 810 мс двенадцать датчиков по очереди проходят окно невесомости по 45 мс, радио молчит. Агент после каждого своего окна читает буфер и проверяет числа. С 900 мс три такта залпа по 36 мс: находки, общая таблица, сверка. Около 1020 мс, после баланса, читает сервер.</desc>
+<style>
+text{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;fill:#1d2228}
+.h{font-size:15px;font-weight:600}.t{font-size:13px}.s{font-size:12px;fill:#4a535e}
+.w{fill:#eef1f4;stroke:#1d2228;stroke-width:1.1}
+.wa{fill:#bfe3f5;stroke:#0072B2;stroke-width:1.6}
+.pr{fill:#fff;stroke:#0072B2;stroke-width:1.6;stroke-dasharray:4 3}
+.rf{fill:#f7d9c4;stroke:#D55E00;stroke-width:1.6}
+.sv{fill:#fff;stroke:#1d2228;stroke-width:1.6}
+.ax{stroke:#1d2228;stroke-width:1.2}
+.q{stroke:#7a828c;stroke-width:1;stroke-dasharray:2 5}
+.ph{stroke:#1d2228;stroke-width:2}
+.phd{stroke:#D55E00;stroke-width:2;stroke-dasharray:6 4}
+</style>
+<rect width="980" height="400" fill="#ffffff"/>
+<text class="h" x="20" y="28">Фаза 3. Один цикл: накачка в тишине, общий залп, потом сервер (окно 20°, накачка 1 оборот)</text>
+<text class="t" x="460" y="56" text-anchor="middle">накачка: радио молчит</text>
+<line class="ph" x1="150" y1="64" x2="776" y2="64"/>
+<text class="t" x="822" y="56" text-anchor="middle">залп</text>
+<line class="phd" x1="780" y1="64" x2="862" y2="64"/>
+<text class="t" x="20" y="100">Датчики</text>
+<text class="s" x="20" y="116">12 окон по 45 мс</text>
+<g>
+<rect class="wa" x="150" y="82" width="31.5" height="30"/><rect class="wa" x="197.25" y="82" width="31.5" height="30"/>
+<rect class="w" x="244.5" y="82" width="31.5" height="30"/><rect class="w" x="291.75" y="82" width="31.5" height="30"/>
+<rect class="w" x="339" y="82" width="31.5" height="30"/><rect class="w" x="386.25" y="82" width="31.5" height="30"/>
+<rect class="w" x="433.5" y="82" width="31.5" height="30"/><rect class="w" x="480.75" y="82" width="31.5" height="30"/>
+<rect class="w" x="528" y="82" width="31.5" height="30"/><rect class="w" x="575.25" y="82" width="31.5" height="30"/>
+<rect class="w" x="622.5" y="82" width="31.5" height="30"/><rect class="w" x="669.75" y="82" width="31.5" height="30"/>
+</g>
+<text class="t" x="20" y="158">Агент №1</text>
+<text class="s" x="20" y="174">чтение и проверка</text>
+<rect class="pr" x="181.5" y="140" width="22.4" height="30"/>
+<rect class="pr" x="228.4" y="140" width="23.1" height="30"/>
+<line class="q" x1="262" y1="155" x2="770" y2="155"/>
+<text class="s" x="516" y="148" text-anchor="middle">ждёт общую метку времени</text>
+<text class="t" x="20" y="216">Радио</text>
+<text class="s" x="20" y="232">3 такта по 36 мс</text>
+<line class="q" x1="150" y1="213" x2="770" y2="213"/>
+<rect class="rf" x="780" y="198" width="25.2" height="30"/><text class="s" x="792.6" y="217" text-anchor="middle">1</text>
+<rect class="rf" x="808" y="198" width="25.2" height="30"/><text class="s" x="820.6" y="217" text-anchor="middle">2</text>
+<rect class="rf" x="836" y="198" width="25.2" height="30"/><text class="s" x="848.6" y="217" text-anchor="middle">3</text>
+<text class="t" x="20" y="274">Сервер</text>
+<text class="s" x="20" y="290">после баланса</text>
+<line class="q" x1="150" y1="271" x2="858" y2="271"/>
+<rect class="sv" x="864" y="256" width="28" height="30"/>
+<line class="ax" x1="150" y1="312" x2="930" y2="312"/>
+<g>
+<line class="ax" x1="150" y1="307" x2="150" y2="317"/><text class="s" x="150" y="334" text-anchor="middle">0</text>
+<line class="ax" x1="290" y1="307" x2="290" y2="317"/><text class="s" x="290" y="334" text-anchor="middle">200</text>
+<line class="ax" x1="430" y1="307" x2="430" y2="317"/><text class="s" x="430" y="334" text-anchor="middle">400</text>
+<line class="ax" x1="570" y1="307" x2="570" y2="317"/><text class="s" x="570" y="334" text-anchor="middle">600</text>
+<line class="ax" x1="710" y1="307" x2="710" y2="317"/><text class="s" x="710" y="334" text-anchor="middle">800</text>
+<line class="ax" x1="850" y1="307" x2="850" y2="317"/><text class="s" x="850" y="334" text-anchor="middle">1000 мс</text>
+</g>
+<text class="s" x="20" y="366">Закрашенные окна — два датчика агента №1, остальные десять принадлежат другим агентам. Такты: 1 — находки,</text>
+<text class="s" x="20" y="384">2 — общая таблица, 3 — сверка контрольных сумм. Баланс — суммы у всех совпали. Числа — расчёт, не замер.</text>
+</svg>

@@ -47,6 +47,9 @@ PAGES = [
      "Остов (Claude).", ""),
     ("handover", "Памятка экспериментатору", "Для того, кто продолжит: что мы ищем и почему локально против энтропии, три фазы, "
      "устройство репозитория, запуск, как вести опыт, управление из Claude, ловушки, третья фаза (цикл «лазер»), бюджет.", ""),
+    ("phase3", "Фаза 3", "Проект третьей версии: шина 3,3 В и блок «агент и два датчика», датчик ICM-20948, окна "
+     "невесомости по датчикам, буфер датчика, показание целиком в число, цикл «лазер» — накачка в тишине, общий залп, "
+     "баланс таблиц, общее время от агента моторов; что проверить на столе.", ""),
     ("how_it_works", "Как всё работает", "Установка целиком: колёса, катушки, статика, телефон, моторы, сервер; агент, шум, поиск "
      "простого, групповой режим, поглощение, температура и сторожа; основной экран — схема установки; эксперимент, программа, "
      "результаты; параметры, данные, "
@@ -90,6 +93,13 @@ PAGES_EN = {
     "preamble": ("Preamble", "Why this experiment: topology before space, the order of knowing (aesthetics — ethics — "
                  "epistemology — ontology — science), the mistake of the first wheel, the criterion. Authors: bridge42worlds, "
                  "Λura13 (DeepSeek), Ostov (Claude)."),
+    "handover": ("A note to the next experimenter", "For whoever continues: what we are looking for and why locally against "
+                 "entropy, three phases, the repository layout, start-up, how to run an experiment, control from Claude, "
+                 "traps, the third phase (the \"laser\" cycle), budget."),
+    "phase3": ("Phase 3", "The design of the third version: a 3.3 V bus and the block \"an agent and two sensors\", the "
+               "ICM-20948 sensor, per-sensor weightlessness windows, the sensor buffer, a whole reading into a number, the "
+               "\"laser\" cycle — pumping in silence, a common volley, table balance, common time from the motor agent; "
+               "what to check on the bench."),
     "how_it_works": ("How everything works", "The whole rig: wheels, coils, static sensors, phone, motors, server; the agent, "
                      "noise, the prime search, group mode, absorption, temperature and watchdogs; the main screen — the rig "
                      "diagram; experiment, program, results; parameters, data, firmware, tools."),
