@@ -67,13 +67,47 @@ def rpm_at(t):
 WORK_KEYS = ("src", "bits", "nb", "all", "td", "mode", "nr", "k", "pre", "cpu", "role", "sm", "sf", "cf", "sh", "bgr")
 
 
+AG = {}                      # номер → имитатор: посредник «слышит» участников залпа
+
+
+def is_prime(n):
+    if n % 2 == 0:
+        return False
+    d, s = n - 1, 0
+    while d % 2 == 0:
+        d, s = d // 2, s + 1
+    for a in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37):
+        x = pow(a, d, n)
+        if x in (1, n - 1):
+            continue
+        for _ in range(s - 1):
+            x = x * x % n
+            if x == n - 1:
+                break
+        else:
+            return False
+    return True
+
+
+def rand_prime():
+    while True:
+        n = random.getrandbits(256) | (1 << 255) | 1
+        if is_prime(n):
+            return n
+
+
 class Agent:
     def __init__(self, ip, mac, aid, sk):
         self.ip, self.mac, self.id, self.sk = ip, mac, aid, sk
+        AG[aid] = self
         self.cfg = {"cid": 0, "run": 0, "src": 1, "bits": 256, "nb": 8, "all": 0, "td": 1000, "mode": 0, "nr": 1,
                     "tmax": 70, "k": 24, "pre": 1, "cpu": 240, "txp": 20, "ping": 100, "led": 1, "tp": 1000,
                     "role": 0, "sm": 1, "sf": 0, "cf": 0, "sh": 0, "bgr": 0, "tl": 0, "tq": 0, "rmm": 450, "afs": 2,
-                    "avg": 2}
+                    "avg": 2,
+                    "p3": 0, "win": 30, "wo": 0, "fm": 0, "vl": 0, "vm": 0, "vn": 5, "vj": 40, "vr": 1, "vs": 80, "vc": 0, "gw": 0, "gt": 20, "ve": 0}
+        self.grp = []                                # слоты залпа (или группа): номера агентов
+        self.p3n = [{"wins": 0.0, "recs": 0.0, "cands": 0.0, "primes": 0.0} for _ in range(2)]
+        self.vln = {"cyc": 0.0, "vol": 0.0, "bal": 0.0, "tx": 0.0, "syn": 0.0}
         self.rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.rx.bind((ip, 5007))
         self.rx.settimeout(0.01)
@@ -116,8 +150,78 @@ class Agent:
         return {"v": 2, "type": typ, "mac": self.mac, "id": self.id, "fw": "sim", "sk": self.sk, "seq": self.seq,
                 "up": ms // 1000, "ms": ms}
 
+    def phase3(self, dt):
+        """Фаза 3, как в прошивке: пакет "p3" (два датчика ICM-20948, окна невесомости при 74 об/мин) и пакет "vl"
+        (залп: общее время от ведущего, такты, баланс). Счётчики растут, пока run=1; сменился номер — с нуля."""
+        c = self.cfg
+        if c["cid"] != getattr(self, "p3_cid", None):
+            self.p3_cid = c["cid"]
+            for x in self.p3n:
+                x.update({k: 0.0 for k in x})
+            self.vln = {k: 0.0 for k in self.vln}
+        T = 60.0 / 74.0                              # оборот, с
+        run = c.get("run") == 1
+        if c.get("p3") and c.get("role") == 0:
+            for x in self.p3n:
+                if run:
+                    w = dt / T
+                    r = w * c["win"] / 360.0 * T * 1125.0
+                    x["wins"] += w
+                    x["recs"] += r
+                    x["cands"] += r
+                    x["primes"] += r / 88.6 * random.uniform(0.6, 1.4)
+            self.send({**self.head("p3"), "on": 1 if run else 0, "win": c["win"], "wo": c["wo"], "fm": c["fm"], "free": 4,
+                       "finds": int(sum(x["primes"] for x in self.p3n)),
+                       "s": [{"i": i, "bus": i, "addr": 104, "who": 234, "fifo": 4096, "mag": 1, "err": 0,
+                              "cfg": [1, 2, 0, 1, 0, 1], "st": 0, "w": round(2 * math.pi / T, 3), "k": 1.0,
+                              "a": round(random.uniform(0, 2), 3), "wins": int(x["wins"]), "drop": 0, "trunc": 0,
+                              "recs": int(x["recs"]), "cands": int(x["cands"]), "primes": int(x["primes"]),
+                              "us": int(x["cands"] * 900), "last": [0] * 8} for i, x in enumerate(self.p3n)]})
+        if c.get("vl"):
+            master = bool(c.get("vm"))
+            slot = self.grp.index(self.id) if self.id in self.grp else -1
+            n = self.vln
+            if run:
+                cyc = dt / (c["vn"] * T + c["vj"] / 1000 + c["vs"] / 1000 + 0.1)
+                n["cyc"] += cyc
+                n["vol"] += cyc
+                n["bal"] += cyc
+                n["syn"] += 2 * cyc
+                n["tx"] += 3 * c["vr"] * cyc if slot >= 0 else 2 * cyc
+            ng = len(self.grp)
+            p = {**self.head("vl"), "on": 1 if run else 0, "m": 1 if master else 0, "lock": 1 if run else 0, "slot": slot,
+                 "cyc": int(n["cyc"]), "off": random.randint(-300, 300), "syn": int(n["syn"]), "miss": 0, "skip": 0,
+                 "vol": int(n["vol"]), "bal": int(n["bal"]), "lbal": 1, "kind": 0, "own": random.randint(3, 12),
+                 "tab": min(60, ng * 8), "h": [max(0, ng - 1)] * 3, "late": [random.randint(50, 200), random.randint(200, 600)],
+                 "rssi": -48, "len": int(1000 * (c["vn"] * T + 0.3)), "tx": int(n["tx"]), "odrop": 0, "tfull": 0}
+            if master:
+                p.update({"mc": int(n["cyc"]), "ms": int(n["syn"]), "mb": int(n["bal"]), "mlb": 1, "mk": 0, "mrev": c["vn"],
+                          "mh": [ng] * 3})
+            self.send(p)
+            if master and run and int(n["cyc"]) != getattr(self, "vp_cyc", 0):     # посредник: отчёт о залпе серверу
+                self.vp_cyc = int(n["cyc"])
+                part = [AG[i] for i in self.grp if i in AG]
+                st = [[a.id, k, a.cfg["cid"], 0, 0, int(a.temp), int(a.bat["v"] * 1000) if a.bat else 0, 160, int(a.n["pr"]), int(a.n["cand"]),
+                       int(sum(x["wins"] for x in a.p3n)), 0, 0, int(a.vln["vol"]), int(a.vln["bal"]), -48, -52,
+                       1 if a.off_router() else 0, int(a.vln["vol"]) if a.cfg.get("ve") and a.off_router() else 0]
+                      for k, a in enumerate(part)]
+                self.send({**self.head("vp"), "cid": c["cid"], "cyc": self.vp_cyc, "kind": 0, "bal": 1, "ns": ng,
+                           "h": [ng] * 3, "rev": 811, "nf": len(part), "rl": 0, "st": st})
+                self.send({**self.head("vp"), "cid": c["cid"], "cyc": self.vp_cyc, "kind": 0,
+                           "f": [[a.id, random.randint(0, 1), random.randint(0, 4000), "%064X" % rand_prime()] for a in part]})
+
+    def off_router(self):
+        """Через посредника: генератор в залпе с gw — «без роутера», сам серверу не пишет."""
+        c = self.cfg
+        lead = any(a.cfg.get("vm") and a.cfg.get("vl") and a.cfg.get("run") == 1 for a in AG.values())   # ведущий молчит — плата сама возвращается
+        return bool(lead and c.get("gw") and c.get("vl") and not c.get("vm") and c.get("run") == 1 and c.get("role") == 0)
+
+    def set_list(self, k, v):
+        if k == "grp":
+            self.grp = [int(x) for x in v.split(",") if x.strip().isdigit()]
+
     def send(self, p):
-        if self.cfg.get("tl") == 2:
+        if self.cfg.get("tl") == 2 or self.off_router():
             return
         self.tx.sendto(json.dumps(p).encode(), SRV)
 
@@ -126,15 +230,23 @@ class Agent:
             data, _ = self.rx.recvfrom(4096)
         except socket.timeout:
             return
+        if self.off_router():                        # без роутера команда сервера не доходит — только через посредника
+            return
+        self.apply_cmd(data.decode())
+
+    def apply_cmd(self, text):
+        data = text.encode()
         for tok in data.decode().split()[1:]:
             k, _, v = tok.partition("=")
+            self.set_list(k, v)
             if k in self.cfg:
                 try:
                     self.cfg[k] = int(v)
                 except ValueError:
                     pass
         ack = {"v": 2, "type": "ack", "mac": self.mac, "id": self.id, "cid": self.cfg["cid"], "ok": 1, "err": ""}
-        self.tx.sendto(json.dumps(ack).encode(), SRV)
+        if not self.off_router():
+            self.tx.sendto(json.dumps(ack).encode(), SRV)
 
     def tel(self, sens=0, extra=None):
         self.count()
@@ -257,6 +369,7 @@ def run_gen(ag):
         if time.time() >= nxt:
             nxt += ag.cfg["tp"] / 1000
             ag.tel(0)
+            ag.phase3(ag.cfg["tp"] / 1000)
             ag.seq += 1
         time.sleep(0.02)
 
@@ -272,7 +385,11 @@ def run_mot(ag):
             data, _ = ag.rx.recvfrom(4096)
             toks = data.decode().split()
             kv = dict(t.partition("=")[::2] for t in toks[1:])
-            if toks and toks[0] == "MOT":
+            if toks and toks[0] == "RLY":            # посредник: настройка участнику залпа — «по эфиру»
+                to = int(kv.get("to", 0))
+                if to in AG and " CFG " in data.decode():
+                    AG[to].apply_cmd(data.decode().split(" ", 2)[2])
+            elif toks and toks[0] == "MOT":
                 for w in ("a", "b"):
                     if w in kv:
                         tgt[w] = max(-1000, min(1000, int(float(kv[w]))))
@@ -280,6 +397,7 @@ def run_mot(ag):
                 t_cmd, wdf = time.time(), 0
             else:
                 for k, v in kv.items():
+                    ag.set_list(k, v)
                     if k in ag.cfg:
                         try:
                             ag.cfg[k] = int(v)
@@ -301,6 +419,7 @@ def run_mot(ag):
             nxt = now + ag.cfg["tp"] / 1000
             st = lambda w: 0 if not tgt[w] and abs(cur[w]) < 1 else 2 if abs(cur[w] - tgt[w]) < 1 else 1 if abs(tgt[w]) > abs(cur[w]) else 3
             ag.tel(0, {"mot": {"a": [tgt["a"], round(cur["a"]), st("a")], "b": [tgt["b"], round(cur["b"]), st("b")], "wdf": wdf}})
+            ag.phase3(ag.cfg["tp"] / 1000)             # ведущий залпа — агент моторов
             ag.seq += 1
 
 

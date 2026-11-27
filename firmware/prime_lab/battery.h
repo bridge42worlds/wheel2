@@ -13,6 +13,7 @@ namespace bat {
 
 void begin(bool start_wire);  // start_wire — запустить шину I2C самому (у агента моторов и катушки датчиков обода нет)
 bool present();
+uint16_t millivolts();        // напряжение первого найденного контура, мВ (нет датчика или замера — 0)
 void add_tel(Out& o);         // ,"bat":{"v":7.912,"i":1234.5,"q":12.34,"n":…,"a":64,"err":0}[,"bat2":{… "a":64,"w":1}]
 
 }  // namespace bat

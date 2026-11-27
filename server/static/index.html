@@ -268,6 +268,27 @@ dialog#helpDlg .kv2 { display:grid; grid-template-columns:auto 1fr; gap:4px 10px
         <label>Радиус датчика вращения <input type="number" id="rmm" min="50" max="2000" step="5" value="450" style="width:80px"> мм
           <span class="mut small">только для сверки: радиус прибор измеряет сам</span></label>
         <label>Статическим: предел <select id="afs"></select> g</label>
+        <fieldset style="border:1px solid var(--line,#888);border-radius:6px;padding:6px 10px;margin:6px 0">
+          <legend>Фаза 3</legend>
+          <label><input type="checkbox" id="p3"> окна невесомости: числа из показаний датчиков обода
+            <span class="small">окно <input type="number" id="win" min="5" max="120" step="1" value="30" style="width:60px">°
+            сдвиг <input type="number" id="wo" min="-60" max="60" step="1" value="0" style="width:60px">°</span>
+            <span class="mut small">только «каждый сам», 256 бит</span></label>
+          <label><input type="checkbox" id="fm"> читать датчик напрямую, без его буфера</label>
+          <label><input type="checkbox" id="vl"> залп: накачка в тишине, потом все разом, сервер после баланса
+            <span class="mut small">ведущий времени — агент моторов среди выбранных</span></label>
+          <label>Накачка <input type="number" id="vn" min="1" max="200" step="1" value="5" style="width:60px"> оборотов,
+            случайная добавка до <input type="number" id="vj" min="0" max="500" step="10" value="40" style="width:60px"> мс</label>
+          <label>Пар «таблица, сверка» <input type="number" id="vr" min="1" max="4" step="1" value="1" style="width:50px">,
+            окно сервера <input type="number" id="vs" min="20" max="2000" step="10" value="80" style="width:70px"> мс</label>
+          <label>Залп <select id="vc"><option value="0">настоящий</option><option value="1">контрольный (составные)</option>
+            <option value="2">случайно каждый цикл</option></select></label>
+          <label><input type="checkbox" id="gw"> через посредника: платы обода без роутера, связь с сервером — через агента моторов
+            <span class="small">без меток ведущего <input type="number" id="gt" min="5" max="120" step="1" value="20" style="width:60px"> с — сами назад</span></label>
+          <label><input type="checkbox" id="ve"> такт излучения: платы без роутера передают находки в один миг на каналах 1, 6, 11
+            <span class="mut small">только вместе с посредником</span></label>
+          <div id="p3Status" class="small"></div>
+        </fieldset>
         <div class="mut small">Свои значения у каждого агента — в блоке «Свои параметры агентов» ниже плиток.</div>
         <div class="btns">
           <button class="main" id="apply">Применить</button>
@@ -528,6 +549,7 @@ async function getJSON(url, init) {
 
 // ---------------- плитки ----------------
 function renderTiles(d) {
+  renderP3(d);
   const by = {};
   d.agents.forEach(a => (by[a.kind || ""] = by[a.kind || ""] || []).push(a));
   $("tiles").innerHTML = KIND_ORDER.filter(k => by[k]).map(k =>
@@ -862,7 +884,31 @@ function formCfg() {
            sh: $("sh").checked ? 1 : 0, bgr: +$("bgr").value, ss: +$("ss").value,
            tl: +$("tl").value, tq: +$("tq").value || 0, rmm: +$("rmm").value || 450, afs: +$("afs").value,
            pl: $("pl").checked ? 1 : 0, dc: $("dc").checked ? 1 : 0,
-           gv: +$("gv").value, rk: +$("rk").value, pw: +$("pw").value, raw: +$("raw").value };
+           gv: +$("gv").value, rk: +$("rk").value, pw: +$("pw").value, raw: +$("raw").value,
+           p3: $("p3").checked ? 1 : 0, win: +$("win").value || 30, wo: +$("wo").value || 0, fm: $("fm").checked ? 1 : 0,
+           vl: $("vl").checked ? 1 : 0, vn: +$("vn").value || 5, vj: +$("vj").value || 0, vr: +$("vr").value || 1,
+           vs: +$("vs").value || 80, vc: +$("vc").value, gw: $("gw").checked ? 1 : 0, gt: +$("gt").value || 20,
+           ve: $("ve").checked ? 1 : 0 };
+}
+
+// Фаза 3 одной строкой: что говорит посредник о последнем залпе и о платах без роутера.
+function renderP3(d) {
+  const box = $("p3Status");
+  if (!box || !d || !d.agents) return;
+  const now = Date.now() / 1000;
+  const lead = d.agents.find(a => a.vp && now - a.vp.t < 60);
+  const via = d.agents.filter(a => a.gwt && now - a.gwt.t < 30 && (a.gwt.flags & 1));
+  if (!lead && !via.length) { box.textContent = ""; return; }
+  let t = "";
+  if (lead) {
+    const v = lead.vp;
+    t += `Посредник №${lead.id}: залп ${v.cyc ?? "—"}, ${v.bal ? "баланс есть" : "баланса нет"}, слышал ${(v.h || []).join("/")} из ${v.ns ?? "—"}, находок ${v.nf ?? 0}`
+       + (v.sham ? `, составных в контрольных залпах ${v.sham}` : "") + (v.rl ? `, отчётов пропало ${v.rl}` : "") + ". ";
+  }
+  if (via.length)
+    t += "Без роутера: " + via.map(a => `№${a.id} (${a.gwt.temp} °C, простых ${a.gwt.pr}`
+       + (a.gwt.mv ? `, ${(a.gwt.mv / 1000).toFixed(2)} В` : "") + (a.gwt.em ? `, излучений ${a.gwt.em}` : "") + ")").join(", ") + ".";
+  box.textContent = t;
 }
 
 function setForm(c) {
@@ -878,6 +924,10 @@ function setForm(c) {
   $("tl").value = c.tl ?? 0; $("tq").value = c.tq ?? 0; $("rmm").value = c.rmm ?? 450; $("afs").value = c.afs ?? 2;
   $("pl").checked = !!c.pl; $("dc").checked = !!c.dc;
   $("gv").value = c.gv ?? 0; $("rk").value = c.rk ?? 1; $("pw").value = c.pw ?? 0; $("raw").value = c.raw ?? 0;
+  $("p3").checked = !!c.p3; $("win").value = c.win ?? 30; $("wo").value = c.wo ?? 0; $("fm").checked = !!c.fm;
+  $("vl").checked = !!c.vl; $("vn").value = c.vn ?? 5; $("vj").value = c.vj ?? 40; $("vr").value = c.vr ?? 1;
+  $("vs").value = c.vs ?? 80; $("vc").value = c.vc ?? 0; $("gw").checked = !!c.gw; $("gt").value = c.gt ?? 20;
+  $("ve").checked = !!c.ve;
   showNbList();
 }
 

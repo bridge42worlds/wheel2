@@ -45,7 +45,7 @@ static Sens          s_s[NSENS];
 static uint8_t       s_present = 0;
 static portMUX_TYPE  s_mux = portMUX_INITIALIZER_UNLOCKED;
 static QueueHandle_t s_free = nullptr, s_ready = nullptr;
-static volatile bool    s_on = false;
+static volatile bool    s_on = false, s_gate = true;
 static volatile uint8_t s_win = 30, s_fm = 1;
 static volatile int8_t  s_wo = 0;
 static Find          s_find[NFIND];
@@ -169,7 +169,7 @@ static void wait_step(Sens& x, int i, int64_t now) {
     x.t_k = now;
   }
   bool fast = false;
-  if (s_on && turning && x.k_ok && x.k >= 0.3f && x.k <= 4.0f) {
+  if (s_on && s_gate && turning && x.k_ok && x.k >= 0.3f && x.k <= 4.0f) {
     // Ускорение датчика на угле θ от верха: |f|² = k² + 1 − 2k·cos θ (в g²). Окно начинается за h до верха.
     float h = (float)s_win * 0.5f - (float)s_wo;
     if (h < 2.0f) h = 2.0f;
@@ -295,6 +295,18 @@ void begin(bool bus1_taken) {
 
 uint8_t present() { return s_present; }
 
+void gate(bool open) { s_gate = open; }
+
+uint16_t period_ms() {
+  float w = 0;
+  int n = 0;
+  for (const Sens& x : s_s)
+    if (x.ok && x.w_ok && x.w >= W_MIN) { w += x.w; ++n; }
+  if (!n) return 0;
+  const float ms = 2000.0f * (float)PI / (w / n);
+  return ms > 65535.0f ? 65535 : (uint16_t)ms;
+}
+
 void configure(const GenConfig& c) {
   s_win = c.win;
   s_wo = c.wo;
@@ -319,9 +331,10 @@ void record(const Window& w, int i, uint8_t out[RECLEN]) {
   memcpy(out + 12, w.mag, 6);
 }
 
-void found(const Window& w, int i, const uint8_t* num) {
+void found(const Window& w, int i, const uint8_t* num, const uint8_t* sham) {
   Find f;
   memcpy(f.num, num, sizeof f.num);
+  memcpy(f.sham, sham, sizeof f.sham);
   f.sensor = w.sensor;
   f.idx = (uint16_t)i;
   f.seq = w.seq;
@@ -349,6 +362,19 @@ int finds(Find* out, int max) {
   for (int i = 0; i < n; ++i) out[i] = s_find[(total - n + i) % NFIND];
   portEXIT_CRITICAL(&s_mux);
   return n;
+}
+
+void totals(uint32_t& wins, uint32_t& drop, uint32_t& err) {
+  wins = drop = err = 0;
+  for (int i = 0; i < NSENS; ++i) {
+    Sens& x = s_s[i];
+    if (!x.ok) continue;
+    portENTER_CRITICAL(&s_mux);
+    wins += x.wins;
+    drop += x.drop;
+    portEXIT_CRITICAL(&s_mux);
+    err += x.dev.errors();
+  }
 }
 
 void add_tel(Out& o) {

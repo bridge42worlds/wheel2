@@ -241,9 +241,37 @@ What the firmware already has (the `CFG` command):
 | `win` | window width, degrees | 5–120, default 30 |
 | `wo` | shift of the window centre from the top point, degrees | −60…60 |
 | `fm` | how to read the sensor in the window: 1 — from its buffer, 0 — directly | 0, 1 |
+| `vl` | the "laser" cycle: pumping in silence, volley, server after balance | 0, 1 |
+| `vm` | this board is the leader and gives common time | 0, 1 |
+| `vn` | pumping, wheel turns | 1–200, default 5 |
+| `vj` | random addition to the cycle length, ms | 0–500, default 40 |
+| `vr` | pairs "common table, check" in a volley | 1–4, default 1 |
+| `vs` | server window after the volley, ms | 20–2000, default 80 |
+| `vc` | volley: 0 — real, 1 — control, 2 — random every cycle | 0, 1, 2 |
 
-Pumping, the volley and common time are not in the firmware yet. What is written compiles but has not been tested
-on a sensor: the sensors have not arrived.
+The volley members and their slots are given by the `grp` list: the place in the list is the slot number. The
+leader receives the same list.
+
+How it is done in the firmware:
+
+* In takt 1 the numbers go whole, up to 15 finds per agent per cycle. In takt 2 the table goes as short rows: the
+  author and the first 8 bytes of the number. An agent that missed a find in takt 1 learns of it from another
+  agent's table; the number itself the server takes from the author.
+* The pair "takt 2, takt 3" always runs `vr` times, not until the first match: that way every agent has the same
+  volley schedule.
+* For a control volley an agent keeps, next to every find, a composite number from the same window and sends it
+  instead of the prime. The leader decides which volley is real and says so in the mark.
+* The leader learns the turn period from the agents' frames; before the first volley it assumes 810 ms.
+* The `vl` telemetry packet: whether time is locked, the clock difference, missed marks, the number of volleys and
+  balances, how many members were heard in each takt, lateness of others' frames relative to their slot, signal
+  level.
+
+The server (`server/monitor.py`) knows these parameters: it validates them, sends them to the agents, builds the
+list of volley slots itself (generators in order of their numbers) and makes the motor agent the master if none is
+named; it accepts the `p3` and `vl` packets and returns them in the agent state. The simulators
+(`tools/sim_agents.py`) send the same packets, and this path has been tested on them.
+
+The firmware compiles but has been tested neither on a sensor nor on air: the sensors have not arrived.
 
 ## 11. What to check on the bench before assembly
 
@@ -254,3 +282,65 @@ on a sensor: the sensors have not arrived.
 5. Clamping of 22 AWG wire and of a sensor wire in the T connector: resistance below 0.1 Ω.
 6. The coil field on the corrugated tube: does it match the calculation.
 7. The share of primes in control mode: it must be one per 88.6 candidates.
+
+## 12. Through the gateway
+
+During an experiment the rim boards can work without the router: all their traffic to the server goes through one
+gateway — the motor agent, which is also the time master. Near the wheels only our own protocol remains on air, on
+the volley schedule, and the server gets one agreed picture instead of a separate story from every board.
+
+| Setting | Meaning | Values |
+|---|---|---|
+| `gw` | a generator in the volley leaves the router while it hears the master | 0, 1 |
+| `gt` | seconds without a master mark after which the board returns to the router by itself | 5–120, default 20 |
+
+How it works:
+
+* **Leaving and returning.** A board leaves the router only after hearing a master mark and stays on the router's
+  channel. No marks for `gt` seconds, an over-the-air update, or a setting that clears `gw` — and it returns by
+  itself. To bring the whole wheel back it is enough to stop the volley on the motor agent.
+* **Board status.** In the last takt of the volley each board appends its status to the table checksum: applied
+  setting, temperature, counts of primes and candidates, windows, sensor errors, memory. After the volley the master
+  sends the server a `vp` packet with these rows.
+* **Finds.** The master hears the numbers of takt 1 along with everyone and passes them to the server in `vp` packets
+  (key `f`: author, sensor, time, number). The server puts them into the same prime log under the author's name and
+  verifies them as usual. Finds of a control volley (composites) are only counted. A board with `gw` does not write
+  them to its own log.
+* **Settings.** For a board without the router the server sends its setting to the master as `RLY to=<number> CFG …`.
+  After the time mark the master transmits it in 480-byte pieces, three cycles in a row. The board reassembles the
+  line and applies it like any other; the server sees the outcome in the board status (setting number). A wrong
+  number — the server repeats.
+* **Volley tag.** Volley frames are tagged not with the setting number but with the list of participants, so a
+  setting change that reaches the master and the boards at different times does not break the volley.
+
+What the gateway does not carry: over-the-air updates (the board returns to the router for that) and detailed
+telemetry (a board without the router sends no `tel`, `p3`, `vl` packets). If the master hangs, the boards return by
+themselves after `gt` seconds.
+
+Tested on simulators (`tools/sim_agents.py`): a setting arrives through the gateway, finds land in the log under the
+authors' names. Not tested on boards.
+
+### Emission takt
+
+Setting `ve` (0, 1), only together with `gw`. Before takt 1 the boards without the router spread for 12 ms over
+channels 1, 6 and 11 (by slot number) and transmit their finds at the same instant; at that instant they do not hear
+each other. Then everyone returns to the common channel and the volley goes on as usual: table reconciliation,
+balance, server. A board that is on the router skips the takt (the channel cannot be changed). There are three
+channels, so with six boards on a wheel two share a channel and their frames may collide. Counters are in the `vl`
+packet (`em`: done, frame late, skipped) and in the board status at the gateway.
+
+### One volley for the whole composition
+
+Groups of the composition and experiment steps are set per wheel, but the volley is common. The server itself builds
+the slots from all generators with the volley, adds the motor agent as the master (it is not in generator groups) and
+sends the new slot list to participants already running. The master takes the volley parameters (`vn`, `vj`, `vr`,
+`vs`, `vc`, `ve`) from the group applied last. When no generators with the volley remain, the master falls silent
+and the boards return to the router.
+
+### Where to switch it on
+
+* Main screen, "Experiment" window: wheel mode "phase 3 · windows and volley".
+* Console: group preset "Phase 3: windows and volley" and the group's own parameters under "Phase 3".
+* Old panel (`/old`): the "Phase 3" block in the common settings and a line about the last volley.
+
+Board battery voltage (if the board has a circuit sensor) is part of the status at the gateway.

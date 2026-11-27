@@ -203,4 +203,12 @@ void    share_put(int k, const uint8_t* rec);
 void    wheel_record(int k, const uint8_t* rec);
 void    share_stats(uint32_t out[7]);
 
+// ---------- фаза 3: залп (volley.cpp) ----------
+// Кадры залпа идут через очередь задачи протокола. HDR_LEN — место под заголовок в начале кадра; vl_send
+// заполняет его и ставит кадр в очередь всем. Звать только из задачи протокола (vl::tick, vl::on_rx).
+static const int HDR_LEN = 13;
+void vl_send(uint8_t type, uint8_t* frame, size_t len);
+bool started();                                // group::begin уже звали
+bool vl_tx_idle();                             // очередь отправки пуста и радио отчиталось (зовёт задача протокола)
+
 }  // namespace group

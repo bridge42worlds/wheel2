@@ -67,6 +67,14 @@ void begin(bool start_wire) {
 
 bool present() { return s_cnt > 0; }
 
+uint16_t millivolts() {
+  if (s_cnt <= 0) return 0;
+  portENTER_CRITICAL(&s_mux);
+  const float v = s_acc[0].n ? s_acc[0].v : 0.0f;
+  portEXIT_CRITICAL(&s_mux);
+  return v <= 0 ? 0 : v > 65.0f ? 65000 : (uint16_t)(v * 1000.0f + 0.5f);
+}
+
 void add_tel(Out& o) {
   for (int k = 0; k < s_cnt; ++k) {
     portENTER_CRITICAL(&s_mux);

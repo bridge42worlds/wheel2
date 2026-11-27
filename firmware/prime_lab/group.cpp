@@ -1,4 +1,5 @@
 #include "group.h"
+#include "volley.h"
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <esp_now.h>
@@ -73,6 +74,7 @@ static const uint8_t BCAST[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
 enum : uint8_t { EV_RX = 1, EV_JOB = 2, EV_CFG = 3, EV_PRIME = 4, EV_REST = 5,     // EV_REST: len — секунд, 0 — назад
                  EV_SSN = 6 };                                                     // EV_SSN: шум на своё рассеяние (ss)
 struct Event {
+  int64_t   t;                       // EV_RX: когда кадр принят (задача Wi-Fi)
   uint8_t   kind;
   uint8_t   mac[6];
   int8_t    rssi;
@@ -399,7 +401,7 @@ static volatile uint8_t s_alive_run = 0;
 static volatile uint8_t s_alive_hz = 1;         // кадров пульса в секунду (настройка hb): соседям это ещё и CSI
 
 static void alive_tick() {
-  if (s_radio_off) return;
+  if (s_radio_off || vl::quiet()) return;      // залп: в накачке и тактах пульса нет
   const int64_t now = now_us();
   if (now - s_alive_t < 1000000 / (s_alive_hz ? s_alive_hz : 1)) return;
   s_alive_t = now;
@@ -2177,7 +2179,7 @@ void share_stats(uint32_t out[7]) {
 }
 
 static void ws_tick() {                          // задача связи: накопленное — кадром всем
-  if (!s_ws_tag || s_radio_off) return;
+  if (!s_ws_tag || s_radio_off || vl::quiet()) return;
   const int64_t now = now_us();
   for (int k = 0; k < 2; ++k) {
     if (!s_ws_len[k]) continue;
@@ -2216,8 +2218,12 @@ static void ws_on_rx(const uint8_t* d, size_t len) {
 }
 
 // Все принятые кадры: рассеяние — здесь, протокол группы A — в on_msg.
-static void on_rx(const uint8_t* mac, int8_t rssi, const uint8_t* d, size_t len) {
+static void on_rx(const uint8_t* mac, int8_t rssi, const uint8_t* d, size_t len, int64_t t_rx) {
   const Hdr& h = *(const Hdr*)d;
+  if (h.type == vl::M_SYNC || h.type == vl::M_VOL) {   // фаза 3: метка времени и кадры залпа
+    vl::on_rx(h.type, d, len, rssi, t_rx);
+    return;
+  }
   if (h.type == M_ALIVE) {           // пульс соседа — в таблицу, в любом режиме и при любой настройке
     if (len >= sizeof(Alv)) alive_note(*(const Alv*)d, mac, rssi);
     return;
@@ -2658,7 +2664,7 @@ static void task(void*) {
   for (;;) {
     if (xQueueReceive(s_evq, &ev, pdMS_TO_TICKS(1)) == pdTRUE) {   // 1 мс: очередь отправки не ждёт
       if (ev.kind == EV_CFG) apply_cfg(ev.cfg);
-      else if (ev.kind == EV_RX) on_rx(ev.mac, ev.rssi, ev.data, ev.len);
+      else if (ev.kind == EV_RX) on_rx(ev.mac, ev.rssi, ev.data, ev.len, ev.t);
       else if (ev.kind == EV_JOB) {
         if ((s_on || s_b_on) && !s_resting) on_job(ev.res);
         else s_job_busy = false;       // отдых: итог задания, начатого до него, не нужен
@@ -2671,6 +2677,7 @@ static void task(void*) {
         rest_cmd(ev.len);
       }
     }
+    vl::tick(now_us());                // фаза 3: общее время и залп
     alive_tick();                      // пульс — в любом режиме
     ws_tick();                         // раздача шума колеса — в любом режиме
     tx_kick();                         // и очередь отправки живёт всегда, не только в группе
@@ -2707,6 +2714,7 @@ static void on_recv(const esp_now_recv_info_t* info, const uint8_t* data, int le
   static Event ev;
   if (len < (int)sizeof(Hdr) || len > (int)MSG_MAX || data[0] != 'W' || data[1] != VER) return;
   ev.kind = EV_RX;
+  ev.t = esp_timer_get_time();
   memcpy(ev.mac, info->src_addr, 6);
   ev.rssi = info->rx_ctrl ? (int8_t)info->rx_ctrl->rssi : 0;
   ev.len = (uint16_t)len;
@@ -2850,7 +2858,24 @@ int neighbors(Neighbor* out, int max) {          // зовёт задача св
   return n;
 }
 
+static_assert(sizeof(Hdr) == HDR_LEN, "HDR_LEN");
+static bool s_started = false;
+bool started() { return s_started; }
+
+bool vl_tx_idle() {
+  tx_kick();
+  return s_txq_n == 0 && !s_tx_busy;
+}
+
+void vl_send(uint8_t type, uint8_t* frame, size_t len) {
+  Hdr& h = *(Hdr*)frame;
+  hdr(h, type);
+  h.from = (uint8_t)agent::device_id();        // у ведущего (агент моторов) группы нет — номер из реестра
+  send_all(frame, len);
+}
+
 void begin() {
+  s_started = true;
   s_evq = xQueueCreate(20, sizeof(Event));   // каскад: кусочки приходят пачкой от всех сразу
   s_jobq = xQueueCreate(1, sizeof(Job));
   s_prodq = xQueueCreate(2, sizeof(ProdSet));

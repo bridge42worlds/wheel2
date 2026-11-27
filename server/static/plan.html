@@ -458,6 +458,7 @@ const WAYS_GEN = [["solo", "эгоистичный", "каждый из свое
                   ["cascade", "групповой · каскад", "шум от всех на колесе, свои числа из общего шума, проверяют все сразу — каждый свои"],
                   ["one", "групповой · одно число на всех", "шум от всех, одно число на группу, его проверяют все (базы поделены), ответ — по согласию; ~10 простых/с на группу — сет лучше 60 с"],
                   ["relay", "групповой · эстафета", "число из шума всех, проверяет один, ход по кругу; ~37 простых/с на группу, платы прохладнее"],
+                  ["p3", "фаза 3 · окна и залп", "числа — из показаний датчиков обода в невесомости; находки копятся в тишине и отдаются залпом; платы без роутера, связь с сервером — через агента моторов (он же ведущий времени)"],
                   ["same", "групповой · одинаковые числа", "все считают одно число — появится с прошивкой", true]];
 // Шумы: [ключ, название, откуда берётся, ещё нельзя (зачёркнут), настройка агента]
 const NOISES = [
@@ -535,7 +536,8 @@ function mixIcon(key) {
 }
 const hasBC = n => !!n && (n.startsWith("bc") || (mixSet(n) || []).includes("bc"));
 const GEN_CFG = { solo: { mode: 0, dc: 1 }, cascade: { mode: 1, gv: 2, dc: 1, rk: 1, pw: 20 }, one: { mode: 1, gv: 0, dc: 0 },
-                  relay: { mode: 1, gv: 1, dc: 1, rk: 1, pw: 0 }, same: { mode: 1, gv: 2, dc: 1 } };
+                  relay: { mode: 1, gv: 1, dc: 1, rk: 1, pw: 0 }, same: { mode: 1, gv: 2, dc: 1 },
+                  p3: { mode: 0, dc: 0, bits: 256, det: 0, p3: 1, vl: 1, gw: 1 } };   // фаза 3: окна невесомости, залп, посредник
 // Поглощение: кто чьё (у каждого поглотителя — номера генераторов, чьи простые он берёт: ba) и как (режим sm, пустышка sh)
 const ABS_WHO = [["all", "все со всеми", "каждый поглотитель берёт простые всех генераторов"],
                  ["pair", "пары 1:1", "у каждого поглотителя свой генератор — по номерам: первый с первым, второй со вторым…; генераторы без пары работают без поглощения — контроль внутри опыта"],
@@ -553,7 +555,7 @@ const absParts = v => (v || "all/mix").split("/");
 const absName = v => { const [w, h] = absParts(v); return `${(ABS_WHO.find(x => x[0] === w) || [w, w])[1]} · ${(ABS_HOW.find(x => x[0] === h) || [h, h])[1]}`; };
 const absShort = v => { const [w, h] = absParts(v); return `${ABS_WHO_SHORT[w] || w}·${ABS_HOW_SHORT[h] || h}`; };
 const NONE_ID = 63;                          // поглотителю «никого»: номера 63 нет (пустой список значит «всех»)
-const WAY_SHORT = { solo: "эгоист.", cascade: "каскад", one: "одно число", relay: "эстафета", same: "одинак.", all: "все со всеми", pair: "1:1" };
+const WAY_SHORT = { solo: "эгоист.", cascade: "каскад", one: "одно число", relay: "эстафета", same: "одинак.", p3: "фаза 3", all: "все со всеми", pair: "1:1" };
 const ROLE_SHORT = { gen: `${ICONS.gen} ген.`, abs: `${ICONS.abs} погл.`, idle: `${ICONS.idle} стоит` };
 const LETTERS = "абвгдежз";                 // подгруппы на колесе — как SUBGROUPS на сервере
 const MAX_GROUP = 16;                       // предел участников группы в прошивке (MAX_GROUP)
@@ -874,7 +876,7 @@ function groupLive(d, macs) {
   return `сами · Σ ${fmt(run.reduce((s, m) => s + (((d.gen[m] || {}).rate || {}).g_pr_s || 0), 0), 1)} пр/с`;
 }
 function plural(n, a, b, c) { const m = n % 10, h = n % 100; return `${n} ${h > 10 && h < 20 ? c : m === 1 ? a : m > 1 && m < 5 ? b : c}`; }
-function wayName(k) { if (String(k || "").includes("/")) return absName(k); return ({ solo: "эгоистичный", cascade: "групповой (каскад)", one: "групповой · одно число на всех", relay: "групповой · эстафета", same: "групповой · одинаковые числа", all: "все со всеми", pair: "один к одному" })[k] || ""; }
+function wayName(k) { if (String(k || "").includes("/")) return absName(k); return ({ solo: "эгоистичный", cascade: "групповой (каскад)", one: "групповой · одно число на всех", relay: "групповой · эстафета", same: "групповой · одинаковые числа", p3: "фаза 3 · окна и залп", all: "все со всеми", pair: "один к одному" })[k] || ""; }
 function noiseName(k) { if (mixSet(k)) return mixWords(k); const n = NOISES.find(x => x[0] === k); return n ? n[1] : ""; }
 function noiseShort(k) { return mixSet(k) ? `${mixIcon(k)} ${mixWords(k, true)}` : NOISE_SHORT[k] || k; }
 function stateWord(s) { return ({ running: "идёт", done: "выполнена", stopped: "остановлена", interrupted: "прервана", failed: "сбой", error: "ошибка" })[s] || s; }

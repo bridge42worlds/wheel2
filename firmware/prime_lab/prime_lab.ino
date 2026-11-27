@@ -39,6 +39,7 @@
 #include "jsonout.h"
 #include "rim_sensors.h"
 #include "p3_windows.h"
+#include "volley.h"
 #include "mbedtls/sha256.h"
 #include "battery.h"
 #include "prime_log.h"
@@ -92,6 +93,13 @@ static uint32_t          s_done_cid = 0;      // последний шаг, за
 static volatile bool     s_radio_off = false; // Wi-Fi выключен на время шага
 static uint32_t          s_radio_t0 = 0;      // когда выключен, мс
 static uint32_t          s_radio_off_s = 0;   // сколько секунд радио было выключено на последнем шаге
+// Через посредника (настройка gw): агент обода, поймав время ведущего, уходит с роутера — в эфире только ESP-NOW.
+static volatile bool     s_gw_off = false;    // сейчас без роутера
+static uint32_t          s_gw_t0 = 0;         // когда ушёл, мс
+static uint32_t          s_gw_n = 0;          // сколько раз уходил
+static uint32_t          s_gw_s = 0;          // сколько секунд был без роутера в последний раз
+static uint8_t           s_gw_why = 0;        // почему вернулся: 1 — метки ведущего пропали, 2 — настройка, 3 — прошивка/шаг без радио
+static uint8_t           s_gw_ch = 0;         // канал, на котором остался (канал роутера)
 static uint32_t          g_last_try = 0;      // когда последний раз пробовали переподключить Wi-Fi
 // Запасная сеть (ssid2 в secrets/wifi.ini): основная не пускает 40 с — плата уходит на запасную и остаётся на
 // связи (опечатка в пароле новой сети не отрезает плату — её не надо перешивать по USB). На запасной через 2 мин,
@@ -521,7 +529,7 @@ static void gen_task(void*) {
   primes_init();
   g_selftest = primes_selftest() && entropy_selftest() ? 1 : 0;   // и экстрактор Тёплица против эталона
   Serial.printf("SELFTEST %s\n", g_selftest ? "ok" : "FAIL");
-  static uint8_t buf[256], prime[256];
+  static uint8_t buf[256], prime[256], sham[32];
   static char hex[68];
   int64_t t_last = esp_timer_get_time();
   uint32_t last_yield = millis();
@@ -545,9 +553,15 @@ static void gen_task(void*) {
           uint8_t rec[p3::RECLEN];
           p3::record(*w, i, rec);
           mbedtls_sha256(rec, sizeof rec, buf, 0);   // запись датчика целиком → 256 бит
-          if (!test_candidate(buf, c, s_st.p, hex, sizeof hex, prime)) continue;
-          p3::found(*w, i, prime);
-          if (c.pl) plog::push(prime, 32, (uint8_t)(2 + w->sensor));   // журнал: 2, 3 — датчик окна
+          if (!test_candidate(buf, c, s_st.p, hex, sizeof hex, prime)) {
+            memcpy(sham, buf, 32);                   // составное — про запас, для контрольного залпа
+            sham[0] |= 0x80;
+            sham[31] |= 1;
+            continue;
+          }
+          p3::found(*w, i, prime, sham);
+          // журнал: 2, 3 — датчик окна. Через посредника (gw) находки идут серверу залпом, в журнал не кладём — иначе дважды
+          if (c.pl && !(c.gw && c.vl)) plog::push(prime, 32, (uint8_t)(2 + w->sensor));
           const int64_t now = esp_timer_get_time();
           const uint64_t dt = now - t_last;
           t_last = now;
@@ -706,6 +720,8 @@ static void build_tel(Out& o, const GenStats& g, const group::Stats& gs, uint32_
   add(o, ",\"seg\":%u", c.seg);                         // шаг с отрезками
   add(o, ",\"dur\":%u,\"ro\":%u,\"roff\":%lu,\"done\":%lu", c.dur, c.ro, (unsigned long)s_radio_off_s,
       (unsigned long)s_done_cid);
+  if (c.gw)                                          // через посредника: уходов с роутера, секунд в последний раз, причина возврата
+    add(o, ",\"gwi\":[%u,%lu,%lu,%u,%u]", c.gt, (unsigned long)s_gw_n, (unsigned long)s_gw_s, s_gw_why, s_gw_ch);
   rim::add_tel(o);                                   // датчики на ободе: что найдено, режимы из регистров
   bat::add_tel(o);                                   // аккумуляторы контура (INA219), если подключён
   // рассеяние: роль, режим, функция, фильтр CSI; счётчики A (объявлено) и B (получено, выпущено…)
@@ -916,7 +932,11 @@ static void radio_watchdog(bool up) {
   if (down_s >= 90) reboot_for(RBT_WIFI, "wifi: no connection for 90 s");
 }
 
+static bool g_relay_cmd = false;      // команда пришла через посредника: подтверждение — ему (в кадре залпа), не серверу
+static bool g_relay_ok = false;
+
 static void send_ack(WiFiUDP& udp, unsigned long cid, bool ok, const char* err) {
+  if (g_relay_cmd) { g_relay_ok = ok; return; }
   if (!g_srv_port) return;
   char b[220];
   int n = snprintf(b, sizeof b,
@@ -1014,6 +1034,8 @@ static void apply_config(const GenConfig& c) {
       g_pending_t = millis();
       portEXIT_CRITICAL(&g_mux);
     }
+    if (g_boot_role == ROLE_M && c.vl && c.vm && !group::started()) group::begin();   // ведущий залпа: нужен ESP-NOW
+    vl::configure(c, agent::device_id());      // фаза 3: общее время раздаёт ведущий (vm)
     if (c.tl == TL_QUIET && (s_cur.tl != TL_QUIET || c.tq != s_cur.tq)) s_quiet_t0 = millis();
     s_cur = c;
     s_cur.role = g_boot_role;
@@ -1030,6 +1052,7 @@ static void apply_config(const GenConfig& c) {
   entropy_set_csi_filter(c.cf, c.bmac, c.has_bmac ? c.nbg : 0);
   rim::set_radius(c.rmm);
   p3::configure(c);                            // окна невесомости: вкл/выкл, ширина, сдвиг, как читать датчик
+  vl::configure(c, agent::device_id());        // цикл «лазер»: накачка, залп, баланс
   entropy_select(c.run && !c.p3 ? c.src : 0);           // стоим — CSI и пинг роутера 100/с не нужны (грели и шумели в эфире)
   group::set_alive_rate(c.hb);
   plog::configure(c.pl, c.cid);
@@ -1065,7 +1088,7 @@ static void net_switch(uint8_t to, const char* why) {
 
 // Раз в секунду: нет связи 40 с — на другую сеть; на запасной через 2 мин, потом раз в 10 мин, стоя, — попробовать основную.
 static void net_tick(uint32_t now) {
-  if (s_radio_off || !strlen(agent::wifi_ssid2())) return;
+  if (s_radio_off || s_gw_off || !strlen(agent::wifi_ssid2())) return;
   if (WiFi.status() == WL_CONNECTED) {
     g_net_down = 0;
     if (g_net == 1 && !s_cur.run && now - g_net_try > 10u * 60 * 1000) {
@@ -1076,6 +1099,37 @@ static void net_tick(uint32_t now) {
   }
   if (!g_net_down) g_net_down = now;
   else if (now - g_net_down > 40000) net_switch(g_net ^ 1, "no connection 40 s");
+}
+
+// Через посредника (gw). Уйти с роутера можно, только пока слышен ведущий: метка времени пришла не раньше gt секунд
+// назад. Пропали метки, сменилась настройка, началась прошивка — агент сам возвращается на роутер, поэтому плату
+// на вращающемся колесе не потерять: достаточно остановить ведущего. ESP-NOW остаётся на канале роутера.
+static void gw_tick() {
+  const GenConfig& c = s_cur;
+  const bool cfg = c.gw && c.vl && !c.vm && c.run && c.role == ROLE_A;
+  const bool busy = s_radio_off || ota::state() == 1 || g_pending;
+  const bool heard = vl::sync_age_ms() < (uint32_t)c.gt * 1000u;
+  if (!s_gw_off) {
+    if (!cfg || busy || !heard || WiFi.status() != WL_CONNECTED) return;
+    s_gw_ch = (uint8_t)WiFi.channel();
+    s_gw_off = true;
+    s_gw_t0 = millis();
+    ++s_gw_n;
+    WiFi.disconnect(false, false);                 // драйвер и ESP-NOW живы, связи с роутером нет
+    delay(50);
+    if (s_gw_ch) esp_wifi_set_channel(s_gw_ch, WIFI_SECOND_CHAN_NONE);
+    Serial.printf("GW leave router, ch=%u cid=%lu\n", s_gw_ch, (unsigned long)c.cid);
+    return;
+  }
+  const bool must = s_radio_off || ota::state() == 1;     // приём новой настройки (g_pending) — не повод возвращаться
+  if (cfg && !must && heard) return;
+  s_gw_why = !cfg ? 2 : must ? 3 : 1;
+  s_gw_s = (millis() - s_gw_t0) / 1000;
+  s_gw_off = false;
+  wifi_begin();
+  g_bcn_t = millis();                              // тишина маяка без роутера — не повод переподключаться
+  g_last_try = millis();
+  Serial.printf("GW back to router after %lu s, why=%u\n", (unsigned long)s_gw_s, s_gw_why);
 }
 
 // Эфир шагу нужен: группа или сет B (ESP-NOW), шум из эфира (CSI, обратный) или пинг роутера без CSI (cf 3).
@@ -1314,6 +1368,13 @@ static void handle_cmd(char* line, IPAddress from, WiFiUDP& udp) {
     send_ack(udp, 0, why == nullptr, why ? why : "ota");
     return;
   }
+  if (strncmp(line, "RLY ", 4) == 0) {               // посреднику: передать участнику залпа его настройку — RLY to=<№> CFG …
+    const char* tp = strstr(line, "to=");
+    const char* body = strstr(line, " CFG ");
+    const bool ok = s_cur.vl && s_cur.vm && tp && body && vl::relay((uint8_t)strtoul(tp + 3, nullptr, 10), body + 1);
+    send_ack(udp, s_cur.cid, ok, ok ? "rly" : "rly: not master or queue full");
+    return;
+  }
   const char* cp = strstr(line, "cid=");
   unsigned long cid = cp ? strtoul(cp + 4, nullptr, 10) : 0;
   char err[48];
@@ -1381,6 +1442,63 @@ static void comms_task(void*) {
       cmd.read((uint8_t*)line, sizeof line - 1);
       handle_cmd(line, cmd.remoteIP(), udp);
     }
+    {                                    // настройка, пришедшая через посредника (плата без роутера)
+      static char rline[1280];
+      uint16_t rseq = 0;
+      if (!fixed && vl::relay_take(rline, sizeof rline, rseq)) {
+        if (strncmp(rline, "CFG ", 4) == 0) {          // через эфир — только настройки
+          g_relay_cmd = true;
+          g_relay_ok = false;
+          handle_cmd(rline, g_srv_ip, udp);
+          g_relay_cmd = false;
+          vl::relay_result(rseq, g_relay_ok);
+        } else {
+          vl::relay_result(rseq, false);
+        }
+      }
+    }
+    // посредник (ведущий залпа): отчёт о кончившемся залпе — состояния участников и их находки — серверу
+    if (WiFi.status() == WL_CONNECTED && g_srv_port) {
+      if (const vl::Report* r = vl::report_take()) {
+        static uint32_t vp_seq = 0;
+        const uint32_t tnow = millis();
+        for (int s = 0, part = 0; s < MAX_GROUP || part == 0; ++part) {     // состояния — по 8 в пакете, первый — всегда
+          out.n = 0;
+          out.over = false;
+          add_head(out, "vp", vp_seq++, tnow);
+          add(out, ",\"cid\":%lu,\"cyc\":%lu,\"kind\":%u,\"bal\":%u,\"ns\":%u,\"h\":[%u,%u,%u],\"rev\":%u,\"nf\":%u,\"rl\":%lu,\"st\":[",
+              (unsigned long)r->cid, (unsigned long)r->cyc, r->kind, r->bal, r->nslots, r->heard[0], r->heard[1],
+              r->heard[2], r->rev_ms, r->nf, (unsigned long)vl::report_lost());
+          int k = 0;
+          for (; s < MAX_GROUP && k < 8; ++s) {
+            if (!(r->st_mask >> s & 1)) continue;
+            const vl::Status& x = r->st[s];
+            add(out, "%s[%u,%d,%lu,%u,%u,%d,%u,%u,%lu,%lu,%lu,%u,%u,%lu,%lu,%d,%d,%u,%u]", k ? "," : "", r->st_id[s], s,
+                (unsigned long)x.cid, x.rseq, x.rok, (int)x.temp, x.mv, x.heap_k, (unsigned long)x.primes,
+                (unsigned long)x.cands, (unsigned long)x.wins, x.drop, x.serr, (unsigned long)x.vol,
+                (unsigned long)x.bal, (int)x.rssi, (int)r->st_rssi[s], x.flags, x.emit);
+            ++k;
+          }
+          add(out, "]}");
+          if (!out.over) send_out(udp, out);
+        }
+        for (int i = 0; i < r->nf;) {                                        // находки — по 14 в пакете
+          out.n = 0;
+          out.over = false;
+          add_head(out, "vp", vp_seq++, tnow);
+          add(out, ",\"cid\":%lu,\"cyc\":%lu,\"kind\":%u,\"f\":[", (unsigned long)r->cid, (unsigned long)r->cyc, r->kind);
+          for (int k = 0; i < r->nf && k < 14; ++i, ++k) {
+            const vl::RepFind& f = r->f[i];
+            char hx[65];
+            for (int b = 0; b < 32; ++b) snprintf(hx + 2 * b, 3, "%02X", f.num[b]);
+            add(out, "%s[%u,%u,%u,\"%s\"]", k ? "," : "", f.author, f.sensor, f.dt_ms, hx);
+          }
+          add(out, "]}");
+          if (out.over || !send_out(udp, out)) break;
+        }
+        vl::report_done();
+      }
+    }
 
     if (!fixed) entropy_pump();
 
@@ -1403,7 +1521,7 @@ static void comms_task(void*) {
       }
     }
     // журнал простых: пакет, как набралось 8 простых или прошло 250 мс
-    if (!fixed && WiFi.status() == WL_CONNECTED && g_srv_port && tl_now() != TL_QUIET && plog::pending() &&
+    if (!fixed && WiFi.status() == WL_CONNECTED && g_srv_port && tl_now() != TL_QUIET && vl::air_ok() && plog::pending() &&
         (plog::pending() >= 8 || now - prm_last >= 250)) {
       out.n = 0;
       out.over = false;
@@ -1427,7 +1545,24 @@ static void comms_task(void*) {
       if (up1) apply_txp(s_cur.txp);                         // после переподключения Wi-Fi — снова своя мощность
       wifi_watchdog();                                       // связь «есть», а пакеты не уходят — переподключиться
       beacon_watchdog(now);                                  // связь «есть», а маяка сервера нет — переподключиться
-      radio_watchdog(up1 || s_radio_off);                    // радио не передаёт вовсе — перезапуск (выключенное — не в счёт)
+      if (!fixed) gw_tick();                                 // через посредника: уйти с роутера / вернуться
+      if (!fixed && s_cur.vl) {                              // своё состояние — посреднику (уйдёт в последнем такте залпа)
+        vl::Info in;
+        uint32_t w = 0, d = 0, e = 0;
+        p3::totals(w, d, e);
+        in.cid = s_cur.cid;
+        in.primes = (uint32_t)s_st.p.primes;
+        in.cands = (uint32_t)s_st.p.cand;
+        in.wins = w;
+        in.drop = d > 65535 ? 65535 : (uint16_t)d;
+        in.serr = e > 65535 ? 65535 : (uint16_t)e;
+        in.heap_k = (uint16_t)(ESP.getFreeHeap() / 1024);
+        in.mv = bat::millivolts();
+        in.temp = (int8_t)(isnan(temp) ? 0 : temp > 120 ? 120 : temp < -100 ? -100 : temp);
+        in.flags = s_gw_off ? 1 : 0;
+        vl::set_info(in);
+      }
+      radio_watchdog(up1 || s_radio_off || s_gw_off);        // радио не передаёт вовсе — перезапуск (выключенное и без роутера — не в счёт)
       if (!fixed) step_tick(now);                            // шаг на агенте: радио выкл / шаг кончился
       net_tick(now);                                         // основная сеть не пускает — запасная
       if (!s_cur.run && now > 90000 && ota::state() != 1 && plog::pending() == 0 &&
@@ -1445,7 +1580,7 @@ static void comms_task(void*) {
       }
 #endif
     }
-    if ((int32_t)(now - next) >= 0) {
+    if ((int32_t)(now - next) >= 0 && vl::air_ok()) {   // залп: телеметрия — только в окне сервера
       const uint8_t tl = tl_now();
       const uint32_t tp = s_cur.tp * (tl == TL_RARE ? 10 : 1);
       next += tp;
@@ -1533,6 +1668,14 @@ static void comms_task(void*) {
           add(out, "}");
           if (!out.over) send_out(udp, out);
         }
+        if (g.cfg.vl) {                             // фаза 3: общее время, залп, баланс
+          out.n = 0;
+          out.over = false;
+          add_head(out, "vl", seq, now);
+          vl::add_tel(out);
+          add(out, "}");
+          if (!out.over) send_out(udp, out);
+        }
         if (p3::present()) {                        // фаза 3: датчики и окна невесомости
           out.n = 0;
           out.over = false;
@@ -1597,7 +1740,7 @@ static void comms_task(void*) {
       if ((int32_t)(millis() - g_ident_until) >= 0) { g_ident_until = 0; agent::led_quiet(false); }
       else agent::led_quiet(((millis() / 100) & 1) == 0);
     }
-    if (!s_radio_off && WiFi.status() != WL_CONNECTED && millis() - g_last_try > 5000) {
+    if (!s_radio_off && !s_gw_off && WiFi.status() != WL_CONNECTED && millis() - g_last_try > 5000) {
       g_last_try = millis();
       Serial.println("WIFI reconnect");
       WiFi.reconnect();
@@ -1627,7 +1770,7 @@ void setup() {
   xTaskCreatePinnedToCore(sig_task, "sig", 4096, nullptr, 1, nullptr, 0);
 
   WiFi.onEvent([](WiFiEvent_t, WiFiEventInfo_t info) {
-    if (s_radio_off) return;                       // выключили сами на шаге — не разрыв
+    if (s_radio_off || s_gw_off) return;           // выключили сами на шаге или ушли с роутера — не разрыв
     ++g_wifi_disc;
     g_wifi_reason = info.wifi_sta_disconnected.reason;
   }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);

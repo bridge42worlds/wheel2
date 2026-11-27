@@ -170,14 +170,23 @@ DEFAULT_CFG = {"src": 1, "bits": 256, "nb": 8, "all": 0, "td": 1000, "tmax": 73,
                "k": 24, "pre": 1, "tp": 1000, "cpu": 240, "txp": 20, "ping": 100, "led": 1,
                "role": 0, "sm": 1, "sf": 0, "cf": 0, "sh": 0, "bgr": 0, "ss": 0, "tl": 0, "tq": 0, "rmm": 450, "afs": 2,
                "avg": 2, "pl": 0, "dc": 0, "gv": 0, "rk": 1, "pw": 0, "raw": 0, "hb": 1, "dur": 0, "ro": 0, "rt": 0, "sg": 0,
-               "xf": 4, "rw": 4, "sq": 0, "tc": 1, "sx": 0, "det": 0, "seg": 0, "ba": []}
+               "xf": 4, "rw": 4, "sq": 0, "tc": 1, "sx": 0, "det": 0, "seg": 0, "ba": [],
+               # фаза 3: окна невесомости датчиков (p3, ширина win °, сдвиг wo °, чтение fm) и залп (vl; ведущий vm;
+               # накачка vn оборотов, ожидание vj мс, пар тактов vr, окно сервера vs мс, сверка vc)
+               "p3": 0, "win": 30, "wo": 0, "fm": 0, "vl": 0, "vm": 0, "vn": 5, "vj": 40, "vr": 1, "vs": 80, "vc": 0,
+               # через посредника: агент обода уходит с роутера, пока слышит ведущего (gw); без меток gt с — сам возвращается
+               "gw": 0, "gt": 20,
+               # такт излучения перед залпом: платы без роутера передают находки в один миг на каналах 1, 6, 11
+               "ve": 0}
 # Свои у каждого агента (не задано — как общие).
-OWN_KEYS = ("src", "raw", "xf", "rw", "det", "tmax", "txp", "cpu", "ping", "led", "role", "sf", "ss", "sg", "tl", "rmm", "afs", "avg", "ba")
+OWN_KEYS = ("src", "raw", "xf", "rw", "det", "tmax", "txp", "cpu", "ping", "led", "role", "sf", "ss", "sg", "tl", "rmm", "afs", "avg", "ba",
+            "p3", "win", "wo", "fm", "vl", "vm", "gw")
 # Меняются на ходу: номер настройки прежний, счёт не обнуляется.
 SOFT_KEYS = ("tmax", "txp", "ping", "hb", "led", "tp", "tl", "tq", "rmm", "afs", "avg", "pl", "dur", "ro", "rt", "seg")
 # Всё остальное — «работа»: смена даёт новый номер, счёт с нуля (в группе — у всех).
 HARD_KEYS = ("src", "bits", "nb", "all", "td", "mode", "nr", "k", "pre", "cpu", "run", "grp", "gm",
-             "role", "sm", "sf", "cf", "sh", "bgr", "ss", "sg", "bg", "bm", "ba", "dc", "gv", "rk", "pw", "raw", "xf", "rw", "sq", "tc", "det")
+             "role", "sm", "sf", "cf", "sh", "bgr", "ss", "sg", "bg", "bm", "ba", "dc", "gv", "rk", "pw", "raw", "xf", "rw", "sq", "tc", "det",
+             "p3", "win", "wo", "fm", "vl", "vm", "vn", "vj", "vr", "vs", "vc", "gw", "gt", "ve")
 SCAT_KEYS = ("role", "sm", "sf", "cf", "sh", "bgr", "ann", "adrop", "heard", "prx", "stx", "sdrop", "swait",
              "chs", "chf", "chd", "slat", "sn", "sbg", "bclost", "rxdrop")
 
@@ -382,6 +391,9 @@ def ingest(t, ip, text, live=False):
         with lock:
             stats["bad"] += 1
         return
+    if p.get("type") == "vp":                          # отчёт посредника о залпе: состояния участников и их находки
+        ingest_vp(t, ip, mac, p, live)
+        return
     if p.get("type") == "prm":                         # журнал простых: проверка — вне замка, она не мгновенная
         if live:                                       # живые — в очередь проверки: приём UDP не ждёт
             prm_queue.put((ingest_prm, (t, ip, mac, p, True)))
@@ -405,6 +417,10 @@ def ingest(t, ip, text, live=False):
             g0 = a.get("gen")                          # (08.11, опыт №66: плата замолкала для сервера) — к счётчикам того же номера
             if g0 is not None and g0.get("cid") == p.get("cid") and isinstance(p.get("e"), list):
                 g0["e"] = p["e"]
+            return
+        if p.get("type") in ("p3", "vl"):              # фаза 3: окна невесомости датчиков; залп (общее время, такты)
+            a[p["type"]] = {"t": round(t, 3), **{k: v for k, v in p.items() if k not in ("v", "type", "mac", "fw", "sk")}}
+            recent.setdefault(mac, deque(maxlen=RECENT_LEN)).append({"rx": round(t, 3), **p})
             return
         if p.get("type") == "nbr":                     # соседи по пульсу: [номер, сигнал, с давности, кадров, считает, °C]
             a["nbr"] = {"t": round(t, 3), "nb": [x for x in (p.get("nb") or []) if isinstance(x, list) and len(x) >= 4]}
@@ -1182,7 +1198,13 @@ def cfg_line(c):
             f" bg={','.join(str(i) for i in c.get('bg', []))}"          # сет B — всегда, пустой тоже:
             f" bm={','.join(m.replace(':', '') for m in c.get('bm', []))}"   # иначе агент помнит старый
             f" ba={','.join(str(i) for i in c.get('ba', []))}")          # чьи простые поглощать (пусто — всех)
-    if c.get("mode") == 1:
+    line += f" p3={c.get('p3', 0)} vl={c.get('vl', 0)} gw={c.get('gw', 0) if c.get('vl') else 0}"           # фаза 3: всегда, иначе не выключить; прежняя прошивка их не знает и пропускает
+    if c.get("p3"):
+        line += f" win={c.get('win', 30)} wo={c.get('wo', 0)} fm={c.get('fm', 0)}"
+    if c.get("vl"):
+        line += (f" vm={c.get('vm', 0)} vn={c.get('vn', 5)} vj={c.get('vj', 40)} vr={c.get('vr', 1)}"
+                 f" vs={c.get('vs', 80)} vc={c.get('vc', 0)} gt={c.get('gt', 20)} ve={c.get('ve', 0)}")
+    if c.get("mode") == 1 or c.get("vl"):                          # залп: слоты — по списку grp и без «сообща»
         line += " grp=" + ",".join(str(i) for i in c.get("grp") or [])   # пусто — стоп без группы
         if c.get("gm"):                    # MAC участников: агенты узнают о новых без перепрошивки
             line += " gm=" + ",".join(m.replace(":", "") for m in c["gm"])
@@ -1194,6 +1216,86 @@ def send_line(line, ip):
         cmd_sock.sendto(line.encode(), (ip, CMD_PORT))
     except OSError as e:
         print(f"[ctl] не отправлено {ip}: {e}", flush=True)
+    if line.startswith("CFG "):                 # плата без роутера (через посредника): та же настройка — ещё и через него
+        via = relay_for(ip)
+        if via:
+            try:
+                cmd_sock.sendto(f"RLY to={via[1]} {line}".encode(), (via[0], CMD_PORT))
+            except OSError as e:
+                print(f"[ctl] не отправлено посреднику {via[0]}: {e}", flush=True)
+
+
+GW_FRESH_S = 30.0          # сколько секунд слову посредника о плате верим: она без роутера, настройки — через него
+VP_ST = ("id", "slot", "cid", "rseq", "rok", "temp", "mv", "heap", "pr", "cand", "wins", "drop", "serr", "vol", "bal",
+         "rssi", "mrssi", "flags", "em")
+
+
+def relay_for(ip):
+    """Плата с этим адресом сейчас без роутера? Тогда (адрес посредника, номер платы), иначе None."""
+    now = time.time()
+    for a in list(agents.values()):
+        g = a.get("gwt")
+        if a.get("ip") == ip and g and now - g["t"] < GW_FRESH_S and g.get("flags", 0) & 1:
+            m = agents.get(g["via"])
+            return (m["ip"], a["id"]) if m and m.get("ip") else None
+    return None
+
+
+def ingest_vp(t, ip, mac, p, live):
+    """Пакет посредника (ведущий залпа, агент моторов) после каждого залпа. С ключом st — состояния участников,
+    как они сами сообщили в последнем такте: строки по VP_ST. С ключом f — находки такта 1: [автор, датчик,
+    мс от начала накачки, число]. Находки настоящего залпа (kind 0) идут в тот же журнал простых, что и свои
+    пакеты плат, под именем автора; контрольного (kind 1, составные) — только считаются.
+    Плата без роутера сама серверу не пишет: «жива» и «какая настройка применена» — по слову посредника; не та
+    настройка — повтор через него."""
+    sends, per = [], {}
+    with lock:
+        stats["rx"] += 1
+        m = agent_entry(mac, REG)
+        m["ip"], m["last"] = ip, max(m["last"] or 0, t)
+        by_id = {a["id"]: k for k, a in agents.items() if a.get("id")}
+        if "st" in p:
+            m["vp"] = {"t": round(t, 3), **{k: p.get(k) for k in ("cid", "cyc", "kind", "bal", "ns", "h", "rev", "nf", "rl")},
+                       "sham": (m.get("vp") or {}).get("sham", 0)}
+            for row in p.get("st") or []:
+                if not isinstance(row, list) or len(row) < len(VP_ST) - 1:   # без последнего (em) — прежняя сборка
+                    continue
+                st = dict(zip(VP_ST, row))
+                am = by_id.get(st["id"])
+                if not am:
+                    continue
+                a = agents[am]
+                a["gwt"] = {"t": round(t, 3), "via": mac, "cyc": p.get("cyc"), **st}
+                if st["flags"] & 1:                     # без роутера: жива — по слову посредника
+                    a["last"] = max(a["last"] or 0, t)
+                want = control["desired"].get(am)
+                if live and st["flags"] & 1 and want and want["cid"] != st["cid"] and t - a["cfg_sent"] >= RESEND_S:
+                    a["cfg_sent"] = t
+                    sends.append((f"RLY to={st['id']} " + cfg_line(want), ip))
+        recs = [r for r in p.get("f") or [] if isinstance(r, list) and len(r) >= 4]
+        if recs and p.get("kind"):
+            m.setdefault("vp", {"t": round(t, 3)})["sham"] = (m.get("vp") or {}).get("sham", 0) + len(recs)
+        elif recs:
+            for author, sensor, dt, hx in (r[:4] for r in recs):
+                am = by_id.get(author)
+                if am:
+                    cid = (agents[am].get("gwt") or {}).get("cid", p.get("cid", 0))
+                    per.setdefault(am, {"ip": agents[am].get("ip") or ip, "cid": cid, "p": []})["p"].append(
+                        [int(dt), str(hx), 2 + int(sensor)])
+        recent.setdefault(mac, deque(maxlen=RECENT_LEN)).append(
+            {"rx": round(t, 3), "type": "vp", "cyc": p.get("cyc"), "kind": p.get("kind"), "bal": p.get("bal"),
+             "st": len(p.get("st") or []), "f": len(recs)})
+    for line, to in sends:
+        try:
+            cmd_sock.sendto(line.encode(), (to, CMD_PORT))
+        except OSError as e:
+            print(f"[ctl] не отправлено посреднику {to}: {e}", flush=True)
+    for am, d in per.items():
+        pp = {"cid": d["cid"], "bits": 256, "p": d["p"]}
+        if live:
+            prm_queue.put((ingest_prm, (t, d["ip"], am, pp, True)))
+        else:
+            ingest_prm(t, d["ip"], am, pp, False)
 
 
 def validate_cfg(c):
@@ -1292,6 +1394,30 @@ def validate_cfg(c):
         raise ValueError("предел статического акселерометра: 2, 4, 8 или 16 g")
     if out["avg"] not in (1, 2, 4, 8):
         raise ValueError("усреднение статического акселерометра: 1, 2, 4 или 8 отсчётов")
+    try:                                                            # фаза 3
+        out.update({"p3": 1 if c.get("p3") else 0, "win": int(c.get("win", 30)), "wo": int(c.get("wo", 0)),
+                    "fm": 1 if c.get("fm") else 0, "vl": 1 if c.get("vl") else 0, "vm": 1 if c.get("vm") else 0,
+                    "vn": int(c.get("vn", 5)), "vj": int(c.get("vj", 40)), "vr": int(c.get("vr", 1)),
+                    "vs": int(c.get("vs", 80)), "vc": int(c.get("vc", 0)),
+                    "gw": 1 if c.get("gw") else 0, "gt": int(c.get("gt", 20)), "ve": 1 if c.get("ve") else 0})
+    except (TypeError, ValueError):
+        raise ValueError("фаза 3: win, wo, vn, vj, vr, vs, vc — целые числа")
+    if not 5 <= out["win"] <= 120:
+        raise ValueError("окно невесомости win от 5 до 120°")
+    if not -60 <= out["wo"] <= 60:
+        raise ValueError("сдвиг окна wo от −60 до 60°")
+    if not 1 <= out["vn"] <= 200:
+        raise ValueError("накачка vn от 1 до 200 оборотов")
+    if not 0 <= out["vj"] <= 500:
+        raise ValueError("ожидание перед залпом vj от 0 до 500 мс")
+    if not 1 <= out["vr"] <= 4:
+        raise ValueError("пар тактов залпа vr от 1 до 4")
+    if not 20 <= out["vs"] <= 2000:
+        raise ValueError("окно сервера vs от 20 до 2000 мс")
+    if out["vc"] not in (0, 1, 2):
+        raise ValueError("сверка залпа vc: 0, 1 или 2")
+    if not 5 <= out["gt"] <= 120:
+        raise ValueError("возврат на роутер gt: от 5 до 120 с без метки ведущего")
     return out
 
 
@@ -1416,6 +1542,70 @@ def apply_control(targets, cfg, own=None, force=False, remember=True, label=None
             for m in targets:
                 eff[m]["grp"] = ids
                 eff[m]["gm"] = [by_id[i] for i in ids]   # адреса — из реестра сервера, в порядке эстафеты
+        # фаза 3. Окна невесомости — только у генераторов «каждый сам», 256 бит, без проверки счёта (так требует прошивка).
+        bad_p3 = [agents[m].get("id") or m[-5:] for m in targets if eff[m].get("p3")
+                  and (eff[m]["role"] != 0 or eff[m]["mode"] or eff[m]["bits"] != 256 or eff[m]["det"])]
+        if bad_p3:
+            raise ValueError("окна невесомости (p3): только роль «генерация», «каждый сам», 256 бит, без det — у "
+                             + ", ".join(f"№{i}" for i in bad_p3))
+        for m in targets:                          # через посредника — только генератор в залпе; ведущий остаётся на роутере
+            if eff[m].get("gw") and (not eff[m].get("vl") or eff[m]["role"] != 0 or eff[m].get("vm")):
+                eff[m]["gw"] = 0
+        for m in targets:                          # без залпа такта излучения нет
+            if not eff[m].get("vl"):
+                eff[m]["ve"] = 0
+        # ---- залп: один на весь состав ----
+        # Группы состава задаются отдельными вызовами, а залп общий: слоты — все генераторы с залпом из всех групп,
+        # ведущий времени и посредник — агент моторов (в группы генераторов он не входит). Поэтому к выбранным
+        # добавляются остальные участники идущего залпа и ведущий: им уходит новый список слотов.
+        prev = control["desired"]
+        act = lambda c: bool(c.get("vl") and c.get("run"))
+        vl_now = [m for m in targets if act(eff[m])]
+        vl_was = [m for m in targets if m in prev and act(prev[m])]
+        if vl_now and cfg["mode"] == 1:
+            raise ValueError("залп (vl) — только «каждый сам»: список grp занят слотами залпа")
+        if vl_now or vl_was:
+            cst = compose_state()
+            rest = [m for m in prev if m not in targets and m in agents and act(prev[m])]
+            gens = [m for m in vl_now if eff[m]["role"] == 0]
+            no_p3 = [agents[m]["id"] for m in gens if not eff[m].get("p3")]
+            if no_p3:
+                raise ValueError("залп (vl) у генератора — только вместе с окнами невесомости (p3): "
+                                 + ", ".join(f"№{i}" for i in no_p3))
+            no_gw = [agents[m]["id"] for m in gens if eff[m].get("ve") and not eff[m].get("gw")]
+            if no_gw:
+                raise ValueError("такт излучения (ve) — только у плат через посредника (gw): на связи с роутером канал "
+                                 "менять нельзя — " + ", ".join(f"№{i}" for i in no_gw))
+            slots = sorted(agents[m]["id"] for m in gens + [m for m in rest if prev[m].get("role") == 0])
+            if 0 in slots:
+                raise ValueError("в залпе может быть только агент из реестра (с номером)")
+            if len(slots) > 16:
+                raise ValueError("в залпе не больше 16 агентов")
+            masters = [m for m in vl_now if eff[m].get("vm")] or [m for m in rest if prev[m].get("vm")] \
+                or [m for m in vl_now if eff[m]["role"] == 3][:1] \
+                or sorted((m for m, a in agents.items() if is_m_agent(m, a, cst) and cst["slot"].get(m) != "coil" and a.get("ip")),
+                          key=lambda m: agents[m].get("id") or 999)[:1]
+            if slots and len(masters) != 1:
+                raise ValueError("залп (vl): нужен ведущий времени — агент моторов на связи (он же посредник)")
+            extra = []
+            for m in rest + masters:
+                if m not in targets and m not in extra:
+                    extra.append(m)
+            for m in extra:
+                eff[m] = dict(prev[m]) if m in prev else {**cfg, "mode": 0, "role": 3}
+            for m in masters:
+                if slots:
+                    src_c = eff[gens[0]] if gens else eff[m]
+                    eff[m].update({"vl": 1, "vm": 1, "run": 1, "gw": 0, "p3": 0, "mode": 0, "role": 3,
+                                   **{k: src_c.get(k, DEFAULT_CFG[k]) for k in ("vn", "vj", "vr", "vs", "vc", "ve", "gt")}})
+                else:                              # генераторов с залпом не осталось — ведущий замолкает, платы вернутся на роутер
+                    eff[m].update({"vl": 0, "vm": 0, "ve": 0})
+            id_mac = {a["id"]: m for m, a in agents.items() if a.get("id")}
+            for m in vl_now + extra:
+                if eff[m].get("vl") and slots:
+                    eff[m]["grp"] = slots
+                    eff[m]["gm"] = [id_mac[i] for i in slots]
+            targets = list(targets) + extra
         prev = control["desired"]
         hard = lambda c: {k: c.get(k) for k in HARD_KEYS}
         changed = [m for m in targets if force or m not in prev or hard(prev[m]) != hard(eff[m])]
@@ -1477,16 +1667,22 @@ PRESETS = [
      "desc": "агенты «рассеяние» этой группы выпускают в эфир каждое её простое, смешав со своим шумом"},
     {"key": "sham", "name": "Пустышка — контроль", "cfg": {"mode": 1, "gv": 1, "dc": 1, "sm": 1, "sh": 1, "bgr": 0}, "b": True,
      "desc": "тот же трафик рассеяния, но вместо числа — шум: отделяет действие числа от действия радио"},
+    {"key": "p3", "name": "Фаза 3: окна и залп",
+     "cfg": {"mode": 0, "dc": 0, "bits": 256, "det": 0, "p3": 1, "vl": 1, "gw": 1, "pl": 1},
+     "desc": "числа — из показаний датчиков обода в невесомости; находки копятся в тишине и отдаются залпом; "
+             "платы без роутера, связь с сервером — через агента моторов"},
     {"key": "loop", "name": "Петля через эфир", "cfg": {"mode": 0, "dc": 0, "sm": 1, "sh": 0, "bgr": 50}, "a_src": 16, "b": True,
      "desc": "генерация берёт шум только из эфира рассеяния своей группы; рассеяние выпускает фон 50 кадров/с"},
 ]
 PRESET_BY_KEY = {p["key"]: p for p in PRESETS}
+P3_OFF = {"p3": 0, "vl": 0, "gw": 0, "ve": 0}      # фаза 3 включается только набором или своим параметром группы
 QUENCH_CFG = {"mode": 0, "gv": 0, "dc": 0, "sm": 1, "sh": 1, "bgr": 50, "run": 1}   # все — рассеяние: свой шум в эфир
 STANDBY_CFG = {"run": 0, "cpu": 80, "led": 0}                                         # стоять и остывать
 SLOTS = ["idle"] + [f"{g}{r}" for g in "1234" for r in "AB"] + ["S", "coil"]   # coil — агент M катушки колеса (wheels)
 # Свои параметры группы поверх набора (пульт): что ищем, шум, проверка, связь, тепло, журнал.
 GROUP_CFG_KEYS = ("bits", "nb", "all", "td", "src", "raw", "dc", "rk", "pw", "k", "pre", "nr", "txp", "cpu", "tmax", "pl",
-                  "sm", "sh", "bgr", "sf", "cf", "ss")
+                  "sm", "sh", "bgr", "sf", "cf", "ss",
+                  "p3", "win", "fm", "vl", "vn", "vr", "vs", "vc", "gw", "gt", "ve")   # фаза 3
 GROUP_KEYS = "1234"
 SUBGROUPS = "абвгдежз"        # подгруппы на колесе (планшетка): буква у агента; без буквы — «а»
 
@@ -1607,7 +1803,7 @@ def compose_apply():
                 for m in mem["A"]:
                     c["forced"][m] = {"src": own[m].get("src")}
                     own[m]["src"] = p["a_src"]
-            plan.append((mem["A"] + mem["B"], {**base, **p["cfg"], **(c["groups"][g].get("cfg") or {}), "run": 1},
+            plan.append((mem["A"] + mem["B"], {**base, **P3_OFF, **p["cfg"], **(c["groups"][g].get("cfg") or {}), "run": 1},
                          f"группа {g} · {p['name']}"))
         if idle:
             plan.append((idle, {**base, **STANDBY_CFG, "mode": 0}, "стоят"))
@@ -2539,6 +2735,8 @@ def state():
                 "ph": (a.get("stel") or {}).get("ph"),           # телефон: фон 50 Гц, радио, батарея
                 "mot": (a.get("mtel") or {}).get("mot"),         # агент моторов: цель, ШИМ, состояние
                 "plog": plog_brief(a, now), "ota": a.get("ota"), "ota_cmd": a.get("ota_cmd"), "rbt": a.get("rbt"), "ws": a.get("ws"),
+                "p3": a.get("p3"), "vl": a.get("vl"),  # фаза 3: окна датчиков и залп (последний пакет)
+                "gwt": a.get("gwt"), "vp": a.get("vp"),   # через посредника: слово о плате; у посредника — последний залп
                 "nbr": a.get("nbr"),                  # кого слышит по пульсу ESP-NOW и с каким сигналом
                 "rating": rb.get(a["mac"]) or {"score": 100, "cat": "ok", "sys": [], "n": 0, "recent": []},
             })

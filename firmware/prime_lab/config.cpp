@@ -40,7 +40,7 @@ static bool parse_macs(const char* val, uint8_t (*macs)[6], int& n) {
 }
 
 bool same_work(const GenConfig& a, const GenConfig& b) {
-  return a.src == b.src && a.raw == b.raw && a.xf == b.xf && a.rw == b.rw && a.sq == b.sq && a.tc == b.tc && a.p3 == b.p3 && a.det == b.det && a.bits == b.bits && a.nb == b.nb && a.all == b.all && a.td == b.td &&
+  return a.src == b.src && a.raw == b.raw && a.xf == b.xf && a.rw == b.rw && a.sq == b.sq && a.tc == b.tc && a.p3 == b.p3 && a.vl == b.vl && a.vm == b.vm && a.det == b.det && a.bits == b.bits && a.nb == b.nb && a.all == b.all && a.td == b.td &&
          a.mode == b.mode && a.ng == b.ng && memcmp(a.grp, b.grp, sizeof a.grp) == 0 &&
          a.nrate == b.nrate && a.has_gmac == b.has_gmac && memcmp(a.gmac, b.gmac, sizeof a.gmac) == 0 &&
          a.kmax == b.kmax && a.pre == b.pre && a.cpu == b.cpu && a.dc == b.dc &&
@@ -54,7 +54,8 @@ bool same_work(const GenConfig& a, const GenConfig& b) {
 bool soft_differs(const GenConfig& a, const GenConfig& b) {
   return a.tmax != b.tmax || a.txp != b.txp || a.ping != b.ping || a.hb != b.hb || a.led != b.led || a.tp != b.tp ||
          a.tl != b.tl || a.tq != b.tq || a.rmm != b.rmm || a.afs != b.afs || a.avg != b.avg || a.pl != b.pl ||
-         a.dur != b.dur || a.ro != b.ro || a.rt != b.rt || a.seg != b.seg || a.win != b.win || a.wo != b.wo || a.fm != b.fm;
+         a.dur != b.dur || a.ro != b.ro || a.rt != b.rt || a.seg != b.seg || a.win != b.win || a.wo != b.wo || a.fm != b.fm ||
+         a.vn != b.vn || a.vj != b.vj || a.vr != b.vr || a.vs != b.vs || a.vc != b.vc || a.gw != b.gw || a.gt != b.gt || a.ve != b.ve;
 }
 
 bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* err, size_t errlen) {
@@ -70,6 +71,7 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
   long gv = cur.gv, rk = cur.rk, pw = cur.pw, raw = cur.raw, hb = cur.hb, dur = cur.dur, ro = cur.ro, rt = cur.rt,
        sg = cur.sg, xf = cur.xf, rw = cur.rw, sq = cur.sq, sx = cur.sx, det = cur.det, seg = cur.seg, tc = cur.tc;
   long p3 = cur.p3, win = cur.win, wo = cur.wo, fm = cur.fm;
+  long vl = cur.vl, vm = cur.vm, vn = cur.vn, vj = cur.vj, vr = cur.vr, vs = cur.vs, vc = cur.vc, gw = cur.gw, gt = cur.gt, ve = cur.ve;
   uint64_t ba = cur.ba;
   bool bad_ba = false;
   int nbg = cur.nbg;
@@ -150,6 +152,16 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
     else if (!strcmp(tok, "win"))  win = v;
     else if (!strcmp(tok, "wo"))   wo = v;
     else if (!strcmp(tok, "fm"))   fm = v;
+    else if (!strcmp(tok, "vl"))   vl = v;
+    else if (!strcmp(tok, "vm"))   vm = v;
+    else if (!strcmp(tok, "vn"))   vn = v;
+    else if (!strcmp(tok, "vj"))   vj = v;
+    else if (!strcmp(tok, "vr"))   vr = v;
+    else if (!strcmp(tok, "vs"))   vs = v;
+    else if (!strcmp(tok, "vc"))   vc = v;
+    else if (!strcmp(tok, "gw"))   gw = v;
+    else if (!strcmp(tok, "gt"))   gt = v;
+    else if (!strcmp(tok, "ve"))   ve = v;
     else if (!strcmp(tok, "gm")) { has_gmac = true; bad_gm |= !parse_macs(val, gmac, ngm); }
     else if (!strcmp(tok, "grp")) { memset(grp, 0, sizeof grp); bad_grp |= !parse_ids(val, grp, ng); }
     else if (!strcmp(tok, "bm"))  { has_bmac = true; bad_bm |= !parse_macs(val, bmac, nbm); }
@@ -218,6 +230,19 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
   else if (win < 5 || win > 120)           snprintf(err, errlen, "bad win=%ld (5..120)", win);
   else if (wo < -60 || wo > 60)            snprintf(err, errlen, "bad wo=%ld (-60..60)", wo);
   else if (fm < 0 || fm > 1)               snprintf(err, errlen, "bad fm=%ld", fm);
+  else if (vl < 0 || vl > 1 || vm < 0 || vm > 1) snprintf(err, errlen, "bad vl/vm");
+  else if (vl && ng < 1)                   snprintf(err, errlen, "vl: grp missing");   // слоты залпа — по списку grp
+  else if (vl && !vm && role == ROLE_A && !p3) snprintf(err, errlen, "vl needs p3");
+  else if (vn < 1 || vn > 200)             snprintf(err, errlen, "bad vn=%ld (1..200)", vn);
+  else if (vj < 0 || vj > 500)             snprintf(err, errlen, "bad vj=%ld (0..500)", vj);
+  else if (vr < 1 || vr > 4)               snprintf(err, errlen, "bad vr=%ld (1..4)", vr);
+  else if (vs < 20 || vs > 2000)           snprintf(err, errlen, "bad vs=%ld (20..2000)", vs);
+  else if (vc < 0 || vc > 2)               snprintf(err, errlen, "bad vc=%ld", vc);
+  else if (gw < 0 || gw > 1)               snprintf(err, errlen, "bad gw=%ld", gw);
+  else if (gw && !vl)                      snprintf(err, errlen, "gw needs vl");   // без меток ведущего с роутера не уходят
+  else if (gt < 5 || gt > 120)             snprintf(err, errlen, "bad gt=%ld (5..120)", gt);
+  else if (ve < 0 || ve > 1)               snprintf(err, errlen, "bad ve=%ld", ve);
+  else if (ve && !vl)                      snprintf(err, errlen, "ve needs vl");
   else if (bad_bg)                         snprintf(err, errlen, "bad bg");
   else if (bad_ba)                         snprintf(err, errlen, "bad ba");
   else if (bad_bm || (has_bmac && nbm != nbg)) snprintf(err, errlen, "bad bm");
@@ -275,6 +300,16 @@ bool parse_config(const char* line, const GenConfig& cur, GenConfig& out, char* 
     out.win = (uint8_t)win;
     out.wo = (int8_t)wo;
     out.fm = (uint8_t)fm;
+    out.vl = (uint8_t)vl;
+    out.vm = (uint8_t)vm;
+    out.vn = (uint8_t)vn;
+    out.vj = (uint16_t)vj;
+    out.vr = (uint8_t)vr;
+    out.vs = (uint16_t)vs;
+    out.vc = (uint8_t)vc;
+    out.gw = (uint8_t)gw;
+    out.gt = (uint8_t)gt;
+    out.ve = (uint8_t)ve;
     out.nbg = (uint8_t)nbg;
     memcpy(out.bg, bg, sizeof bg);
     memcpy(out.bmac, bmac, sizeof bmac);

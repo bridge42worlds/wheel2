@@ -38,6 +38,7 @@ struct Window {                       // снятое окно
 
 struct Find {                         // найденное простое — строка таблицы находок
   uint8_t  num[32];
+  uint8_t  sham[32];                   // составное того же окна — для контрольного залпа
   uint8_t  sensor;
   uint16_t idx;                       // номер записи в окне
   uint32_t seq;                       // номер окна датчика
@@ -50,16 +51,19 @@ static const int NFIND = 64;          // таблица находок: посл
 void    begin(bool bus1_taken);
 uint8_t present();                    // бит на датчик
 void    configure(const GenConfig& c);   // p3, run, win, wo, fm — на ходу
+void    gate(bool open);              // залп: окна разрешены только в накачке (volley.cpp)
+uint16_t period_ms();                 // период оборота по датчикам, мс; 0 — колесо стоит
 
 // ---- ядро счёта ----
 bool take(Window*& w, TickType_t wait);    // забрать снятое окно; после обработки — release
 void release(Window* w);
 void record(const Window& w, int i, uint8_t out[RECLEN]);   // запись i окна — как она идёт в хеш
-void found(const Window& w, int i, const uint8_t* num);     // простое — в таблицу находок
+void found(const Window& w, int i, const uint8_t* num, const uint8_t* sham);   // простое (и составное рядом) — в таблицу
 void done(const Window& w, uint32_t cands, uint32_t primes, uint32_t us);   // итог окна — в счётчики
 
 // ---- телеметрия ----
 void add_tel(Out& o);                 // тело пакета "p3"
+void totals(uint32_t& wins, uint32_t& drop, uint32_t& err);   // по всем датчикам: окон, пропавших окон, ошибок шины
 int  finds(Find* out, int max);       // снимок таблицы находок (для залпа)
 
 }  // namespace p3
